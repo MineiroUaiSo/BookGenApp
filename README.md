@@ -9,7 +9,7 @@ Mostra a apuração da eleição para **Presidente** separada por região (Norte
 
 ## Como rodar
 
-    node server.js        # precisa de Node 18+; sem dependências
+    node dev.js        # precisa de Node 18+; sem dependências
     # abra http://localhost:3000
 
 Teste da interface com dados fictícios: `http://localhost:3000/?demo=1`
