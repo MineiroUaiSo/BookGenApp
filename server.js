@@ -157,19 +157,21 @@ async function dados() {
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 const PUB = path.join(__dirname, 'public');
 
-http.createServer(async (req, res) => {
+async function apiHandler(req, res) {
   const url = new URL(req.url, 'http://x');
-  if (url.pathname === '/api/apuracao') {
-    try {
-      const d = url.searchParams.has('demo') ? demo() : await dados();
-      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(JSON.stringify(d));
-    } catch (e) {
-      res.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ erro: e.message }));
-    }
-    return;
+  try {
+    const d = url.searchParams.has('demo') ? demo() : await dados();
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 's-maxage=15, stale-while-revalidate=30' });
+    res.end(JSON.stringify(d));
+  } catch (e) {
+    res.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ erro: e.message }));
   }
+}
+
+if (require.main === module) http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/api/apuracao') return apiHandler(req, res);
   const arq = path.join(PUB, url.pathname === '/' ? 'index.html' : path.normalize(url.pathname));
   if (!arq.startsWith(PUB)) { res.writeHead(403); return res.end(); }
   fs.readFile(arq, (err, buf) => {
@@ -178,3 +180,5 @@ http.createServer(async (req, res) => {
     res.end(buf);
   });
 }).listen(PORT, () => console.log(`Apuração por região: http://localhost:${PORT}  (demo: /?demo=1)`));
+
+module.exports = { apiHandler };
