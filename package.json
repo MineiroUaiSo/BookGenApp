@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "description": "Apuração de votos para presidente por região do Brasil, com dados oficiais do TSE",
   "private": true,
-  "scripts": { "start": "node dev.js" },
+  "scripts": { "start": "node dev.js", "test": "node --test test/*.test.js" },
   "engines": { "node": ">=18" }
 }
