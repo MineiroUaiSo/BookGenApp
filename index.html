@@ -32,10 +32,12 @@
   svg{width:100%;height:auto;display:block}
   .uf{stroke:var(--card);stroke-width:.8;cursor:pointer;transition:opacity .15s,fill .15s}
   .dim{opacity:.22}
-  .lbl{pointer-events:none;text-anchor:middle;font-weight:700;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:2.5px}
+  .lbl{pointer-events:none;text-anchor:middle;font-weight:700;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.6);stroke-width:3px}
   .lbl.ext{text-anchor:start;fill:var(--ink);stroke:var(--card)}
   .regs{display:grid;gap:8px;margin-top:12px}
   .reg{display:grid;grid-template-columns:110px 1fr 56px;gap:10px;align-items:center;padding:12px 8px;min-height:48px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+  .reg{width:100%;text-align:left;font:inherit;color:inherit;background:none}
+  .reg .bar{display:block}
   .reg:hover,.reg.sel{border-color:var(--c);background:color-mix(in srgb,var(--c) 10%,transparent)}
   .reg b{font-size:14px}.reg span{text-align:right;font-variant-numeric:tabular-nums}
   .row{display:grid;grid-template-columns:28px 1fr 64px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -67,13 +69,14 @@
   <section class="card total" id="total">Carregando apuração…</section>
   <section class="card" id="mapaCard" hidden>
     <h2>Mapa por região <span class="status" id="mapHint">— toque numa região</span></h2>
-    <svg id="mapa" role="img" aria-label="Mapa do Brasil por região"></svg>
-    <div class="regs" id="regs"></div>
+    <svg id="mapa" aria-hidden="true"></svg>
+    <div class="regs" id="regs" role="group" aria-label="Apuração por região do Brasil"></div>
   </section>
   <section class="card" id="detalhe" hidden></section>
 </main>
 <script src="mapa-brasil.js"></script>
 <script>
+const nomeBonito = n => String(n??'').toLowerCase().replace(/\S+/g,w=>w.length>2?w[0].toUpperCase()+w.slice(1):w);
 const COR = {Norte:'var(--Norte)',Nordeste:'var(--Nordeste)','Centro-Oeste':'var(--Centro-Oeste)',Sudeste:'var(--Sudeste)',Sul:'var(--Sul)'};
 const REGIOES = {Norte:['AC','AM','AP','PA','RO','RR','TO'],Nordeste:['AL','BA','CE','MA','PB','PE','PI','RN','SE'],'Centro-Oeste':['DF','GO','MS','MT'],Sudeste:['ES','MG','RJ','SP'],Sul:['PR','RS','SC']};
 const regiaoDe = {}; for (const [r,u] of Object.entries(REGIOES)) u.forEach(x=>regiaoDe[x.toLowerCase()]=r);
@@ -121,7 +124,7 @@ function selecionar(r){ sel = (r===sel)? null : r; render(); if(sel && innerWidt
 
 function candBlock(lista, n=4, cor){
   const max = lista[0]?.votos || 1;
-  return lista.slice(0,n).map(c=>`<div class="cand"><span><span class="n">${esc(c.nome)}</span> <small>${esc(c.numero)} ${esc(c.partido)}</small></span><span class="num">${int(c.votos)} · <b>${pct(c.pct)}</b></span><div class="bar"><i style="width:${c.pct}%;--c:${cor}"></i></div></div>`).join('');
+  return lista.slice(0,n).map(c=>`<div class="cand"><span><span class="n">${esc(nomeBonito(c.nome))}</span> <small>${esc([c.numero,c.partido].filter(Boolean).join(' · '))}</small></span><span class="num">${int(c.votos)} · <b>${pct(c.pct)}</b></span><div class="bar"><i style="width:${c.pct}%;--c:${cor}"></i></div></div>`).join('');
 }
 
 function render(){
@@ -129,9 +132,9 @@ function render(){
   const b = D.brasil;
   $('total').innerHTML = `<div><div class="status">Brasil</div><div class="big">${pct(b.pst,2)}</div><div class="status">das urnas apuradas</div>${b.secoesTot?`<div class="status">${int(b.secoes)} de ${int(b.secoesTot)} seções</div>`:''}</div>
     <div style="flex:1;min-width:240px"><div class="bar"><i style="width:${b.pst}%"></i></div><div class="status" style="margin-top:6px">${int(b.votosValidos)} votos nominais contados</div><div class="nota">inclui votos do exterior</div></div>
-    <div style="flex:2;min-width:260px">${candBlock(b.candidatos,3,'#667085')}</div>`;
-  $('regs').innerHTML = D.regioes.slice().sort((a,b)=>b.pst-a.pst).map(r=>`<div class="reg ${sel===r.nome?'sel':''}" style="--c:${COR[r.nome]}" data-r="${r.nome}"><b>${r.nome}</b><div class="bar"><i style="width:${r.pst}%;--c:${COR[r.nome]}"></i></div><span class="num">${pct(r.pst)}</span></div>`).join('');
-  document.querySelectorAll('.reg').forEach(el=>el.onclick=()=>selecionar(el.dataset.r));
+    <div style="flex:2;min-width:260px">${candBlock(b.candidatos,3,'#667085')}${b.candidatos.length>3?`<details><summary>Ver todos (${b.candidatos.length})</summary>${candBlock(b.candidatos,b.candidatos.length,'#667085')}</details>`:''}</div>`;
+  $('regs').innerHTML = D.regioes.slice().sort((a,b)=>b.pst-a.pst).map(r=>`<button type="button" class="reg ${sel===r.nome?'sel':''}" aria-pressed="${sel===r.nome}" style="--c:${COR[r.nome]}" data-r="${r.nome}"><b>${r.nome}</b><span class="bar"><i style="width:${r.pst}%;--c:${COR[r.nome]}"></i></span><span class="num">${pct(r.pst)}</span></button>`).join('');
+  document.querySelectorAll('.reg').forEach(el=>el.onclick=()=>{selecionar(el.dataset.r);document.querySelector(`.reg[data-r="${el.dataset.r}"]`).focus();});
   pintaMapa();
   const det = $('detalhe');
   if(!sel){
@@ -141,10 +144,11 @@ function render(){
   }
   const r = D.regioes.find(r=>r.nome===sel), cor = COR[sel];
   const est = D.estados.filter(e=>e.regiao===sel).sort((a,b)=>b.pst-a.pst);
-  det.innerHTML = `<h2 style="color:${cor}">${sel} — ${pct(r.pst,2)} apurado</h2>
+  det.innerHTML = `<button type="button" id="voltar">← Voltar ao Brasil</button><h2 style="color:${cor};margin-top:12px">${sel} — ${pct(r.pst,2)} apurado</h2>
     <p class="hint">Estados ordenados: mais apurado em cima, menos apurado embaixo.</p>` +
     est.map(e=>`<div class="row"><b>${e.uf}</b><div><span class="n">${esc(e.nome)}</span> <small>${e.candidatos[0]?`líder: ${esc(e.candidatos[0].nome)} ${pct(e.candidatos[0].pct)}`:''}</small><div class="bar" style="margin-top:4px"><i style="width:${e.pst}%;--c:${cor}"></i></div></div><span class="num"><b>${pct(e.pst)}</b></span></div>`).join('') +
     `<h2 style="margin-top:18px">Votos na região ${sel}</h2>` + candBlock(r.candidatos,6,cor);
+  $('voltar').onclick = () => selecionar(null);
 }
 
 const hm = () => new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
