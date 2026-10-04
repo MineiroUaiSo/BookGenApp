@@ -150,7 +150,7 @@ async function carregar(){
     $('status').textContent = `Atualizado às ${h} · fonte: ${j.fonte==='TSE'?'TSE (oficial)':'DEMONSTRAÇÃO'}`;
     $('banner').innerHTML = (j.fonte==='DEMO'?'<div>⚠️ Dados fictícios de demonstração — não são resultados reais.</div>':'') + (j.aviso?`<div>${esc(j.aviso)}</div>`:'') + (j.falhas?.length?`<div>Estados sem dados no momento: ${esc(j.falhas.map(f=>f.slice(0,2)).join(', '))}</div>`:'');
     render();
-  }catch(e){ $('status').innerHTML = `<span class="err">Erro ao buscar dados: ${esc(e.message)}</span>`; }
+  }catch(e){ $('status').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
 }
 $('refresh').onclick = carregar;
 carregar(); setInterval(carregar, 30000);
