@@ -70,6 +70,11 @@
   .phead{font-weight:700;margin-top:6px}.prow{padding:6px 0;border-top:1px solid var(--line)}
   .pcel .bar{height:8px;margin-bottom:3px}.pcel .num{font-size:12px}
   @media(max-width:600px){.phead,.prow{grid-template-columns:70px 1fr 1fr;gap:8px}.pcel .num small{display:block}}
+  .frow{display:grid;grid-template-columns:100px repeat(4,1fr);gap:4px 12px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
+  .fhead{font-size:12px;color:var(--mut);font-weight:700;border-top:0}
+  .frow .num{display:flex;flex-direction:column;text-align:left}.frow small{color:var(--mut);font-size:11px}
+  .frow .fbar{grid-column:2/-1;height:6px}.ftot{background:color-mix(in srgb,var(--ink) 5%,transparent);font-weight:700}
+  @media(max-width:700px){.frow{grid-template-columns:70px repeat(3,1fr)}.frow>span:nth-child(5){display:none}.fhead span:nth-child(5){display:none}}
 </style>
 </head>
 <body>
@@ -80,6 +85,7 @@
 <div class="banner" id="banner" role="alert"></div>
 <main>
   <section class="card total" id="total">Carregando apuração…</section>
+  <section class="card" id="falta" style="grid-column:1/-1" hidden></section>
   <section class="card" id="peso" style="grid-column:1/-1"></section>
   <section class="card" id="graficoCard" hidden>
     <h2>Evolução do voto: Lula x Bolsonaro</h2>
@@ -167,10 +173,29 @@ function pintaMapa(){
   $('mapHint').textContent = sel ? '— toque no fundo p/ voltar' : '— toque numa região';
 }
 
+// quantos votos já foram apurados e quantos faltam, por região e no Brasil (soma dos estados)
+function pintaFalta(){
+  const el = $('falta');
+  const linhas = [...D.regioes.map(r=>({nome:r.nome, c:r.contagem})), {nome:'Brasil', c:D.brasil.contagem, total:true}];
+  if (linhas.some(x=>!x.c)) { el.hidden = true; return; }
+  el.hidden = false;
+  const calc = c => { const tx = c.est ? c.c/c.est : 0; return { feitos:c.c, faltam:Math.round(c.esnt*tx), tot:Math.round(c.c + c.esnt*tx), eleit:c.esnt }; };
+  el.innerHTML = `<h2>Quantos votos já foram apurados e quantos faltam</h2>
+    <p class="hint">“Faltam” é uma <b>estimativa</b>: eleitores das seções ainda não apuradas × a taxa de comparecimento das seções já apuradas. O TSE só informa o número de eleitores dessas seções, não os votos.</p>
+    <div class="frow fhead"><span></span><span>Já apurados</span><span>Faltam (estim.)</span><span>Total previsto</span><span>Eleitores nas seções que faltam</span></div>` +
+    linhas.map(({nome,c,total})=>{ const x = calc(c), p = x.tot ? x.feitos/x.tot*100 : 0;
+      return `<div class="frow ${total?'ftot':''}"><b>${nome}</b><span class="num"><b>${int(x.feitos)}</b><small>votos</small></span><span class="num"><b>${int(x.faltam)}</b><small>votos</small></span><span class="num">${int(x.tot)}<small>${pct(p)} feito</small></span><span class="num">${int(x.eleit)}<small>eleitores</small></span><div class="bar fbar"><i style="width:${p}%"></i></div></div>`; }).join('') +
+    `<p class="nota">Brasil = soma dos estados (sem votos do exterior).</p>`;
+}
+
 // quanto cada região pesa no resultado nacional de Lula e Bolsonaro
 function pintaPeso(){
-  const nac = duelo(D.brasil.candidatos), vv = D.brasil.votosValidos || 1;
+  const nac0 = duelo(D.brasil.candidatos);
   const linhas = D.regioes.map(r=>({nome:r.nome, d:duelo(r.candidatos)}));
+  // o arquivo do Brasil do TSE pode estar atrasado em relação aos estados: nunca usar total menor que a soma das regiões
+  const sL = linhas.reduce((a,x)=>a+x.d.lv,0), sB = linhas.reduce((a,x)=>a+x.d.bv,0);
+  const nac = {...nac0, lv:Math.max(nac0.lv,sL), bv:Math.max(nac0.bv,sB)};
+  const vv = Math.max(D.brasil.votosValidos, D.regioes.reduce((a,r)=>a+r.votosValidos,0)) || 1;
   const extL = nac.lv - linhas.reduce((a,x)=>a+x.d.lv,0), extB = nac.bv - linhas.reduce((a,x)=>a+x.d.bv,0);
   if (extL > 1 || extB > 1) linhas.push({nome:'Exterior', d:{lv:Math.max(extL,0), bv:Math.max(extB,0)}});
   const cel = (v, tot, cor) => `<div class="pcel"><div class="bar"><i style="width:${tot?v/tot*100:0}%;--c:${cor}"></i></div><span class="num"><b>${pct(tot?v/tot*100:0)}</b> dos votos <small>· +${(v/vv*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} pp</small></span></div>`;
@@ -195,7 +220,7 @@ function render(){
     <div style="flex:2;min-width:260px">${candBlock(b.candidatos,3)}${b.candidatos.length>3?`<details><summary>Ver todos (${b.candidatos.length})</summary>${candBlock(b.candidatos,b.candidatos.length)}</details>`:''}</div>`;
   $('regs').innerHTML = D.regioes.slice().sort((a,b)=>b.pst-a.pst).map(r=>`<button type="button" class="reg ${sel===r.nome?'sel':''}" aria-pressed="${sel===r.nome}" style="--c:${corLider(r.candidatos)}" data-r="${r.nome}"><b>${r.nome}</b><span class="bar"><i style="width:${r.pst}%;--c:${corLider(r.candidatos)}"></i></span><span class="num">${pct(r.pst)}</span></button>`).join('');
   document.querySelectorAll('.reg').forEach(el=>el.onclick=()=>{selecionar(el.dataset.r);document.querySelector(`.reg[data-r="${el.dataset.r}"]`).focus();});
-  pintaMapa(); pintaPeso();
+  pintaMapa(); pintaPeso(); pintaFalta();
   const det = $('detalhe');
   if(!sel){
     det.innerHTML = `<h2>Votos por região</h2><p class="hint">Toque numa região (no mapa ou na lista) para ver os estados do mais apurado ao menos apurado.</p>` +

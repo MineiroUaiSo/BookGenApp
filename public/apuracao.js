@@ -116,7 +116,9 @@ function normalizaUF(uf, d) {
   let pst = num(d.s?.pst);
   if (pst == null && secoes && secoesTot != null) pst = (secoesTot / secoes) * 100;
   if (secoes && secoesTot == null && pst != null) secoesTot = Math.round((secoes * pst) / 100);
-  return { uf, nome: NOMES[uf], regiao: regiaoDe[uf], pst: pst ?? 0, secoes, secoesTot, peso: secoes || ELEITORADO[uf], candidatos: cands };
+  // eleitores aptos (te), nas seções já totalizadas (est) e nas que faltam (esnt); c = votos já computados (comparecimento)
+  const contagem = { te: num(d.e?.te), est: num(d.e?.est), esnt: num(d.e?.esnt), c: num(d.e?.c) };
+  return { uf, nome: NOMES[uf], regiao: regiaoDe[uf], pst: pst ?? 0, secoes, secoesTot, peso: secoes || ELEITORADO[uf], contagem, candidatos: cands };
 }
 
 function agrega(estados) {
@@ -136,11 +138,18 @@ function agrega(estados) {
     const total = soma(lista, (c) => c.votos);
     return lista.map((c) => ({ ...c, pct: total ? (c.votos / total) * 100 : 0 }));
   };
+  // soma da contagem de eleitores/votos; null se algum estado não informar
+  const contagemDe = (arr) => {
+    const ks = ['te', 'est', 'esnt', 'c'];
+    if (!arr.length || arr.some((e) => !e.contagem || ks.some((k) => e.contagem[k] == null))) return null;
+    const t = Object.fromEntries(ks.map((k) => [k, soma(arr, (e) => e.contagem[k])]));
+    return { ...t, secoes: soma(arr, (e) => e.secoes ?? 0), secoesTot: soma(arr, (e) => e.secoesTot ?? 0) };
+  };
   const regioes = Object.keys(REGIOES).map((nome) => {
     const es = estados.filter((e) => e.regiao === nome);
-    return { nome, pst: pctPonderado(es), votosValidos: soma(es, (e) => soma(e.candidatos, (c) => c.votos)), candidatos: candidatos(es), ufs: es.map((e) => e.uf) };
+    return { nome, pst: pctPonderado(es), contagem: contagemDe(es), votosValidos: soma(es, (e) => soma(e.candidatos, (c) => c.votos)), candidatos: candidatos(es), ufs: es.map((e) => e.uf) };
   });
-  const brasil = { pst: pctPonderado(estados), votosValidos: soma(estados, (e) => soma(e.candidatos, (c) => c.votos)), candidatos: candidatos(estados) };
+  const brasil = { pst: pctPonderado(estados), contagem: contagemDe(estados), votosValidos: soma(estados, (e) => soma(e.candidatos, (c) => c.votos)), candidatos: candidatos(estados) };
   for (const e of estados) {
     const tot = soma(e.candidatos, (c) => c.votos);
     e.candidatos = e.candidatos.sort((a, b) => b.votos - a.votos).map((c) => ({ ...c, pct: tot ? (c.votos / tot) * 100 : 0 }));
@@ -171,7 +180,7 @@ async function buscaTSE() {
   const b = normalizaUF('BR', br);
   const candidatos = comPct(b.candidatos);
   const brasil = candidatos.length
-    ? { pst: b.pst, secoes: b.secoes, secoesTot: b.secoesTot, votosValidos: candidatos.reduce((a, c) => a + c.votos, 0), candidatos }
+    ? { contagem: agregado.brasil.contagem, pst: b.pst, secoes: b.secoes, secoesTot: b.secoesTot, votosValidos: candidatos.reduce((a, c) => a + c.votos, 0), candidatos }
     : agregado.brasil;
   return {
     fonte: 'TSE',
@@ -200,13 +209,14 @@ function demo() {
   const nomes = [['22', 'FLAVIO BOLSONARO', 'PL'], ['13', 'LULA', 'PT'], ['55', 'RONALDO CAIADO', 'PSD'], ['70', 'AUGUSTO CURY', 'AVANTE']];
   const SEM_DADOS = 'RR';
   const estados = UFS.map((uf, i) => {
-    if (uf === SEM_DADOS) return { uf, nome: NOMES[uf], regiao: regiaoDe[uf], pst: 0, secoes: 0, secoesTot: 0, peso: 0, candidatos: [] };
+    if (uf === SEM_DADOS) return { uf, nome: NOMES[uf], regiao: regiaoDe[uf], pst: 0, secoes: 0, secoesTot: 0, peso: 0, contagem: { te: 0, est: 0, esnt: 0, c: 0 }, candidatos: [] };
     const pst = Math.min(100, 20 + ((seed % 40) * 2) + rnd(i) * 45);
     const base = ELEITORADO[uf] * 1000 * 0.78 * (pst / 100);
     const secoes = Math.round(ELEITORADO[uf] * 2.9);
     const w = nomes.map((_, k) => 0.2 + rnd(i * 7 + k));
     const ws = w.reduce((a, b) => a + b, 0);
-    return { uf, nome: NOMES[uf], regiao: regiaoDe[uf], pst, secoes, secoesTot: Math.round((secoes * pst) / 100), peso: secoes,
+    const te = ELEITORADO[uf] * 1000, est = Math.round((te * pst) / 100);
+    return { uf, nome: NOMES[uf], regiao: regiaoDe[uf], pst, secoes, secoesTot: Math.round((secoes * pst) / 100), peso: secoes, contagem: { te, est, esnt: te - est, c: Math.round(est * 0.78) },
       candidatos: nomes.map(([n, nm, sg], k) => ({ numero: n, nome: nm, partido: sg, votos: Math.round((base * w[k]) / ws) })) };
   });
   const ag = agrega(estados);
