@@ -33,6 +33,7 @@
   .uf{stroke:var(--card);stroke-width:.8;cursor:pointer;transition:opacity .15s,fill .15s}
   .dim{opacity:.22}
   .lbl{pointer-events:none;text-anchor:middle;font-weight:700;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:2.5px}
+  .lbl.ext{text-anchor:start;fill:var(--ink);stroke:var(--card)}
   .regs{display:grid;gap:8px;margin-top:12px}
   .reg{display:grid;grid-template-columns:110px 1fr 56px;gap:10px;align-items:center;padding:12px 8px;min-height:48px;border-radius:8px;cursor:pointer;border:1px solid transparent}
   .reg:hover,.reg.sel{border-color:var(--c);background:color-mix(in srgb,var(--c) 10%,transparent)}
@@ -103,10 +104,14 @@ function pintaMapa(){
   } else {
     const r=D.regioes.find(r=>r.nome===sel), c=caixa(r.ufs), pad=c.w*0.06;
     // zoom na região (mantém proporção do mapa inteiro para não "pular" a altura)
-    svg.setAttribute('viewBox', `${c.x-pad} ${c.y-pad} ${c.w+2*pad} ${c.h+2*pad}`);
-    const fs = Math.max(c.w,c.h)/34;
+    const fs = Math.max(c.w,c.h)/34, ext = [];
+    svg.setAttribute('viewBox', `${c.x-pad} ${c.y-pad} ${c.w+2*pad+fs*5} ${c.h+2*pad}`);
     D.estados.filter(e=>e.regiao===sel).forEach(e=>{const b=$('p-'+e.uf.toLowerCase()).getBBox();const x=b.x+b.width/2,y=b.y+b.height/2;
+      if(b.width<fs*7||b.height<fs*4.5){ext.push({e,x,y});return;} // estado pequeno: rótulo externo
       h+=`<text class="lbl" x="${x}" y="${y}" font-size="${fs}">${e.uf}</text><text class="lbl" x="${x}" y="${y+fs*1.05}" font-size="${fs}">${pct(e.pst,0)}</text>`;});
+    const lx = c.x+c.w+fs*0.5; let ly = -1e9;
+    ext.sort((a,b)=>a.y-b.y).forEach(o=>{ly=Math.max(o.y,ly+fs*1.3);
+      h+=`<line x1="${o.x}" y1="${o.y}" x2="${lx}" y2="${ly}" stroke="var(--mut)" stroke-width="${fs*0.08}"/><text class="lbl ext" x="${lx}" y="${ly+fs*0.35}" font-size="${fs}">${o.e.uf} ${pct(o.e.pst,0)}</text>`;});
   }
   $('labels').innerHTML=h;
   $('mapHint').textContent = sel ? '— toque no fundo p/ voltar' : '— toque numa região';
