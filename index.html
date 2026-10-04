@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apuração por Região</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#1b2430; --mut:#667085; --line:#e3e7ee; --bar:#e9edf3;
+    --Norte:#2e9e6b; --Nordeste:#e0902b; --Centro-Oeste:#b8566b; --Sudeste:#3a6fd1; --Sul:#8b5fc7;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#10141a; --card:#181d25; --ink:#e8ecf2; --mut:#98a2b3; --line:#2a313c; --bar:#262d38;
+      --Norte:#3fbf86; --Nordeste:#f0a640; --Centro-Oeste:#d4708a; --Sudeste:#5c8ae6; --Sul:#a67fe0;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{padding:16px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto}
+  h1{font-size:20px;margin:0}
+  .status{color:var(--mut);font-size:13px}
+  .banner{max-width:1200px;margin:0 auto 8px;padding:0 16px}
+  .banner div{background:#fff3cd;color:#664d03;border:1px solid #ffe69c;padding:8px 12px;border-radius:8px;font-size:14px}
+  main{max-width:1200px;margin:0 auto;padding:0 16px 32px;display:grid;gap:16px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  @media(max-width:860px){main{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h2{font-size:15px;margin:0 0 12px}
+  .total{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+  .big{font-size:34px;font-weight:700;line-height:1}
+  .bar{height:10px;border-radius:99px;background:var(--bar);overflow:hidden}
+  .bar>i{display:block;height:100%;border-radius:99px;background:var(--c,#3a6fd1)}
+  svg{width:100%;height:auto;display:block}
+  .uf{stroke:var(--card);stroke-width:.8;cursor:pointer;transition:opacity .15s,fill .15s}
+  .dim{opacity:.22}
+  .lbl{pointer-events:none;text-anchor:middle;font-weight:700;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.45);stroke-width:2.5px}
+  .regs{display:grid;gap:8px;margin-top:12px}
+  .reg{display:grid;grid-template-columns:110px 1fr 56px;gap:10px;align-items:center;padding:8px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+  .reg:hover,.reg.sel{border-color:var(--c);background:color-mix(in srgb,var(--c) 10%,transparent)}
+  .reg b{font-size:14px}.reg span{text-align:right;font-variant-numeric:tabular-nums}
+  .row{display:grid;grid-template-columns:28px 1fr 64px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+  .row:last-child{border:0}
+  .row small{color:var(--mut)} .row .n{font-weight:600}
+  .cand{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:6px 0}
+  .cand .bar{grid-column:1/-1;height:6px}
+  .num{font-variant-numeric:tabular-nums}
+  .hint{color:var(--mut);font-size:13px;margin:0 0 8px}
+  button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
+  .err{color:#b42318}
+</style>
+</head>
+<body>
+<header>
+  <h1>🗳️ Apuração — Presidente, por região</h1>
+  <div class="status"><span id="status">Carregando…</span> <button id="refresh">Atualizar</button></div>
+</header>
+<div class="banner" id="banner"></div>
+<main>
+  <section class="card total" id="total"></section>
+  <section class="card">
+    <h2>Mapa por região <span class="status" id="mapHint">— clique numa região</span></h2>
+    <svg id="mapa" role="img" aria-label="Mapa do Brasil por região"></svg>
+    <div class="regs" id="regs"></div>
+  </section>
+  <section class="card" id="detalhe"></section>
+</main>
+<script src="mapa-brasil.js"></script>
+<script>
+const COR = {Norte:'var(--Norte)',Nordeste:'var(--Nordeste)','Centro-Oeste':'var(--Centro-Oeste)',Sudeste:'var(--Sudeste)',Sul:'var(--Sul)'};
+const REGIOES = {Norte:['AC','AM','AP','PA','RO','RR','TO'],Nordeste:['AL','BA','CE','MA','PB','PE','PI','RN','SE'],'Centro-Oeste':['DF','GO','MS','MT'],Sudeste:['ES','MG','RJ','SP'],Sul:['PR','RS','SC']};
+const regiaoDe = {}; for (const [r,u] of Object.entries(REGIOES)) u.forEach(x=>regiaoDe[x.toLowerCase()]=r);
+const demo = new URLSearchParams(location.search).has('demo');
+const $ = id => document.getElementById(id);
+const pct = (v,d=1) => (v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
+const int = v => Math.round(v||0).toLocaleString('pt-BR');
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let D = null, sel = null;
+
+// ---- mapa
+const M = window.MAPA_BRASIL;
+const svg = $('mapa'); svg.setAttribute('viewBox', M.viewBox);
+svg.innerHTML = M.estados.map(e=>`<path class="uf" id="p-${e.id}" data-uf="${e.id}" d="${e.path}" fill="${COR[regiaoDe[e.id]]}"><title>${esc(e.nome)}</title></path>`).join('') + '<g id="labels"></g>';
+svg.addEventListener('click', ev => { const p = ev.target.closest('.uf'); if (p) selecionar(regiaoDe[p.dataset.uf]); else selecionar(null); });
+
+function centro(ids){ // centro da caixa envolvente do grupo de estados
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  ids.forEach(id=>{const b=$('p-'+id.toLowerCase()).getBBox();x0=Math.min(x0,b.x);y0=Math.min(y0,b.y);x1=Math.max(x1,b.x+b.width);y1=Math.max(y1,b.y+b.height);});
+  return [(x0+x1)/2,(y0+y1)/2];
+}
+function pintaMapa(){
+  document.querySelectorAll('.uf').forEach(p=>p.classList.toggle('dim', !!sel && regiaoDe[p.dataset.uf]!==sel));
+  let h='';
+  if(!sel){
+    D.regioes.forEach(r=>{const [x,y]=centro(r.ufs);h+=`<text class="lbl" x="${x}" y="${y}" font-size="17">${pct(r.pst,0)}</text>`;});
+  } else {
+    D.estados.filter(e=>e.regiao===sel).forEach(e=>{const b=$('p-'+e.uf.toLowerCase()).getBBox();
+      h+=`<text class="lbl" x="${b.x+b.width/2}" y="${b.y+b.height/2}" font-size="9">${e.uf}</text><text class="lbl" x="${b.x+b.width/2}" y="${b.y+b.height/2+10}" font-size="9">${pct(e.pst,0)}</text>`;});
+    const r=D.regioes.find(r=>r.nome===sel);const [x,y]=centro(r.ufs);
+  }
+  $('labels').innerHTML=h;
+  $('mapHint').textContent = sel ? '— clique no fundo p/ voltar' : '— clique numa região';
+}
+
+function selecionar(r){ sel = (r===sel)? null : r; render(); }
+
+function candBlock(lista, n=4, cor){
+  const max = lista[0]?.votos || 1;
+  return lista.slice(0,n).map(c=>`<div class="cand"><span><span class="n">${esc(c.nome)}</span> <small>${esc(c.numero)} ${esc(c.partido)}</small></span><span class="num">${int(c.votos)} · <b>${pct(c.pct)}</b></span><div class="bar"><i style="width:${c.pct}%;--c:${cor}"></i></div></div>`).join('');
+}
+
+function render(){
+  if(!D) return;
+  const b = D.brasil;
+  $('total').innerHTML = `<div><div class="status">Brasil — urnas apuradas</div><div class="big">${pct(b.pst,2)}</div></div>
+    <div style="flex:1;min-width:240px"><div class="bar"><i style="width:${b.pst}%"></i></div><div class="status" style="margin-top:6px">${int(b.votosValidos)} votos nominais contados</div></div>
+    <div style="flex:2;min-width:260px">${candBlock(b.candidatos,3,'#667085')}</div>`;
+  $('regs').innerHTML = D.regioes.slice().sort((a,b)=>b.pst-a.pst).map(r=>`<div class="reg ${sel===r.nome?'sel':''}" style="--c:${COR[r.nome]}" data-r="${r.nome}"><b>${r.nome}</b><div class="bar"><i style="width:${r.pst}%;--c:${COR[r.nome]}"></i></div><span class="num">${pct(r.pst)}</span></div>`).join('');
+  document.querySelectorAll('.reg').forEach(el=>el.onclick=()=>selecionar(el.dataset.r));
+  pintaMapa();
+  const det = $('detalhe');
+  if(!sel){
+    det.innerHTML = `<h2>Votos por região</h2><p class="hint">Clique numa região (no mapa ou na lista) para ver os estados do mais apurado ao menos apurado.</p>` +
+      D.regioes.map(r=>`<h2 style="margin-top:14px;color:${COR[r.nome]}">${r.nome} <span class="status">${pct(r.pst)} apurado</span></h2>${candBlock(r.candidatos,3,COR[r.nome])}`).join('');
+    return;
+  }
+  const r = D.regioes.find(r=>r.nome===sel), cor = COR[sel];
+  const est = D.estados.filter(e=>e.regiao===sel).sort((a,b)=>b.pst-a.pst);
+  det.innerHTML = `<h2 style="color:${cor}">${sel} — ${pct(r.pst,2)} apurado</h2>
+    <p class="hint">Estados ordenados: mais apurado em cima, menos apurado embaixo.</p>` +
+    est.map(e=>`<div class="row"><b>${e.uf}</b><div><span class="n">${esc(e.nome)}</span> <small>${e.candidatos[0]?`líder: ${esc(e.candidatos[0].nome)} ${pct(e.candidatos[0].pct)}`:''}</small><div class="bar" style="margin-top:4px"><i style="width:${e.pst}%;--c:${cor}"></i></div></div><span class="num"><b>${pct(e.pst)}</b></span></div>`).join('') +
+    `<h2 style="margin-top:18px">Votos na região ${sel}</h2>` + candBlock(r.candidatos,6,cor);
+}
+
+async function carregar(){
+  try{
+    const res = await fetch('/api/apuracao'+(demo?'?demo=1':''));
+    const j = await res.json();
+    if(!res.ok) throw new Error(j.erro||res.status);
+    D = j;
+    const h = new Date(j.atualizadoEm).toLocaleTimeString('pt-BR');
+    $('status').textContent = `Atualizado às ${h} · fonte: ${j.fonte==='TSE'?'TSE (oficial)':'DEMONSTRAÇÃO'}`;
+    $('banner').innerHTML = (j.fonte==='DEMO'?'<div>⚠️ Dados fictícios de demonstração — não são resultados reais.</div>':'') + (j.aviso?`<div>${esc(j.aviso)}</div>`:'') + (j.falhas?.length?`<div>Estados sem dados no momento: ${esc(j.falhas.map(f=>f.slice(0,2)).join(', '))}</div>`:'');
+    render();
+  }catch(e){ $('status').innerHTML = `<span class="err">Erro ao buscar dados: ${esc(e.message)}</span>`; }
+}
+$('refresh').onclick = carregar;
+carregar(); setInterval(carregar, 30000);
+</script>
+</body>
+</html>
