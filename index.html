@@ -46,6 +46,8 @@
   .hint{color:var(--mut);font-size:13px;margin:0 0 8px}
   button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
   .err{color:#b42318}
+  .vazio{text-align:center;padding:24px 16px}.vazio b{display:block;font-size:17px;margin-bottom:6px}
+  .nota{color:var(--mut);font-size:12px;margin-top:4px}
   svg{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   @media(max-width:600px){
     header{padding:12px}h1{font-size:18px}main{padding:0 10px 24px;gap:10px}.card{padding:12px}
@@ -57,17 +59,17 @@
 <body>
 <header>
   <h1>🗳️ Apuração — Presidente, por região</h1>
-  <div class="status"><span id="status">Carregando…</span> <button id="refresh">Atualizar</button></div>
+  <div class="status"><span id="status" aria-live="polite">Carregando…</span> <button id="refresh">Atualizar</button></div>
 </header>
-<div class="banner" id="banner"></div>
+<div class="banner" id="banner" role="alert"></div>
 <main>
-  <section class="card total" id="total"></section>
-  <section class="card">
+  <section class="card total" id="total">Carregando apuração…</section>
+  <section class="card" id="mapaCard" hidden>
     <h2>Mapa por região <span class="status" id="mapHint">— toque numa região</span></h2>
     <svg id="mapa" role="img" aria-label="Mapa do Brasil por região"></svg>
     <div class="regs" id="regs"></div>
   </section>
-  <section class="card" id="detalhe"></section>
+  <section class="card" id="detalhe" hidden></section>
 </main>
 <script src="mapa-brasil.js"></script>
 <script>
@@ -120,8 +122,8 @@ function candBlock(lista, n=4, cor){
 function render(){
   if(!D) return;
   const b = D.brasil;
-  $('total').innerHTML = `<div><div class="status">Brasil — urnas apuradas</div><div class="big">${pct(b.pst,2)}</div></div>
-    <div style="flex:1;min-width:240px"><div class="bar"><i style="width:${b.pst}%"></i></div><div class="status" style="margin-top:6px">${int(b.votosValidos)} votos nominais contados</div></div>
+  $('total').innerHTML = `<div><div class="status">Brasil</div><div class="big">${pct(b.pst,2)}</div><div class="status">das urnas apuradas</div>${b.secoesTot?`<div class="status">${int(b.secoes)} de ${int(b.secoesTot)} seções</div>`:''}</div>
+    <div style="flex:1;min-width:240px"><div class="bar"><i style="width:${b.pst}%"></i></div><div class="status" style="margin-top:6px">${int(b.votosValidos)} votos nominais contados</div><div class="nota">inclui votos do exterior</div></div>
     <div style="flex:2;min-width:260px">${candBlock(b.candidatos,3,'#667085')}</div>`;
   $('regs').innerHTML = D.regioes.slice().sort((a,b)=>b.pst-a.pst).map(r=>`<div class="reg ${sel===r.nome?'sel':''}" style="--c:${COR[r.nome]}" data-r="${r.nome}"><b>${r.nome}</b><div class="bar"><i style="width:${r.pst}%;--c:${COR[r.nome]}"></i></div><span class="num">${pct(r.pst)}</span></div>`).join('');
   document.querySelectorAll('.reg').forEach(el=>el.onclick=()=>selecionar(el.dataset.r));
@@ -140,17 +142,27 @@ function render(){
     `<h2 style="margin-top:18px">Votos na região ${sel}</h2>` + candBlock(r.candidatos,6,cor);
 }
 
+const hm = () => new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 async function carregar(){
   try{
     const res = await fetch('/api/apuracao'+(demo?'?demo=1':''));
     const j = await res.json();
-    if(!res.ok) throw new Error(j.erro||res.status);
+    if(!res.ok) throw Object.assign(new Error(j.erro||res.status),{http:res.status});
     D = j;
-    const h = new Date(j.atualizadoEm).toLocaleTimeString('pt-BR');
-    $('status').textContent = `Atualizado às ${h} · fonte: ${j.fonte==='TSE'?'TSE (oficial)':'DEMONSTRAÇÃO'}`;
+    const h = j.atualizadoEm.slice(11,19);
+    $('status').textContent = j.fonte==='TSE' ? `Dados do TSE de ${h}${j.eleicao?.turno?` · ${j.eleicao.turno}º turno`:''}` : `Demonstração · atualizado às ${h}`;
     $('banner').innerHTML = (j.fonte==='DEMO'?'<div>⚠️ Dados fictícios de demonstração — não são resultados reais.</div>':'') + (j.aviso?`<div>${esc(j.aviso)}</div>`:'') + (j.falhas?.length?`<div>Estados sem dados no momento: ${esc(j.falhas.map(f=>f.slice(0,2)).join(', '))}</div>`:'');
+    $('mapaCard').hidden = $('detalhe').hidden = false;
     render();
-  }catch(e){ $('status').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+  }catch(e){
+    if(D) $('status').innerHTML = `<span class="err">Falha ao atualizar (${hm()}) — mostrando dados anteriores</span>`;
+    else {
+      $('status').textContent = 'Sem dados';
+      $('total').innerHTML = [502,503].includes(e.http)
+        ? '<div class="vazio"><b>O TSE ainda não publicou a apuração.</b>Esta página atualiza sozinha a cada 30 s.</div>'
+        : `<div class="vazio"><b>Não foi possível carregar a apuração.</b>${esc(e.message)}<br>Nova tentativa automática a cada 30 s.</div>`;
+    }
+  }
 }
 $('refresh').onclick = carregar;
 carregar(); setInterval(carregar, 30000);
