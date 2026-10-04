@@ -59,6 +59,13 @@
     .big{font-size:30px}.reg{grid-template-columns:96px 1fr 52px}
     .row{grid-template-columns:26px 1fr 58px}
   }
+  .leg{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin:4px 0 8px}
+  .leg i,.gtip i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+  .gwrap{position:relative}
+  .gwrap svg{width:100%;height:auto;display:block;touch-action:pan-y}
+  .gwrap .eixo{font-size:11px;fill:var(--mut)}
+  .gwrap .rot{font-size:14px;font-weight:700}
+  .gtip{position:absolute;top:0;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;box-shadow:0 2px 8px #0002;pointer-events:none;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -69,6 +76,10 @@
 <div class="banner" id="banner" role="alert"></div>
 <main>
   <section class="card total" id="total">Carregando apuração…</section>
+  <section class="card" id="graficoCard" hidden>
+    <h2>Evolução do voto: Lula x Bolsonaro</h2>
+    <div id="grafico"></div>
+  </section>
   <section class="card" id="mapaCard" hidden>
     <h2>Mapa por região <span class="status" id="mapHint">— toque numa região</span></h2>
     <svg id="mapa" aria-hidden="true"></svg>
@@ -79,6 +90,7 @@
 </main>
 <script src="mapa-brasil.js"></script>
 <script src="apuracao.js"></script>
+<script src="grafico.js"></script>
 <script>
 const nomeBonito = n => String(n??'').toLowerCase().replace(/\S+/g,w=>w.length>2?w[0].toUpperCase()+w.slice(1):w);
 // cor pelo candidato: vermelho = PT/Lula (13), amarelo = PL/Bolsonaro (22), cinza = outros/sem dados
@@ -163,6 +175,24 @@ function render(){
   $('voltar').onclick = () => selecionar(null);
 }
 
+// ---- histórico: pontos coletados de tempos em tempos (historico.json) + o ponto ao vivo desta página
+let HIST = [];
+async function carregaHistorico(){
+  if(demo){ HIST = histDemo(); return; }
+  try{ const r = await fetch('historico.json',{cache:'no-store'}); HIST = r.ok ? await r.json() : []; }catch{ HIST = []; }
+}
+function histDemo(){
+  const nomes=[['13','LULA','PT'],['22','FLAVIO BOLSONARO','PL']];
+  return Array.from({length:24},(_,i)=>{const pst=4+i*4,vv=Math.round(pst*1e6),l=47+8*Math.exp(-i/5)*Math.cos(i/2.2)-i*0.05;
+    return {t:`2026-10-04T${String(18+Math.floor(i/6)).padStart(2,'0')}:${String((i%6)*10).padStart(2,'0')}:00-03:00`,pst,vv,c:nomes.map(([n,nome,partido],k)=>({n,nome,partido,votos:Math.round(vv*(k?100-l-6:l)/100)}))};});
+}
+function desenhaGrafico(){
+  const b = D.brasil, ult = HIST[HIST.length-1];
+  const vivo = {t:D.atualizadoEm,pst:b.pst,vv:b.votosValidos,c:b.candidatos.slice(0,4).map(c=>({n:String(c.numero),nome:c.nome,partido:c.partido,votos:c.votos}))};
+  const h = (!demo && (!ult || Date.parse(vivo.t) > Date.parse(ult.t)) && b.votosValidos>0) ? [...HIST,vivo] : HIST;
+  $('graficoCard').hidden = false;
+  Grafico.desenha($('grafico'), h);
+}
 const hm = () => new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 async function carregar(){
   try{
@@ -173,6 +203,7 @@ async function carregar(){
     $('banner').innerHTML = (j.fonte==='DEMO'?'<div>⚠️ Dados fictícios de demonstração — não são resultados reais.</div>':'') + (j.aviso?`<div>${esc(j.aviso)}</div>`:'') + (j.falhas?.length?`<div>Estados sem dados no momento: ${esc(j.falhas.map(f=>f.slice(0,2)).join(', '))}</div>`:'');
     $('mapaCard').hidden = $('detalhe').hidden = false;
     render();
+    desenhaGrafico();
   }catch(e){
     if(D) $('status').innerHTML = `<span class="err">Falha ao atualizar (${hm()}) — mostrando dados anteriores</span>`;
     else {
@@ -184,7 +215,7 @@ async function carregar(){
   }
 }
 $('refresh').onclick = carregar;
-carregar(); setInterval(carregar, 30000);
+carregaHistorico().then(carregar); setInterval(carregar, 30000); setInterval(()=>carregaHistorico().then(()=>D&&desenhaGrafico()), 120000);
 </script>
 </body>
 </html>

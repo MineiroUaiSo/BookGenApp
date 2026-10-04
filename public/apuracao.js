@@ -184,6 +184,15 @@ async function buscaTSE() {
   };
 }
 
+// Retrato enxuto do Brasil para o histórico: só o arquivo "br" (1 requisição). Usado pelo scripts/snapshot.js.
+async function snapshotBrasil() {
+  const { br } = await descobrirEleicao();
+  const b = normalizaUF('BR', br);
+  const vv = b.candidatos.reduce((a, c) => a + c.votos, 0);
+  const top = [...b.candidatos].sort((x, y) => y.votos - x.votos).slice(0, 4);
+  return { t: isoDoTSE(br.dg, br.hg), pst: b.pst, vv, c: top.map((c) => ({ n: String(c.numero), nome: c.nome, partido: c.partido, votos: c.votos })) };
+}
+
 // Dados fictícios só para testar a interface (?demo=1). Mesmo formato dos dados reais.
 function demo() {
   const seed = Math.floor(Date.now() / 20000);
@@ -240,6 +249,6 @@ function _reset() {
   cache = { t: 0, data: null, promise: null };
 }
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { normalizaUF, agrega, descobrirEleicao, num, _reset, buscar };
+if (typeof module !== 'undefined' && module.exports) module.exports = { normalizaUF, agrega, descobrirEleicao, snapshotBrasil, num, _reset, buscar };
 else window.Apuracao = { buscar };
 })();

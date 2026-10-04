@@ -112,3 +112,13 @@ test('descobrirEleicao: tudo 404 => erro 503', async () => {
   const un = stubFetch({ [CFG]: eleC, '/6257/': null, '/6258/': null });
   try { await assert.rejects(descobrirEleicao(), (e) => e.status === 503); } finally { un(); }
 });
+
+test('snapshot: acrescenta só quando o horário do TSE avança', () => {
+  const { acrescenta } = require('../scripts/snapshot.js');
+  const a = { t: '2026-10-04T18:00:33-03:00', pst: 12.45, vv: 1, c: [] };
+  const b = { ...a, t: '2026-10-04T18:05:00-03:00' };
+  assert.deepEqual(acrescenta([], a), [a]);
+  const h = [a];
+  assert.equal(acrescenta(h, a), h);
+  assert.deepEqual(acrescenta(h, b), [a, b]);
+});

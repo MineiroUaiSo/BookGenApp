@@ -1,0 +1,35 @@
+name: Histórico e publicação
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  push:
+    branches: [claude/vote-count-regional-app-irtq1b]
+    paths: ['public/**', 'scripts/**', '.github/workflows/historico.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: historico
+  cancel-in-progress: false
+jobs:
+  publica:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: claude/vote-count-regional-app-irtq1b, path: src }
+      - uses: actions/checkout@v4
+        with: { ref: gh-pages, path: site }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Copia o site (preserva historico.json)
+        run: rsync -a --exclude historico.json src/public/ site/
+      - name: Retrato do TSE
+        run: node src/scripts/snapshot.js site/historico.json
+        continue-on-error: true
+      - name: Publica
+        working-directory: site
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || { git commit -m "Atualiza site e histórico"; git push; }
