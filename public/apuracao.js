@@ -1,12 +1,17 @@
-// Busca e normaliza os dados oficiais do TSE (usado pelo servidor local e pela função da Vercel).
+// Busca e normaliza os dados oficiais do TSE. Universal: roda no navegador (window.Apuracao) e no Node (testes).
+(function () {
+'use strict';
 
-const ANO = process.env.ELEICAO_ANO || '2026';
-const CARGO = process.env.CARGO || '0001'; // 0001 = Presidente
+// Configuração: window.APURACAO_CFG = { ano, id, cargo } (navegador) ou ELEICAO_ANO/ELEICAO_ID/CARGO (Node).
+const CFG = (typeof window !== 'undefined' && window.APURACAO_CFG) || {};
+const ENV = (typeof process !== 'undefined' && process.env) || {};
+const ANO = CFG.ano || ENV.ELEICAO_ANO || '2026';
+const CARGO = CFG.cargo || ENV.CARGO || '0001'; // 0001 = Presidente
 const TTL_MS = 20_000;
 const BASE = 'https://resultados.tse.jus.br/oficial';
 
 // Pode fixar o código da eleição (ex.: ELEICAO_ID=544 em 2022 1º turno). Se vazio, descobre sozinho.
-const ID_FIXO = process.env.ELEICAO_ID || null;
+const ID_FIXO = CFG.id || ENV.ELEICAO_ID || null;
 const DESCOBERTA_TTL_MS = 5 * 60_000;
 let descoberto = null; // { id, t }
 
@@ -43,8 +48,8 @@ const num = (v) => {
 };
 
 async function getJson(url, timeoutMs = 15_000) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { 'user-agent': 'apuracao-por-regiao/1.0' } });
-  if (!res.ok) throw new Error(`HTTP ${res.status} em ${url}`);
+  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status} em ${url}`), { status: 502 });
   return res.json();
 }
 
@@ -179,7 +184,7 @@ async function buscaTSE() {
   };
 }
 
-// Dados fictícios só para testar a interface (/api/apuracao?demo=1). Mesmo formato da API real.
+// Dados fictícios só para testar a interface (?demo=1). Mesmo formato dos dados reais.
 function demo() {
   const seed = Math.floor(Date.now() / 20000);
   const rnd = (i) => { const x = Math.sin(seed * 31 + i * 12.9898) * 43758.5453; return x - Math.floor(x); };
@@ -226,16 +231,8 @@ async function dados() {
   return cache.promise;
 }
 
-async function apiHandler(req, res) {
-  const url = new URL(req.url, 'http://x');
-  try {
-    const d = url.searchParams.has('demo') ? demo() : await dados();
-    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 's-maxage=15, stale-while-revalidate=30' });
-    res.end(JSON.stringify(d));
-  } catch (e) {
-    res.writeHead(e.status || 502, { 'content-type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ erro: e.message }));
-  }
+function buscar({ demo: usaDemo } = {}) {
+  return usaDemo ? Promise.resolve(demo()) : dados();
 }
 
 function _reset() {
@@ -243,4 +240,6 @@ function _reset() {
   cache = { t: 0, data: null, promise: null };
 }
 
-module.exports = { apiHandler, normalizaUF, agrega, descobrirEleicao, num, _reset };
+if (typeof module !== 'undefined' && module.exports) module.exports = { normalizaUF, agrega, descobrirEleicao, num, _reset, buscar };
+else window.Apuracao = { buscar };
+})();

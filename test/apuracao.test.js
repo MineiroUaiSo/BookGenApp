@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { num, normalizaUF, agrega, descobrirEleicao, _reset } = require('../lib/apuracao.js');
+const { num, normalizaUF, agrega, descobrirEleicao, _reset } = require('../public/apuracao.js');
 
 const fx = (n) => require(path.join(__dirname, 'fixtures', n));
 const sp = fx('sp-u.json');

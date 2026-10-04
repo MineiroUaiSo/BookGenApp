@@ -1,6 +1,0 @@
-{
-  "framework": null,
-  "regions": ["gru1"],
-  "outputDirectory": "public",
-  "functions": { "api/apuracao.js": { "maxDuration": 30 } }
-}
