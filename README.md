@@ -19,9 +19,21 @@ Teste da interface com dados fictícios: `http://localhost:3000/?demo=1`
 | Variável | Padrão | Para quê |
 |---|---|---|
 | `ELEICAO_ANO` | `2026` | ano da eleição no TSE |
-| `ELEICAO_ID` | auto | código da eleição no TSE (ex.: `544` = 1º turno 2022). Defina se a descoberta automática falhar |
+| `ELEICAO_ID` | auto | código da eleição no TSE (ex.: `6257` = 1º turno 2026, `6258` = 2º turno). Defina se a descoberta automática falhar |
 | `CARGO` | `0001` | `0001` = Presidente |
 | `PORT` | `3000` | porta |
 
-Fonte: `https://resultados.tse.jus.br/oficial/ele{ANO}/{ID}/dados-simplificados/{uf}/{uf}-c0001-e{ID}-r.json`.
-O % por região é ponderado pelas seções totalizadas de cada estado.
+## Fonte dos dados
+
+`https://resultados.tse.jus.br/oficial/ele{ANO}/{ID}/dados/{uf}/{uf}-c0001-e{ID}-u.json`
+(`br` = Brasil, incluindo exterior).
+
+- % apurado da região = Σ seções totalizadas / Σ seções totais das UFs da região.
+- % apurado do Brasil = número oficial do TSE (arquivo `br`).
+- O código da eleição é descoberto pela configuração oficial do TSE. A troca automática para o 2º turno (`6258`) só acontece quando ele já tem seções totalizadas; antes disso vale o 1º turno (`6257`).
+
+## Testes
+
+    npm test
+
+Rodam sem rede, com arquivos reais do TSE em `test/fixtures/`.
