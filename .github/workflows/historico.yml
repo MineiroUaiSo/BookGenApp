@@ -1,7 +1,7 @@
 name: Histórico e publicação
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/15 * * * *'
   push:
     branches: [claude/vote-count-regional-app-irtq1b]
     paths: ['public/**', 'scripts/**', '.github/workflows/historico.yml']
@@ -14,6 +14,7 @@ concurrency:
 jobs:
   publica:
     runs-on: ubuntu-latest
+    timeout-minutes: 16
     steps:
       - uses: actions/checkout@v4
         with: { ref: claude/vote-count-regional-app-irtq1b, path: src }
@@ -23,13 +24,14 @@ jobs:
         with: { node-version: 20 }
       - name: Copia o site (preserva historico.json)
         run: rsync -a --exclude historico.json src/public/ site/
-      - name: Retrato do TSE
-        run: node src/scripts/snapshot.js site/historico.json
-        continue-on-error: true
-      - name: Publica
+      - name: Retrato do TSE a cada minuto (~14 min por execução)
         working-directory: site
         run: |
           git config user.name "github-actions"
           git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git diff --cached --quiet || { git commit -m "Atualiza site e histórico"; git push; }
+          for i in $(seq 1 14); do
+            node ../src/scripts/snapshot.js historico.json || true
+            git add -A
+            git diff --cached --quiet || { git commit -qm "Atualiza site e histórico"; git pull -q --rebase && git push -q || true; }
+            [ "$i" -lt 14 ] && sleep 60
+          done
