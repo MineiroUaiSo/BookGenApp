@@ -78,6 +78,7 @@
   <section class="card" id="detalhe" hidden></section>
 </main>
 <script src="mapa-brasil.js"></script>
+<script src="apuracao.js"></script>
 <script>
 const nomeBonito = n => String(n??'').toLowerCase().replace(/\S+/g,w=>w.length>2?w[0].toUpperCase()+w.slice(1):w);
 // cor pelo candidato: vermelho = PT/Lula (13), amarelo = PL/Bolsonaro (22), cinza = outros/sem dados
@@ -165,9 +166,7 @@ function render(){
 const hm = () => new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 async function carregar(){
   try{
-    const res = await fetch('/api/apuracao'+(demo?'?demo=1':''));
-    const j = await res.json();
-    if(!res.ok) throw Object.assign(new Error(j.erro||res.status),{http:res.status});
+    const j = await Apuracao.buscar({demo});
     D = j;
     const h = j.atualizadoEm.slice(11,19);
     $('status').textContent = j.fonte==='TSE' ? `Dados do TSE de ${h}${j.eleicao?.turno?` · ${j.eleicao.turno}º turno`:''}` : `Demonstração · atualizado às ${h}`;
@@ -178,7 +177,7 @@ async function carregar(){
     if(D) $('status').innerHTML = `<span class="err">Falha ao atualizar (${hm()}) — mostrando dados anteriores</span>`;
     else {
       $('status').textContent = 'Sem dados';
-      $('total').innerHTML = [502,503].includes(e.http)
+      $('total').innerHTML = [502,503].includes(e.status)
         ? '<div class="vazio"><b>O TSE ainda não publicou a apuração.</b>Esta página atualiza sozinha a cada 30 s.</div>'
         : `<div class="vazio"><b>Não foi possível carregar a apuração.</b>${esc(e.message)}<br>Nova tentativa automática a cada 30 s.</div>`;
     }
