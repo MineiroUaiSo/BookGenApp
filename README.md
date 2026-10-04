@@ -9,19 +9,38 @@ Mostra a apuração da eleição para **Presidente** separada por região (Norte
 
 ## Como rodar
 
-    node dev.js        # precisa de Node 18+; sem dependências
+Site 100% estático: a pasta `public/` sozinha é o site. O navegador busca os dados direto no TSE (sem backend).
+
+    node dev.js        # Node 18+, sem dependências
     # abra http://localhost:3000
 
-Teste da interface com dados fictícios: `http://localhost:3000/?demo=1`
+Ou use qualquer servidor estático apontando para `public/` (ex.: `python3 -m http.server -d public`).
+Teste da interface com dados fictícios: `/?demo=1`.
+
+## Testes
+
+    npm test
+
+Rodam sem rede, com arquivos reais do TSE em `test/fixtures/`.
+
+## Publicar de graça
+
+- **Cloudflare Pages**: conecte o repositório, deixe o build command vazio e use `public` como output directory. Ou pela CLI: `npx wrangler pages deploy public --project-name apuracao-por-regiao`.
+- **Netlify**: arraste a pasta `public/` em https://app.netlify.com/drop.
+
+Atenção: o site depende de o TSE manter o CORS aberto em `resultados.tse.jus.br`.
 
 ## Configuração (opcional)
 
-| Variável | Padrão | Para quê |
+Defina antes de carregar `apuracao.js` no `index.html`:
+
+    <script>window.APURACAO_CFG = { ano: '2026', id: '6257' };</script>
+
+| Campo | Padrão | Para quê |
 |---|---|---|
-| `ELEICAO_ANO` | `2026` | ano da eleição no TSE |
-| `ELEICAO_ID` | auto | código da eleição no TSE (ex.: `6257` = 1º turno 2026, `6258` = 2º turno). Defina se a descoberta automática falhar |
-| `CARGO` | `0001` | `0001` = Presidente |
-| `PORT` | `3000` | porta |
+| `ano` | `2026` | ano da eleição no TSE |
+| `id` | auto | código da eleição no TSE (ex.: `6257` = 1º turno 2026, `6258` = 2º turno). Defina se a descoberta automática falhar |
+| `cargo` | `0001` | `0001` = Presidente |
 
 ## Fonte dos dados
 
@@ -31,9 +50,3 @@ Teste da interface com dados fictícios: `http://localhost:3000/?demo=1`
 - % apurado da região = Σ seções totalizadas / Σ seções totais das UFs da região.
 - % apurado do Brasil = número oficial do TSE (arquivo `br`).
 - O código da eleição é descoberto pela configuração oficial do TSE. A troca automática para o 2º turno (`6258`) só acontece quando ele já tem seções totalizadas; antes disso vale o 1º turno (`6257`).
-
-## Testes
-
-    npm test
-
-Rodam sem rede, com arquivos reais do TSE em `test/fixtures/`.
