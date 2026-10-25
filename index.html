@@ -301,13 +301,13 @@ function pintaChance(){
       <div class="status">Projeção final <b>${pp(r.final.medio)}</b> (faixa provável ${pp(r.final.p5)} a ${pp(r.final.p95)})</div></div>
     </div>
     ${ganhou?`<div class="vitoria">Vitória de ${lider} praticamente garantida pelos números da apuração.</div>`:''}
-    ${r.soPrior.length?`<div class="nota">Sem dados do TSE agora para ${esc(r.soPrior.join(', '))}: entram só pelo resultado do 1º turno.</div>`:''}
+    ${r.soPrior.length?`<div class="nota">Sem dados do TSE agora para ${esc(r.soPrior.map(u=>u==='ZZ'?'Exterior':u).join(', '))}: entram só pelo resultado do 1º turno.</div>`:''}
     <div class="fatos">
       <div class="fato"><b>${caminho}</b>do que falta p/ Lula chegar a 50%</div>
       <div class="fato"><b>~${mi(r.votosFaltam)}</b>votos válidos a apurar (estim.)</div>
       <div class="fato"><b>${pct(r.fracaoApurada*100,1)}</b>do eleitorado apurado</div>
     </div>${spark}
-    <details class="metodo"><summary>Como a chance é calculada</summary><p class="nota"><b>Estimativa do modelo, não resultado oficial.</b> Simulação de 20 mil cenários: cada estado entra com o duelo Lula x Flávio do 1º turno e passa a pesar mais a % observada conforme a apuração avança. No começo da noite o número oscila bastante (as primeiras urnas não representam o país); só vale como oficial o que o TSE divulgar.</p></details>`;
+    <details class="metodo"><summary>Como a chance é calculada</summary><p class="nota"><b>Estimativa estatística, não resultado oficial.</b> No começo da apuração, as primeiras urnas não representam o país e a chance pode mudar muito. Simulação de 100 mil cenários: cada estado entra com o duelo Lula x Flávio do 1º turno e passa a pesar mais a % observada conforme a apuração avança. No começo da noite o número oscila bastante (as primeiras urnas não representam o país); só vale como oficial o que o TSE divulgar.</p></details>`;
   document.title = `Lula ${pp(r.atual)} · ${txt} de chance`;
 }
 
