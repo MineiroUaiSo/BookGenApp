@@ -101,6 +101,31 @@ async function descobrirEleicao() {
   throw err;
 }
 
+// Composição municipal do que já foi apurado (modo "municipal" do chances.js): compara cada município com ELE MESMO no 1º turno.
+// 1º turno por município: public/municipios-1t-2026.json (estático). Apurado: *-ab.json de cada UF (~15 KB gzip), em cache por 2 min.
+let tabelaMun = null;
+let munCache = { t: 0, id: null, dados: null };
+async function municipiosApurados(id) {
+  if (munCache.dados && munCache.id === id && Date.now() - munCache.t < 120_000) return munCache.dados;
+  if (!tabelaMun) {
+    tabelaMun = typeof window === 'undefined'
+      ? JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'municipios-1t-2026.json'), 'utf8'))
+      : await (await fetch('municipios-1t-2026.json')).json();
+  }
+  const ufs = [...UFS, 'ZZ'];
+  const r = await Promise.allSettled(ufs.map((uf) => getJson(`${BASE}/ele${ANO}/${id}/dados/${uf.toLowerCase()}/${uf.toLowerCase()}-e${idStr(id)}-ab.json`)));
+  const out = {};
+  r.forEach((x, i) => {
+    if (x.status !== 'fulfilled') return; // sem o ab.json dessa UF: o modelo usa só a UF
+    const t = tabelaMun[ufs[i]] || {};
+    const lista = x.value.abr.filter((a) => a.tpabr === 'mun' && t[a.cdabr])
+      .map((a) => { const [te1, vv1, L1, B1] = t[a.cdabr]; return [num(a.e.te) || te1, num(a.e.est) || 0, vv1, L1, B1]; });
+    if (lista.length) out[ufs[i]] = lista;
+  });
+  munCache = { t: Date.now(), id, dados: out };
+  return out;
+}
+
 // Insumos do modelo de chances (2º turno): resultado final do 1º turno por UF (prior) e o exterior (ZZ) nos dois turnos.
 // O 1º turno é definitivo, então fica em cache para sempre.
 let primeiroTurnoCache = null;
@@ -116,7 +141,9 @@ async function insumosModelo(idAtual) {
   }
   let exterior = null;
   try { exterior = normalizaUF('ZZ', await getJson(urlUF(idAtual, 'ZZ'))); } catch { /* sem exterior: o modelo ignora */ }
-  return { prior: primeiroTurnoCache, exterior };
+  let municipios = {};
+  try { municipios = await municipiosApurados(idAtual); } catch { /* sem composição municipal: modelo usa só a UF */ }
+  return { prior: primeiroTurnoCache, exterior, municipios };
 }
 
 function normalizaUF(uf, d) {
@@ -290,6 +317,7 @@ function buscar({ demo: usaDemo } = {}) {
 
 function _reset() {
   descoberto = null;
+  munCache = { t: 0, id: null, dados: null };
   cache = { t: 0, data: null, promise: null };
 }
 
