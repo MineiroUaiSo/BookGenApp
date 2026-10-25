@@ -4,7 +4,7 @@
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmt = (v, d = 1) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const hora = (t) => t.slice(11, 16);
-const W = 640, H = 280, M = { l: 44, r: 74, t: 14, b: 30 };
+let W = 640, H = 280; const M = { l: 44, r: 74, t: 14, b: 30 };
 const PT = '13', PL = '22';
 
 // Duas séries: Lula (13) e Bolsonaro (22); se não estiverem no histórico, os dois mais votados do último ponto.
@@ -36,10 +36,13 @@ function escala(ss) {
 
 function desenha(el, hist) {
   if (!hist || !hist.length) { el.innerHTML = '<p class="hint">O histórico começa a ser registrado a cada atualização do TSE. Volte em alguns minutos.</p>'; return; }
+  // largura real do container: o texto do eixo fica em ~12px também no celular
+  W = Math.max(300, Math.round(el.clientWidth || 640)); H = W < 480 ? 220 : 280;
+  M.l = W < 480 ? 36 : 44; M.r = W < 480 ? 52 : 74;
   const ss = series(hist);
   const e = escala(ss);
   const grade = e.ticks.map((v) => `<line x1="${M.l}" x2="${W - M.r}" y1="${e.Y(v)}" y2="${e.Y(v)}" stroke="var(--line)"/><text x="${M.l - 6}" y="${e.Y(v) + 4}" text-anchor="end" class="eixo">${fmt(v, 0)}%</text>`).join('');
-  const nx = Math.min(5, hist.length);
+  const nx = Math.min(W < 480 ? 4 : 5, hist.length);
   const eixoX = Array.from({ length: nx }, (_, i) => {
     const p = hist[Math.round((i * (hist.length - 1)) / Math.max(1, nx - 1))];
     return `<text x="${e.X(Date.parse(p.t))}" y="${H - 8}" text-anchor="middle" class="eixo">${hora(p.t)}</text>`;
@@ -65,18 +68,24 @@ function desenha(el, hist) {
 function ligaTooltip(el, ss, e) {
   const svg = el.querySelector('svg'), cur = el.querySelector('#gcur'), tip = el.querySelector('.gtip'), box = el.querySelector('.gwrap');
   const base = ss[0].pts;
+  let timer = 0;
   const sai = () => { cur.hidden = true; tip.hidden = true; };
-  svg.addEventListener('pointermove', (ev) => {
+  const mostra = (ev) => {
     const r = svg.getBoundingClientRect(), x = ((ev.clientX - r.left) / r.width) * W;
     let k = 0; base.forEach((p, i) => { if (Math.abs(e.X(p.t) - x) < Math.abs(e.X(base[k].t) - x)) k = i; });
     const p = base[k], px = e.X(p.t);
     cur.hidden = false; cur.firstElementChild.setAttribute('x1', px); cur.firstElementChild.setAttribute('x2', px);
     tip.hidden = false;
     tip.innerHTML = `<b>${hora(p.tt)}</b> · ${fmt(p.pst, 1)}% apurado` + ss.map((s) => { const q = s.pts.find((z) => z.t === p.t); return q ? `<div><i style="background:${s.cor}"></i>${fmt(q.y, 2)}%</div>` : ''; }).join('');
-    const w = box.clientWidth, tx = (px / W) * w;
-    tip.style.left = `${Math.min(Math.max(tx, 60), w - 60)}px`;
-  });
-  svg.addEventListener('pointerleave', sai);
+    // o tooltip nunca passa da borda do gráfico (evita rolagem horizontal no celular)
+    const w = box.clientWidth, tx = (px / W) * w, meia = tip.offsetWidth / 2 + 4;
+    tip.style.left = `${Math.min(Math.max(tx, meia), w - meia)}px`;
+    if (ev.pointerType === 'touch') { clearTimeout(timer); timer = setTimeout(sai, 4000); }
+  };
+  svg.addEventListener('pointermove', mostra);
+  svg.addEventListener('pointerdown', mostra);
+  svg.addEventListener('pointerleave', (ev) => { if (ev.pointerType !== 'touch') sai(); });
+  svg.addEventListener('pointercancel', sai);
 }
 
 window.Grafico = { desenha };
