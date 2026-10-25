@@ -6,7 +6,8 @@
 //  - participação esperada do Lula nos votos que faltam = mistura entre a % observada até agora e um "prior"
 //    (parcela do Lula no duelo Lula x Flávio do 1º turno naquela UF + deslocamento nacional estimado);
 //    quanto mais apurado, mais peso na % observada;
-//  - incertezas: choque nacional comum, ruído por UF e variação do comparecimento — todos encolhem com a apuração.
+//  - incertezas (choque nacional, choque por região, ruído por UF, comparecimento) valem só para os votos que FALTAM:
+//    com a apuração completa não sobra incerteza.
 (function () {
 'use strict';
 
@@ -15,7 +16,10 @@ const LULA = '13';
 const FLAVIO = '22';
 const N0_SWING = 400_000;   // votos "virtuais" que ancoram o deslocamento nacional em 0
 const K_PESO = 0.3;         // fração apurada em que observado e prior pesam igual
-const TAU_PRIOR = 0.02;     // choque nacional com 0% apurado (2 pp); cai com a raiz da fração que falta
+const TAU_NAC = 0.015;      // choque nacional comum (1,5 pp) sobre os votos que faltam
+const SIGMA_REG = 0.015;    // choque correlacionado por região (1,5 pp): o que falta costuma ser um bloco, não amostra aleatória
+const N0_REG = 150_000;     // votos 'virtuais' que ancoram o deslocamento regional no nacional
+const GANHO_FULL = 0.05;    // fração apurada a partir da qual o deslocamento observado pesa por inteiro
 const SIGMA_UF = 0.015;     // ruído de cada UF (1,5 pp)
 const SIGMA_COMP = 0.02;    // variação nacional do comparecimento (2%)
 
@@ -29,15 +33,16 @@ function rng(seed) {
 const votosDe = (cands, n) => (cands || []).find((c) => String(c.numero) === n)?.votos || 0;
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
-// monta o resumo de cada UF a partir dos dados do 2º turno e do prior do 1º
+// monta o resumo de cada UF a partir dos dados do 2º turno (ou só do prior, se a UF não veio) e do 1º turno
 function resumoUF(e, p) {
-  const L = votosDe(e.candidatos, LULA), B = votosDe(e.candidatos, FLAVIO), n = L + B;
+  const L = votosDe(e?.candidatos, LULA), B = votosDe(e?.candidatos, FLAVIO), n = L + B;
   const l1 = votosDe(p.candidatos, LULA), b1 = votosDe(p.candidatos, FLAVIO);
   const vv1 = p.candidatos.reduce((a, c) => a + c.votos, 0);
-  const te = e.contagem?.te || p.contagem?.te || 0;
-  const est = e.contagem?.est || 0;
-  const f = te ? clamp(est / te, 0, 1) : 0; // fração do eleitorado já apurada
-  return { uf: e.uf, L, n, q: l1 + b1 ? l1 / (l1 + b1) : 0.5, vv1, f, te };
+  const te = e?.contagem?.te || p.contagem?.te || 0;
+  const est = e?.contagem?.est || 0;
+  // fração do eleitorado já apurada; se o TSE não informar `est` mas já houver votos, usa os votos contados como piso
+  const f = clamp(est ? est / te : (n && vv1 ? n / vv1 : 0), 0, 1);
+  return { uf: p.uf, regiao: p.regiao || 'Exterior', L, n, q: l1 + b1 ? l1 / (l1 + b1) : 0.5, vv1, f, te, soPrior: !e };
 }
 
 /**
@@ -47,41 +52,52 @@ function resumoUF(e, p) {
 function calcula(D, { sims = N_SIM, seed = 2026 } = {}) {
   if (!D || !D.insumos || D.eleicao?.turno !== 2) return null;
   const { prior, exterior } = D.insumos;
-  const ufs = [];
-  for (const e of D.estados) if (prior[e.uf]) ufs.push(resumoUF(e, prior[e.uf]));
-  if (exterior && prior.ZZ) ufs.push(resumoUF(exterior, prior.ZZ));
+  const porUf = Object.fromEntries(D.estados.map((e) => [e.uf, e]));
+  // toda UF do 1º turno entra; se a do 2º turno não veio, entra só com o prior (nunca some do total previsto)
+  const ufs = Object.keys(prior).map((uf) => resumoUF(uf === 'ZZ' ? exterior : porUf[uf], prior[uf]));
   if (ufs.length < 20) return null;
+  const soPrior = ufs.filter((u) => u.soPrior).map((u) => u.uf);
 
   const nTot = ufs.reduce((a, u) => a + u.n, 0);
   const lTot = ufs.reduce((a, u) => a + u.L, 0);
   if (nTot <= 0) return { semDados: true };
 
-  // deslocamento nacional observado (Lula 2º turno - prior), encolhido para 0 quando há poucos votos
-  const desvio = ufs.reduce((a, u) => a + (u.n ? u.n * (u.L / u.n - u.q) : 0), 0);
-  const fNac = ufs.reduce((a, u) => a + u.f * u.te, 0) / (ufs.reduce((a, u) => a + u.te, 0) || 1);
-  // as primeiras urnas não representam o país: o deslocamento também só ganha peso conforme a fração apurada cresce
-  const delta = (desvio / (nTot + N0_SWING)) * (fNac / (fNac + K_PESO));
+  const teTot = ufs.reduce((a, u) => a + u.te, 0) || 1;
+  const fNac = ufs.reduce((a, u) => a + u.f * u.te, 0) / teTot;
+  // as primeiras urnas não representam o país: o deslocamento só ganha peso total depois de GANHO_FULL apurado
+  const ganho = (f) => Math.min(1, f / GANHO_FULL);
+  const desvioDe = (arr) => arr.reduce((a, u) => a + (u.n ? u.n * (u.L / u.n - u.q) : 0), 0);
+  const delta = (desvioDe(ufs) / (nTot + N0_SWING)) * ganho(fNac);
 
-  // total previsto de votos válidos por UF: mistura "contado / fração apurada" (cresce com f) e 1º turno
+  // deslocamento por região, encolhido para o nacional (as regiões não são apuradas ao mesmo tempo)
+  const regioes = [...new Set(ufs.map((u) => u.regiao))];
+  const deltaReg = {};
+  for (const r of regioes) {
+    const us = ufs.filter((u) => u.regiao === r);
+    const nR = us.reduce((a, u) => a + u.n, 0);
+    const fR = us.reduce((a, u) => a + u.f * u.te, 0) / (us.reduce((a, u) => a + u.te, 0) || 1);
+    deltaReg[r] = (desvioDe(us) * ganho(fR) + N0_REG * delta) / (nR + N0_REG);
+  }
+
+  // total previsto de votos válidos por UF = o contado + o que falta do 1º turno (proporcional à fração não apurada)
   const modelo = ufs.map((u) => {
-    const proj = u.f > 0.02 && u.n ? u.n / u.f : u.vv1;
-    const vTot = Math.max(u.n, u.f * proj + (1 - u.f) * u.vv1);
+    const vTot = Math.max(u.n, u.n + (1 - u.f) * u.vv1);
     const w = u.f / (u.f + K_PESO);
     const obs = u.n ? u.L / u.n : u.q;
-    const m = w * obs + (1 - w) * clamp(u.q + delta, 0.02, 0.98);
-    return { ...u, vTot, m, sd: SIGMA_UF * Math.sqrt(1 - u.f) };
+    const m = w * obs + (1 - w) * clamp(u.q + deltaReg[u.regiao], 0.02, 0.98);
+    return { ...u, vTot, m };
   });
 
-  const tau = TAU_PRIOR * Math.sqrt(1 - fNac);
   const z = rng(seed);
   const shares = new Float64Array(sims);
   let vitorias = 0;
   for (let i = 0; i < sims; i++) {
-    const choque = z() * tau, comp = 1 + z() * SIGMA_COMP;
+    const choque = z() * TAU_NAC, comp = 1 + z() * SIGMA_COMP;
+    const choqueReg = Object.fromEntries(regioes.map((r) => [r, z() * SIGMA_REG]));
     let L = 0, V = 0;
     for (const u of modelo) {
-      const falta = Math.max(0, u.vTot * (u.f > 0.999 ? 1 : (1 + (comp - 1) * (1 - u.f))) - u.n);
-      const s = clamp(u.m + choque + z() * u.sd, 0, 1);
+      const falta = Math.max(0, (u.vTot - u.n) * (1 + (comp - 1) * (1 - u.f)));
+      const s = clamp(u.m + choque + choqueReg[u.regiao] + z() * SIGMA_UF, 0, 1);
       L += u.L + falta * s;
       V += u.n + falta;
     }
@@ -97,16 +113,16 @@ function calcula(D, { sims = N_SIM, seed = 2026 } = {}) {
   const falta = Math.max(0, vTotal - nTot);
   const precisa = falta > 0 ? (0.5 * vTotal - lTot) / falta : null;
 
-  const lulaAtual = lTot / nTot;
   return {
-    chance: vitorias / sims,                 // 0..1
+    chance: vitorias / sims,                 // 0..1 (a de Flávio é 1 - chance)
     final: { medio: q(0.5), p5: q(0.05), p95: q(0.95) }, // % final de Lula nos votos válidos (0..1)
-    atual: lulaAtual,
+    atual: lTot / nTot,
     votosContados: nTot,
     votosFaltam: Math.round(falta),
     precisa,                                 // fração dos votos restantes que o Lula precisa (pode ser <0 ou >1)
     fracaoApurada: fNac,
     deslocamento: delta,
+    soPrior,                                 // UFs que não vieram do TSE e entraram só pelo 1º turno
   };
 }
 

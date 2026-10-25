@@ -25,9 +25,9 @@ test('é determinístico (mesmo dado, mesma chance)', () => {
   assert.equal(calcula(d).chance, calcula(d).chance);
 });
 
-test('começo da apuração fica perto do prior (≈50% se 1º turno 50/50)', () => {
+test('começo da apuração não dispara: 60% de Lula com 1% apurado ainda fica longe de 100%', () => {
   const r = calcula(cenario({ f: 0.01, shareObs: 0.6 }));
-  assert.ok(r.chance > 0.3 && r.chance < 0.7, `chance ${r.chance}`);
+  assert.ok(r.chance > 0.4 && r.chance < 0.9, `chance ${r.chance}`);
 });
 
 test('mais Lula na apuração => mais chance (monotônico)', () => {

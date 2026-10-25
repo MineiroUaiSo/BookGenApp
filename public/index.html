@@ -223,7 +223,7 @@ function pintaPeso(){
 // ---- chance de Lula vencer (modelo em chances.js) + trilha local para o mini-gráfico
 const pp = v => (v*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
 let TRILHA = [];
-try{ TRILHA = JSON.parse(localStorage.getItem('trilhaChance2t')||'[]'); }catch{}
+try{ TRILHA = JSON.parse(localStorage.getItem('trilhaChance2t-2026-6258')||'[]'); }catch{}
 function pintaChance(){
   const el = $('chance'), r = window.Chances && Chances.calcula(D);
   if(!r || r.semDados){ el.hidden = true; document.title = 'Apuração 2º turno — Lula x Flávio'; return; }
@@ -231,21 +231,22 @@ function pintaChance(){
   const t = D.atualizadoEm;
   if(!demo && (!TRILHA.length || TRILHA[TRILHA.length-1].t !== t)){
     TRILHA = [...TRILHA, {t, c:r.chance, f:r.fracaoApurada}].slice(-300);
-    try{ localStorage.setItem('trilhaChance2t', JSON.stringify(TRILHA)); }catch{}
+    try{ localStorage.setItem('trilhaChance2t-2026-6258', JSON.stringify(TRILHA)); }catch{}
   }
-  const txt = Chances.formataChance(r.chance), ganhou = r.chance>=0.999 && r.fracaoApurada>0.9;
+  const txt = Chances.formataChance(r.chance), ganhou = Math.max(r.chance,1-r.chance)>=0.999 && r.fracaoApurada>0.9, lider = r.chance>=0.5 ? 'Lula' : 'Flávio Bolsonaro';
   const prec = r.precisa;
   const caminho = prec==null ? '—' : prec<=0 ? 'já garantido' : prec>1 ? 'além do possível' : pp(prec);
   let spark = '';
   if(TRILHA.length>1){
     const w=600,h=56, pts = TRILHA.map((p,i)=>`${(i/(TRILHA.length-1)*w).toFixed(1)},${(h-p.c*h).toFixed(1)}`).join(' ');
-    spark = `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-label="Evolução da chance"><line x1="0" x2="${w}" y1="${h/2}" y2="${h/2}" stroke="var(--line)"/><polyline points="${pts}" fill="none" stroke="var(--pt)" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg><div class="nota">Evolução da chance nesta sessão (linha do meio = 50%)</div>`;
+    spark = `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-label="Evolução da chance"><line x1="0" x2="${w}" y1="${h/2}" y2="${h/2}" stroke="var(--line)"/><polyline points="${pts}" fill="none" stroke="var(--pt)" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg><div class="nota">Evolução da chance de Lula neste navegador (linha do meio = 50%)</div>`;
   }
-  el.innerHTML = `<h2><span class="selo">13</span>Chance de Lula vencer o 2º turno</h2>
-    <div class="topo"><div class="grande">${txt}</div>
+  el.innerHTML = `<h2><span class="selo">13</span>Chance de vencer o 2º turno</h2>
+    <div class="topo"><div><div class="grande">${txt}</div><div class="status"><b>Lula</b> · Flávio Bolsonaro <b style="color:var(--pl)">${Chances.formataChance(1-r.chance)}</b></div></div>
     <div style="flex:1;min-width:240px"><div class="medidor" role="img" aria-label="${txt} de chance"><i style="width:${r.chance*100}%"></i><b></b></div>
     <div class="status">Lula tem <b>${pp(r.atual)}</b> dos votos válidos apurados até agora · projeção final <b>${pp(r.final.medio)}</b> (faixa provável ${pp(r.final.p5)} a ${pp(r.final.p95)})</div></div></div>
-    ${ganhou?'<div class="vitoria">🎉 Vitória praticamente garantida pelos números da apuração!</div>':''}
+    ${ganhou?`<div class="vitoria">Vitória de ${lider} praticamente garantida pelos números da apuração.</div>`:''}
+    ${r.soPrior.length?`<div class="nota">Sem dados do TSE agora para ${esc(r.soPrior.join(', '))}: entram só pelo resultado do 1º turno.</div>`:''}
     <div class="fatos">
       <div class="fato"><b>${caminho}</b>dos votos que faltam o Lula precisa para chegar a 50%</div>
       <div class="fato"><b>~${int(r.votosFaltam)}</b>votos válidos ainda por apurar (estimativa)</div>
@@ -265,7 +266,7 @@ function candBlock(lista, n=4){
 function render(){
   if(!D) return;
   const b = D.brasil;
-  $('total').innerHTML = `<div><div class="status">Brasil</div><div class="big">${pct(b.pst,2)}</div><div class="status">das urnas apuradas</div>${b.secoesTot?`<div class="status">${int(b.secoes)} de ${int(b.secoesTot)} seções</div>`:''}</div>
+  $('total').innerHTML = `<div><div class="status">Brasil</div><div class="big">${pct(b.pst,2)}</div><div class="status">das urnas apuradas</div>${b.secoes?`<div class="status">${int(b.secoesTot)} de ${int(b.secoes)} seções apuradas</div>`:''}</div>
     <div style="flex:1;min-width:240px"><div class="bar"><i style="width:${b.pst}%"></i></div><div class="status" style="margin-top:6px">${int(b.votosValidos)} votos nominais contados</div><div class="nota">inclui votos do exterior</div></div>
     <div style="flex:2;min-width:260px">${candBlock(b.candidatos,3)}${b.candidatos.length>3?`<details><summary>Ver todos (${b.candidatos.length})</summary>${candBlock(b.candidatos,b.candidatos.length)}</details>`:''}</div>`;
   $('regs').innerHTML = D.regioes.slice().sort((a,b)=>b.pst-a.pst).map(r=>`<button type="button" class="reg ${sel===r.nome?'sel':''}" aria-pressed="${sel===r.nome}" style="--c:${corLider(r.candidatos)}" data-r="${r.nome}"><b>${r.nome}</b><span class="bar"><i style="width:${r.pst}%;--c:${corLider(r.candidatos)}"></i></span><span class="num">${pct(r.pst)}</span></button>`).join('');
