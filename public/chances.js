@@ -16,8 +16,8 @@ const LULA = '13';
 const FLAVIO = '22';
 const N0_SWING = 400_000;   // votos "virtuais" que ancoram o deslocamento nacional em 0
 const K_PESO = 0.3;         // fração apurada em que observado e prior pesam igual
-const TAU_NAC = 0.015;      // choque nacional comum (1,5 pp) sobre os votos que faltam
-const SIGMA_REG = 0.015;    // choque correlacionado por região (1,5 pp): o que falta costuma ser um bloco, não amostra aleatória
+const TAU_NAC = 0.025;      // choque nacional comum (1,5 pp) sobre os votos que faltam
+const SIGMA_REG = 0.02;     // choque correlacionado por região (1,5 pp): o que falta costuma ser um bloco, não amostra aleatória
 const N0_REG = 150_000;     // votos 'virtuais' que ancoram o deslocamento regional no nacional
 const GANHO_FULL = 0.05;    // fração apurada a partir da qual o deslocamento observado pesa por inteiro
 const SIGMA_UF = 0.015;     // ruído de cada UF (1,5 pp)
@@ -41,7 +41,7 @@ function resumoUF(e, p) {
   const te = e?.contagem?.te || p.contagem?.te || 0;
   const est = e?.contagem?.est || 0;
   // fração do eleitorado já apurada; se o TSE não informar `est` mas já houver votos, usa os votos contados como piso
-  const f = clamp(est ? est / te : (n && vv1 ? n / vv1 : 0), 0, 1);
+  const f = clamp(est && te ? est / te : (n && vv1 ? n / vv1 : 0), 0, 1);
   return { uf: p.uf, regiao: p.regiao || 'Exterior', L, n, q: l1 + b1 ? l1 / (l1 + b1) : 0.5, vv1, f, te, soPrior: !e };
 }
 
@@ -76,7 +76,7 @@ function calcula(D, { sims = N_SIM, seed = 2026 } = {}) {
     const us = ufs.filter((u) => u.regiao === r);
     const nR = us.reduce((a, u) => a + u.n, 0);
     const fR = us.reduce((a, u) => a + u.f * u.te, 0) / (us.reduce((a, u) => a + u.te, 0) || 1);
-    deltaReg[r] = (desvioDe(us) * ganho(fR) + N0_REG * delta) / (nR + N0_REG);
+    deltaReg[r] = (desvioDe(us) * ganho(fR) + N0_REG * delta) / (nR * ganho(fR) + N0_REG);
   }
 
   // total previsto de votos válidos por UF = o contado + o que falta do 1º turno (proporcional à fração não apurada)
@@ -128,7 +128,7 @@ function calcula(D, { sims = N_SIM, seed = 2026 } = {}) {
 
 // texto da chance: nunca mostra 0% ou 100% exatos (é estimativa)
 function formataChance(c) {
-  if (c == null) return '—';
+  if (c == null || !Number.isFinite(c)) return '—';
   if (c >= 0.999) return '>99,9%';
   if (c <= 0.001) return '<0,1%';
   const pc = c * 100;
