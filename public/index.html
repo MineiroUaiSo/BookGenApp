@@ -127,6 +127,9 @@
     .chance .fatos{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
     .chance .fato{font-size:12px;line-height:1.3}.chance .fato b{font-size:15px}
   }
+.chance .virada{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 0;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.chance .virada b{display:block;font-size:19px;line-height:1.2}.chance .virada small{display:block;color:var(--mut);font-size:12px;line-height:1.3}
+@media(max-width:600px){.chance .virada{grid-template-columns:1fr;gap:8px}.chance .virada b{font-size:17px}}
 </style>
 </head>
 <body>
@@ -302,7 +305,18 @@ function pintaChance(){
     spark = `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-label="Evolução da chance"><line x1="0" x2="${w}" y1="${h/2}" y2="${h/2}" stroke="var(--line)"/><polyline points="${pts}" fill="none" stroke="var(--pt)" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg><div class="nota">Evolução da chance de Lula neste navegador (linha do meio = 50%)</div>`;
   }
   const mi = v => v >= 1e6 ? (v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi' : int(v);
-  const lulaOf = duelo(D.brasil.candidatos).l || r.atual*100; // % oficial (arquivo br ou soma dos estados, o que estiver à frente)
+  const mi2 = v => v >= 1e6 ? (v/1e6).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' mi' : int(v);
+  const dB = duelo(D.brasil.candidatos);
+  // vantagem em votos e em pontos percentuais (mesmos números do card Brasil)
+  const liderL = dB.lv >= dB.bv, nomeL = liderL ? 'Lula' : 'Flávio', nomeV = liderL ? 'Flávio' : 'Lula';
+  const vantV = Math.abs(dB.lv - dB.bv), vantP = Math.abs(dB.lv - dB.bv) / ((dB.lv + dB.bv) || 1) * 100;
+  // quanto o candidato que está atrás precisa do que falta para virar, e a chance de isso acontecer
+  const falta = r.votosFaltam, totalPrev = dB.lv + dB.bv + falta;
+  const votosTras = liderL ? dB.bv : dB.lv;
+  const precisaV = 0.5 * totalPrev - votosTras, precisaP = falta > 0 ? precisaV / falta * 100 : null;
+  const chanceVirada = liderL ? 1 - r.chance : r.chance;
+  const viradaTxt = precisaP == null || precisaV <= 0 ? 'já virou nos números' : precisaP > 100 ? 'impossível com os votos que faltam' : `${mi2(precisaV)} de ${mi2(falta)} (${pct(precisaP,2)} do que falta)`;
+  const lulaOf = dB.l || r.atual*100; // % oficial (arquivo br ou soma dos estados, o que estiver à frente)
   el.innerHTML = `<h2><span class="selo">13</span>Chance de vencer o 2º turno</h2>
     <div class="topo">
       <div class="kpi"><div class="grande${inicio?' incerto':''}">${txt}</div><div class="status"><b>${rotulo}</b> · chance do <b>Lula</b> · Flávio <b style="color:var(--pl)">${Chances.formataChance(1-r.chance)}</b></div></div>
@@ -313,6 +327,11 @@ function pintaChance(){
     ${rot?`<div class="${rot.nivel>=4&&r.fracaoApurada>0.9?'vitoria':'rotulo'}">${esc(rot.texto)}</div>`:''}
     ${inicio?`<div class="nota">Menos de 5% apurado: as primeiras urnas não representam o país e a chance ainda oscila muito.</div>`:''}
     ${r.soPrior.length?`<div class="nota">Sem dados do TSE agora para ${esc(r.soPrior.map(u=>u==='ZZ'?'Exterior':u).join(', '))}: entram só pelo resultado do 1º turno.</div>`:''}
+    <div class="virada">
+      <div><b>${nomeL} +${mi2(vantV)}</b><small>vantagem em votos · ${pct(vantP,2)} de diferença (${pct(Math.max(dB.l,dB.b),2)} × ${pct(Math.min(dB.l,dB.b),2)})</small></div>
+      <div><b>${viradaTxt}</b><small>é o que ${nomeV} precisa conquistar do que falta para virar</small></div>
+      <div><b>${Chances.formataChance(chanceVirada)}</b><small>chance de ${nomeV} virar (estimativa)</small></div>
+    </div>
     <div class="fatos">
       <div class="fato"><b>${caminho}</b>do que falta p/ Lula chegar a 50%</div>
       <div class="fato"><b>~${mi(r.votosFaltam)}</b>votos válidos a apurar (estim.)</div>
