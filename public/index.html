@@ -91,6 +91,8 @@
   .chance .fato{border-top:1px solid var(--line);padding-top:8px;font-size:13px}.chance .fato b{display:block;font-size:17px}
   .chance .vitoria{background:var(--pt);color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;margin-top:10px}
   .chance svg.spark{height:56px;margin-top:8px}
+.chance .rotulo{font-weight:700;margin:8px 0 2px}
+.chance .grande.incerto{opacity:.55}
   @media(max-width:600px){.chance .grande{font-size:44px}}
   .pcel .num small{font-size:12px}
   .chance .medwrap{flex:1 1 240px}
@@ -163,7 +165,7 @@ const REGIOES = {Norte:['AC','AM','AP','PA','RO','RR','TO'],Nordeste:['AL','BA',
 const regiaoDe = {}; for (const [r,u] of Object.entries(REGIOES)) u.forEach(x=>regiaoDe[x.toLowerCase()]=r);
 const demo = new URLSearchParams(location.search).has('demo');
 const $ = id => document.getElementById(id);
-const pct = (v,d=1) => (v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
+const pct = (v,d=2) => (v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
 const int = v => Math.round(v||0).toLocaleString('pt-BR');
 const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let D = null, sel = null;
@@ -185,7 +187,7 @@ const duelo = lista => {
   const l = f('13'), b = f('22'), lv = l?.votos||0, bv = b?.votos||0;
   return { l: l?.pct||0, b: b?.pct||0, lv, bv, fatia: lv+bv ? lv/(lv+bv)*100 : null };
 };
-const p0 = v => Math.round(v||0)+'%';
+const p0 = v => pct(v,2);
 function pintaMapa(){
   const porUf = Object.fromEntries(D.estados.map(e=>[e.uf.toLowerCase(),e]));
   const porRegiao = Object.fromEntries(D.regioes.map(r=>[r.nome,r]));
@@ -211,7 +213,7 @@ function pintaMapa(){
     const k = (+M.viewBox.split(/[\s,]+/)[2]) / (svg.getBoundingClientRect().width || 600);
     const fA = Math.max(19, 14*k), fB = Math.max(12, 11*k);
     D.regioes.forEach(r=>{const c=caixa(r.ufs),d=duelo(r.candidatos),x=c.x+c.w/2,y=c.y+c.h/2;
-      h+=`<text class="lbl" x="${x}" y="${y}" font-size="${fA}">${p0(d.l)} · ${p0(d.b)}</text><text class="lbl" x="${x}" y="${y+fA*0.85}" font-size="${fB}">${pct(r.pst,0)} apurado</text>`;});
+      h+=`<text class="lbl" x="${x}" y="${y}" font-size="${fA}">${p0(d.l)} · ${p0(d.b)}</text><text class="lbl" x="${x}" y="${y+fA*0.85}" font-size="${fB}">${pct(r.pst,2)} apurado</text>`;});
   } else {
     const r=D.regioes.find(r=>r.nome===sel), c=caixa(r.ufs), pad=c.w*0.06;
     // zoom na região (mantém proporção do mapa inteiro para não "pular" a altura)
@@ -263,7 +265,7 @@ function pintaPeso(){
   const vv = Math.max(D.brasil.votosValidos, D.regioes.reduce((a,r)=>a+r.votosValidos,0)) || 1;
   const extL = nac.lv - linhas.reduce((a,x)=>a+x.d.lv,0), extB = nac.bv - linhas.reduce((a,x)=>a+x.d.bv,0);
   if (extL > 1 || extB > 1) linhas.push({nome:'Exterior', d:{lv:Math.max(extL,0), bv:Math.max(extB,0)}});
-  const cel = (v, tot, cor) => `<div class="pcel"><div class="bar"><i style="width:${tot?v/tot*100:0}%;--c:${cor}"></i></div><span class="num"><b>${pct(tot?v/tot*100:0)}</b> dos votos <small>· +${(v/vv*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} pp</small></span></div>`;
+  const cel = (v, tot, cor) => `<div class="pcel"><div class="bar"><i style="width:${tot?v/tot*100:0}%;--c:${cor}"></i></div><span class="num"><b>${pct(tot?v/tot*100:0)}</b> dos votos <small>· +${(v/vv*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})} pp</small></span></div>`;
   dobra('peso', 'Peso de cada região no resultado nacional', `<p class="hint">Quanto dos votos de cada candidato vem de cada região. <b>pp</b> = pontos percentuais que a região soma à % nacional do candidato (Lula ${pct(nac.l)} · Bolsonaro ${pct(nac.b)}).</p>
     <div class="phead"><span></span><span style="color:var(--pt)">Lula (PT)</span><span style="color:var(--pl)">Bolsonaro (PL)</span></div>` +
     linhas.map(x=>`<div class="prow"><b>${x.nome}</b>${cel(x.d.lv,nac.lv,'var(--pt)')}${cel(x.d.bv,nac.bv,'var(--pl)')}</div>`).join(''));
@@ -271,7 +273,7 @@ function pintaPeso(){
 
 
 // ---- chance de Lula vencer (modelo em chances.js) + trilha local para o mini-gráfico
-const pp = v => (v*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+const pp = v => (v*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
 let TRILHA = [];
 try{ TRILHA = JSON.parse(localStorage.getItem('trilhaChance2t-2026-6258')||'[]'); }catch{}
 function pintaChance(){
@@ -292,6 +294,7 @@ function pintaChance(){
     return `Vantagem clara de ${quem}`; })();
   const txt = Chances.formataChance(r.chance), ganhou = Math.max(r.chance,1-r.chance)>=0.999 && r.fracaoApurada>0.9, lider = r.chance>=0.5 ? 'Lula' : 'Flávio Bolsonaro';
   const prec = r.precisa;
+  const rot = Chances.rotulo ? Chances.rotulo(r) : null, inicio = r.fracaoApurada < 0.05;
   const caminho = prec==null ? '—' : prec<=0 ? 'já garantido' : prec>1 ? 'além do possível' : pp(prec);
   let spark = '';
   if(TRILHA.length>1){
@@ -302,20 +305,21 @@ function pintaChance(){
   const lulaOf = duelo(D.brasil.candidatos).l || r.atual*100; // % oficial (arquivo br ou soma dos estados, o que estiver à frente)
   el.innerHTML = `<h2><span class="selo">13</span>Chance de vencer o 2º turno</h2>
     <div class="topo">
-      <div class="kpi"><div class="grande">${txt}</div><div class="status"><b>${rotulo}</b> · chance do <b>Lula</b> · Flávio <b style="color:var(--pl)">${Chances.formataChance(1-r.chance)}</b></div></div>
-      <div class="kpi"><div class="grande lula">${pct(lulaOf,1)}</div><div class="status">dos votos válidos para <b>Lula</b></div></div>
-      <div class="medwrap"><div class="medidor" role="img" aria-label="${txt} de chance"><i style="width:${r.chance*100}%"></i><b></b></div>
+      <div class="kpi"><div class="grande${inicio?' incerto':''}">${txt}</div><div class="status"><b>${rotulo}</b> · chance do <b>Lula</b> · Flávio <b style="color:var(--pl)">${Chances.formataChance(1-r.chance)}</b></div></div>
+      <div class="kpi"><div class="grande lula">${pct(lulaOf,2)}</div><div class="status">dos votos válidos para <b>Lula</b></div></div>
+      <div class="medwrap"><div class="medidor" style="background:var(--pl)" role="img" aria-label="Chance: Lula ${txt}, Flávio ${Chances.formataChance(1-r.chance)}"><i style="width:${r.chance*100}%"></i><b></b></div>
       <div class="status">Projeção final <b>${pp(r.final.medio)}</b> (faixa provável ${pp(r.final.p5)} a ${pp(r.final.p95)})</div></div>
     </div>
-    ${ganhou?`<div class="vitoria">Vitória de ${lider} praticamente garantida pelos números da apuração.</div>`:''}
+    ${rot?`<div class="${rot.nivel>=4&&r.fracaoApurada>0.9?'vitoria':'rotulo'}">${esc(rot.texto)}</div>`:''}
+    ${inicio?`<div class="nota">Menos de 5% apurado: as primeiras urnas não representam o país e a chance ainda oscila muito.</div>`:''}
     ${r.soPrior.length?`<div class="nota">Sem dados do TSE agora para ${esc(r.soPrior.map(u=>u==='ZZ'?'Exterior':u).join(', '))}: entram só pelo resultado do 1º turno.</div>`:''}
     <div class="fatos">
       <div class="fato"><b>${caminho}</b>do que falta p/ Lula chegar a 50%</div>
       <div class="fato"><b>~${mi(r.votosFaltam)}</b>votos válidos a apurar (estim.)</div>
-      <div class="fato"><b>${pct(r.fracaoApurada*100,1)}</b>do eleitorado apurado</div>
+      <div class="fato"><b>${pct(r.fracaoApurada*100,2)}</b>do eleitorado apurado</div>
     </div>${spark}
-    <details class="metodo"><summary>Como a chance é calculada</summary><p class="nota"><b>Estimativa estatística, não resultado oficial.</b> No começo da apuração, as primeiras urnas não representam o país e a chance pode mudar muito. Simulação de 100 mil cenários: cada estado entra com o duelo Lula x Flávio do 1º turno e passa a pesar mais a % observada conforme a apuração avança. No começo da noite o número oscila bastante (as primeiras urnas não representam o país); só vale como oficial o que o TSE divulgar.</p></details>`;
-  document.title = `Lula ${pp(r.atual)} · ${txt} de chance`;
+    <details class="metodo"><summary>Como a chance é calculada</summary><p class="nota"><b>Estimativa estatística, não resultado oficial.</b> No começo da apuração, as primeiras urnas não representam o país e a chance pode mudar muito. Para cada estado, o modelo compara a % de cada candidato nas urnas já apuradas com o 1º turno <i>nas mesmas cidades</i> (a mudança entre turnos) e projeta essa mudança no que falta apurar, com incerteza maior no começo (as primeiras seções de cada cidade costumam ser diferentes do resto). O ponto de partida é neutro: o duelo do 1º turno, sem favorecer ninguém. A faixa provável cobre 90% dos cenários do modelo. Só vale como oficial o que o TSE divulgar.</p></details>`;
+  document.title = `Lula ${pp(r.atual)} × Flávio ${pp(1-r.atual)} · chance ${txt} × ${Chances.formataChance(1-r.chance)}`;
 }
 
 function selecionar(r, rolar=false){ sel = (r===sel)? null : r; render(); if(rolar && sel && innerWidth<=860) $('detalhe').scrollIntoView({behavior:'smooth',block:'start'}); }
