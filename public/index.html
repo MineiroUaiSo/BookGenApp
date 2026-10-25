@@ -283,6 +283,13 @@ function pintaChance(){
     TRILHA = [...TRILHA, {t, c:r.chance, f:r.fracaoApurada}].slice(-300);
     try{ localStorage.setItem('trilhaChance2t-2026-6258', JSON.stringify(TRILHA)); }catch{}
   }
+  // rótulo honesto: só fala em "vantagem clara" com chance alta E apuração avançada
+  const rotulo = (() => { const m = Math.max(r.chance, 1-r.chance), quem = r.chance >= 0.5 ? 'Lula' : 'Flávio';
+    if (r.fracaoApurada < 0.05) return 'Cedo demais para dizer';
+    if (m < 0.60) return 'Disputa indefinida';
+    if (m < 0.80) return `Leve vantagem de ${quem}`;
+    if (m < 0.95) return `Vantagem de ${quem}`;
+    return `Vantagem clara de ${quem}`; })();
   const txt = Chances.formataChance(r.chance), ganhou = Math.max(r.chance,1-r.chance)>=0.999 && r.fracaoApurada>0.9, lider = r.chance>=0.5 ? 'Lula' : 'Flávio Bolsonaro';
   const prec = r.precisa;
   const caminho = prec==null ? '—' : prec<=0 ? 'já garantido' : prec>1 ? 'além do possível' : pp(prec);
@@ -295,7 +302,7 @@ function pintaChance(){
   const lulaOf = duelo(D.brasil.candidatos).l || r.atual*100; // % oficial (arquivo br ou soma dos estados, o que estiver à frente)
   el.innerHTML = `<h2><span class="selo">13</span>Chance de vencer o 2º turno</h2>
     <div class="topo">
-      <div class="kpi"><div class="grande">${txt}</div><div class="status">chance do <b>Lula</b> · Flávio <b style="color:var(--pl)">${Chances.formataChance(1-r.chance)}</b></div></div>
+      <div class="kpi"><div class="grande">${txt}</div><div class="status"><b>${rotulo}</b> · chance do <b>Lula</b> · Flávio <b style="color:var(--pl)">${Chances.formataChance(1-r.chance)}</b></div></div>
       <div class="kpi"><div class="grande lula">${pct(lulaOf,1)}</div><div class="status">dos votos válidos para <b>Lula</b></div></div>
       <div class="medwrap"><div class="medidor" role="img" aria-label="${txt} de chance"><i style="width:${r.chance*100}%"></i><b></b></div>
       <div class="status">Projeção final <b>${pp(r.final.medio)}</b> (faixa provável ${pp(r.final.p5)} a ${pp(r.final.p95)})</div></div>
