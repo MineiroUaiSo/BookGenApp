@@ -14,6 +14,7 @@ const BASE = 'https://resultados.tse.jus.br/oficial';
 const ID_FIXO = CFG.id || ENV.ELEICAO_ID || null;
 const DESCOBERTA_TTL_MS = 5 * 60_000;
 let descoberto = null; // { id, t }
+let pleito = null; // { t1, t2 } códigos do 1º e do 2º turno da eleição descoberta
 
 const REGIOES = {
   Norte: ['AC', 'AM', 'AP', 'PA', 'RO', 'RR', 'TO'],
@@ -79,6 +80,7 @@ async function descobrirEleicao() {
     }
   }
   if (!achados.length) throw new Error(`Eleição ${ANO} com o cargo ${CARGO} não está na configuração do TSE (defina ELEICAO_ID).`);
+  pleito = { t1: achados[0].cd, t2: achados[0].cdt2 };
   for (const e of achados) {
     if (e.cdt2) {
       try {
@@ -97,6 +99,24 @@ async function descobrirEleicao() {
   const err = new Error('A apuração ainda não foi publicada pelo TSE. Tente de novo em alguns minutos — esta página recarrega sozinha.');
   err.status = 503;
   throw err;
+}
+
+// Insumos do modelo de chances (2º turno): resultado final do 1º turno por UF (prior) e o exterior (ZZ) nos dois turnos.
+// O 1º turno é definitivo, então fica em cache para sempre.
+let primeiroTurnoCache = null;
+async function insumosModelo(idAtual) {
+  if (!pleito || String(idAtual) !== String(pleito.t2)) return null; // só existe prior no 2º turno
+  const ufs = [...UFS, 'ZZ'];
+  if (!primeiroTurnoCache) {
+    const r = await Promise.allSettled(ufs.map(async (uf) => normalizaUF(uf, await getJson(urlUF(pleito.t1, uf)))));
+    const prior = {};
+    r.forEach((x, i) => { if (x.status === 'fulfilled') prior[ufs[i]] = x.value; });
+    if (Object.keys(prior).length < ufs.length - 2) return null;
+    primeiroTurnoCache = prior;
+  }
+  let exterior = null;
+  try { exterior = normalizaUF('ZZ', await getJson(urlUF(idAtual, 'ZZ'))); } catch { /* sem exterior: o modelo ignora */ }
+  return { prior: primeiroTurnoCache, exterior };
 }
 
 function normalizaUF(uf, d) {
@@ -177,6 +197,8 @@ async function buscaTSE() {
   resultados.forEach((r, i) => (r.status === 'fulfilled' ? estados.push(r.value) : falhas.push(`${UFS[i]}: ${r.reason.message}`)));
   if (!estados.length) throw new Error(falhas[0]);
   const agregado = agrega(estados);
+  let insumos = null;
+  try { insumos = await insumosModelo(id); } catch { /* modelo opcional */ }
   const b = normalizaUF('BR', br);
   const candidatos = comPct(b.candidatos);
   const brasil = candidatos.length
@@ -190,6 +212,7 @@ async function buscaTSE() {
     brasil,
     regioes: agregado.regioes,
     estados: agregado.estados,
+    insumos,
   };
 }
 
@@ -229,12 +252,14 @@ function demo() {
   };
   return {
     fonte: 'DEMO',
-    eleicao: { ano: ANO, id: 'demo', turno: 1 },
+    eleicao: { ano: ANO, id: 'demo', turno: 2 },
     atualizadoEm: new Date().toISOString(),
     falhas: [`${SEM_DADOS}: sem dados (demo)`],
     brasil,
     regioes: ag.regioes,
     estados: ag.estados,
+    // prior fictício: 1º turno = o mesmo desenho do demo com ruído
+    insumos: { prior: Object.fromEntries(ag.estados.map((e, i) => [e.uf, { ...e, contagem: { ...e.contagem, te: e.contagem.te || ELEITORADO[e.uf] * 1000 }, candidatos: e.candidatos.map((c, k) => ({ ...c, votos: Math.round((c.votos || ELEITORADO[e.uf] * 300) * (0.9 + rnd(i * 3 + k) * 0.2)) })) }])), exterior: null },
   };
 }
 

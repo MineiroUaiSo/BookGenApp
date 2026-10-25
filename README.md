@@ -6,6 +6,7 @@ Mostra a apuração da eleição para **Presidente** separada por região (Norte
 - Clique numa região: o mapa mostra o % de cada estado e a lista ordena do mais apurado ao menos apurado.
 - Votos por candidato somados por região e para o Brasil.
 - Atualiza sozinho a cada 30 s.
+- **2º turno:** card com a **chance de Lula vencer** (simulação de Monte Carlo, `public/chances.js`), quanto % dos votos restantes ele precisa para chegar a 50% e a projeção final com faixa provável. É estimativa do modelo, não número do TSE.
 
 ## Como rodar
 
@@ -50,3 +51,7 @@ Defina antes de carregar `apuracao.js` no `index.html`:
 - % apurado da região = Σ seções totalizadas / Σ seções totais das UFs da região.
 - % apurado do Brasil = número oficial do TSE (arquivo `br`).
 - O código da eleição é descoberto pela configuração oficial do TSE. A troca automática para o 2º turno (`6258`) só acontece quando ele já tem seções totalizadas; antes disso vale o 1º turno (`6257`).
+
+## Modelo de chances (2º turno)
+
+Por UF (e exterior): votos válidos já contados, total previsto (mistura do contado/fração apurada com o 1º turno) e participação esperada do Lula nos votos que faltam = mistura entre a % observada e o prior (Lula/(Lula+Flávio) no 1º turno + deslocamento nacional observado). Quanto mais apurado, mais peso no observado; o choque nacional e o ruído por UF encolhem com a apuração. 20 mil cenários, gerador determinístico. O prior é neutro (não favorece nenhum candidato); no início da apuração a chance fica perto dele e oscila. Testes em `test/chances.test.js`.

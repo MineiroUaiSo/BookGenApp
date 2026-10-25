@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Apuração por Região</title>
+<title>Apuração 2º turno — Lula x Flávio</title>
 <meta name="theme-color" content="#3a6fd1">
 <style>
   :root{
@@ -75,15 +75,28 @@
   .frow .num{display:flex;flex-direction:column;text-align:left}.frow small{color:var(--mut);font-size:11px}
   .frow .fbar{grid-column:2/-1;height:6px}.ftot{background:color-mix(in srgb,var(--ink) 5%,transparent);font-weight:700}
   @media(max-width:700px){.frow{grid-template-columns:70px repeat(3,1fr)}.frow>span:nth-child(5){display:none}.fhead span:nth-child(5){display:none}}
+  .chance{grid-column:1/-1;border:2px solid var(--pt);background:linear-gradient(135deg,color-mix(in srgb,var(--pt) 12%,var(--card)),var(--card) 60%)}
+  .chance .topo{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center}
+  .chance .grande{font-size:56px;font-weight:800;line-height:1;color:var(--pt);font-variant-numeric:tabular-nums}
+  .chance .selo{display:inline-block;background:var(--pt);color:#fff;font-weight:800;border-radius:6px;padding:1px 8px;margin-right:6px}
+  .chance .medidor{position:relative;height:16px;border-radius:99px;background:var(--bar);overflow:hidden;margin:12px 0 4px}
+  .chance .medidor i{display:block;height:100%;background:var(--pt);border-radius:99px;transition:width .6s}
+  .chance .medidor b{position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--ink);opacity:.5}
+  .chance .fatos{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:12px}
+  .chance .fato{border-top:1px solid var(--line);padding-top:8px;font-size:13px}.chance .fato b{display:block;font-size:17px}
+  .chance .vitoria{background:var(--pt);color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;margin-top:10px}
+  .chance svg.spark{height:56px;margin-top:8px}
+  @media(max-width:600px){.chance .grande{font-size:44px}}
 </style>
 </head>
 <body>
 <header>
-  <h1>🗳️ Apuração — Presidente, por região</h1>
+  <h1>🗳️ Apuração — Presidente, 2º turno</h1>
   <div class="status"><span id="status" aria-live="polite">Carregando…</span> <button id="refresh">Atualizar</button></div>
 </header>
 <div class="banner" id="banner" role="alert"></div>
 <main>
+  <section class="card chance" id="chance" hidden aria-live="polite"></section>
   <section class="card total" id="total">Carregando apuração…</section>
   <section class="card" id="falta" style="grid-column:1/-1" hidden></section>
   <section class="card" id="peso" style="grid-column:1/-1"></section>
@@ -102,6 +115,7 @@
 <script src="mapa-brasil.js"></script>
 <script src="apuracao.js"></script>
 <script src="grafico.js"></script>
+<script src="chances.js"></script>
 <script>
 const nomeBonito = n => String(n??'').toLowerCase().replace(/\S+/g,w=>w.length>2?w[0].toUpperCase()+w.slice(1):w);
 // cor pelo candidato: vermelho = PT/Lula (13), amarelo = PL/Bolsonaro (22), cinza = outros/sem dados
@@ -205,6 +219,42 @@ function pintaPeso(){
     linhas.map(x=>`<div class="prow"><b>${x.nome}</b>${cel(x.d.lv,nac.lv,'var(--pt)')}${cel(x.d.bv,nac.bv,'var(--pl)')}</div>`).join('');
 }
 
+
+// ---- chance de Lula vencer (modelo em chances.js) + trilha local para o mini-gráfico
+const pp = v => (v*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+let TRILHA = [];
+try{ TRILHA = JSON.parse(localStorage.getItem('trilhaChance2t')||'[]'); }catch{}
+function pintaChance(){
+  const el = $('chance'), r = window.Chances && Chances.calcula(D);
+  if(!r || r.semDados){ el.hidden = true; document.title = 'Apuração 2º turno — Lula x Flávio'; return; }
+  el.hidden = false;
+  const t = D.atualizadoEm;
+  if(!demo && (!TRILHA.length || TRILHA[TRILHA.length-1].t !== t)){
+    TRILHA = [...TRILHA, {t, c:r.chance, f:r.fracaoApurada}].slice(-300);
+    try{ localStorage.setItem('trilhaChance2t', JSON.stringify(TRILHA)); }catch{}
+  }
+  const txt = Chances.formataChance(r.chance), ganhou = r.chance>=0.999 && r.fracaoApurada>0.9;
+  const prec = r.precisa;
+  const caminho = prec==null ? '—' : prec<=0 ? 'já garantido' : prec>1 ? 'além do possível' : pp(prec);
+  let spark = '';
+  if(TRILHA.length>1){
+    const w=600,h=56, pts = TRILHA.map((p,i)=>`${(i/(TRILHA.length-1)*w).toFixed(1)},${(h-p.c*h).toFixed(1)}`).join(' ');
+    spark = `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-label="Evolução da chance"><line x1="0" x2="${w}" y1="${h/2}" y2="${h/2}" stroke="var(--line)"/><polyline points="${pts}" fill="none" stroke="var(--pt)" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg><div class="nota">Evolução da chance nesta sessão (linha do meio = 50%)</div>`;
+  }
+  el.innerHTML = `<h2><span class="selo">13</span>Chance de Lula vencer o 2º turno</h2>
+    <div class="topo"><div class="grande">${txt}</div>
+    <div style="flex:1;min-width:240px"><div class="medidor" role="img" aria-label="${txt} de chance"><i style="width:${r.chance*100}%"></i><b></b></div>
+    <div class="status">Lula tem <b>${pp(r.atual)}</b> dos votos válidos apurados até agora · projeção final <b>${pp(r.final.medio)}</b> (faixa provável ${pp(r.final.p5)} a ${pp(r.final.p95)})</div></div></div>
+    ${ganhou?'<div class="vitoria">🎉 Vitória praticamente garantida pelos números da apuração!</div>':''}
+    <div class="fatos">
+      <div class="fato"><b>${caminho}</b>dos votos que faltam o Lula precisa para chegar a 50%</div>
+      <div class="fato"><b>~${int(r.votosFaltam)}</b>votos válidos ainda por apurar (estimativa)</div>
+      <div class="fato"><b>${pct(r.fracaoApurada*100,1)}</b>do eleitorado já apurado</div>
+    </div>${spark}
+    <p class="nota"><b>Estimativa do modelo, não resultado oficial.</b> Simulação de 20 mil cenários: cada estado entra com o duelo Lula x Flávio do 1º turno e passa a pesar mais a % observada conforme a apuração avança. No começo da noite o número oscila bastante (as primeiras urnas não representam o país); só vale como oficial o que o TSE divulgar.</p>`;
+  document.title = `Lula ${pp(r.atual)} · ${txt} de chance`;
+}
+
 function selecionar(r){ sel = (r===sel)? null : r; render(); if(sel && innerWidth<=860) $('detalhe').scrollIntoView({behavior:'smooth',block:'start'}); }
 
 function candBlock(lista, n=4){
@@ -220,7 +270,7 @@ function render(){
     <div style="flex:2;min-width:260px">${candBlock(b.candidatos,3)}${b.candidatos.length>3?`<details><summary>Ver todos (${b.candidatos.length})</summary>${candBlock(b.candidatos,b.candidatos.length)}</details>`:''}</div>`;
   $('regs').innerHTML = D.regioes.slice().sort((a,b)=>b.pst-a.pst).map(r=>`<button type="button" class="reg ${sel===r.nome?'sel':''}" aria-pressed="${sel===r.nome}" style="--c:${corLider(r.candidatos)}" data-r="${r.nome}"><b>${r.nome}</b><span class="bar"><i style="width:${r.pst}%;--c:${corLider(r.candidatos)}"></i></span><span class="num">${pct(r.pst)}</span></button>`).join('');
   document.querySelectorAll('.reg').forEach(el=>el.onclick=()=>{selecionar(el.dataset.r);document.querySelector(`.reg[data-r="${el.dataset.r}"]`).focus();});
-  pintaMapa(); pintaPeso(); pintaFalta();
+  pintaMapa(); pintaPeso(); pintaFalta(); pintaChance();
   const det = $('detalhe');
   if(!sel){
     det.innerHTML = `<h2>Votos por região</h2><p class="hint">Toque numa região (no mapa ou na lista) para ver os estados do mais apurado ao menos apurado.</p>` +
