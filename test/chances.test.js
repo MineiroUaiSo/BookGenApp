@@ -50,6 +50,18 @@ test('"precisa" bate com a conta: share atual igual a 50% => precisa ≈ 50% do 
   assert.ok(Math.abs(r.precisa - 0.5) < 0.03, r.precisa);
 });
 
+test('apuração completa converge com exterior presente no 1º e no 2º turno', () => {
+  const d = cenario({ f: 1, shareObs: 0.51 });
+  const ext = (te, est) => ({ uf: 'ZZ', candidatos: cands(150_000, 150_000), contagem: { te, est } });
+  d.insumos.prior.ZZ = ext(900_000);
+  d.insumos.exterior = ext(900_000, 900_000);
+  assert.equal(calcula(d).chance, 1);
+});
+
+test('formataChance(NaN) não mostra NaN', () => {
+  assert.equal(formataChance(NaN), '—');
+});
+
 test('formataChance nunca mostra 0% ou 100% exatos', () => {
   assert.equal(formataChance(1), '>99,9%');
   assert.equal(formataChance(0), '<0,1%');

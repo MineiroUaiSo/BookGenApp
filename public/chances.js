@@ -11,7 +11,7 @@
 (function () {
 'use strict';
 
-const N_SIM = 20_000;
+const N_SIM = 100_000;
 const LULA = '13';
 const FLAVIO = '22';
 const N0_SWING = 400_000;   // votos "virtuais" que ancoram o deslocamento nacional em 0
