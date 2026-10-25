@@ -2,9 +2,11 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Apuração 2º turno — Lula x Flávio</title>
-<meta name="theme-color" content="#3a6fd1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10141a" media="(prefers-color-scheme: dark)">
 <style>
   :root{
     --bg:#f6f7f9; --card:#fff; --ink:#1b2430; --mut:#667085; --line:#e3e7ee; --bar:#e9edf3;
@@ -13,6 +15,8 @@
   @media (prefers-color-scheme:dark){
     :root{--bg:#10141a; --card:#181d25; --ink:#e8ecf2; --mut:#98a2b3; --line:#2a313c; --bar:#262d38;
       --pt:#e5484d; --pl:#f5c518; --outro:#8a93a1; --Norte:#3fbf86; --Nordeste:#f0a640; --Centro-Oeste:#d4708a; --Sudeste:#5c8ae6; --Sul:#a67fe0;}
+    .banner div{background:#3a2f0b;color:#ffe08a;border-color:#6b5512}
+    .err{color:#ff8a80}
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -22,7 +26,8 @@
   .banner{max-width:1200px;margin:0 auto 8px;padding:0 16px}
   .banner div{background:#fff3cd;color:#664d03;border:1px solid #ffe69c;padding:8px 12px;border-radius:8px;font-size:14px}
   main{max-width:1200px;margin:0 auto;padding:0 16px 32px;display:grid;gap:16px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-  @media(max-width:860px){main{grid-template-columns:1fr}}
+  @media(max-width:860px){main{grid-template-columns:minmax(0,1fr)}
+    #chance{order:1}#total{order:2}#mapaCard{order:3}#detalhe{order:4}#graficoCard{order:5}#peso{order:6}#falta{order:7}}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
   .card h2{font-size:15px;margin:0 0 12px}
   .total{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:16px;align-items:center}
@@ -61,9 +66,9 @@
   }
   .leg{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin:4px 0 8px}
   .leg i,.gtip i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
-  .gwrap{position:relative}
+  .gwrap{position:relative;overflow:hidden}
   .gwrap svg{width:100%;height:auto;display:block;touch-action:pan-y}
-  .gwrap .eixo{font-size:11px;fill:var(--mut)}
+  .gwrap .eixo{font-size:12px;fill:var(--mut)}
   .gwrap .rot{font-size:14px;font-weight:700}
   .gtip{position:absolute;top:0;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;box-shadow:0 2px 8px #0002;pointer-events:none;white-space:nowrap}
   .phead,.prow{display:grid;grid-template-columns:100px 1fr 1fr;gap:12px;align-items:center;font-size:13px}
@@ -72,7 +77,7 @@
   @media(max-width:600px){.phead,.prow{grid-template-columns:70px 1fr 1fr;gap:8px}.pcel .num small{display:block}}
   .frow{display:grid;grid-template-columns:100px repeat(4,1fr);gap:4px 12px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
   .fhead{font-size:12px;color:var(--mut);font-weight:700;border-top:0}
-  .frow .num{display:flex;flex-direction:column;text-align:left}.frow small{color:var(--mut);font-size:11px}
+  .frow .num{display:flex;flex-direction:column;text-align:left}.frow small{color:var(--mut);font-size:12px}
   .frow .fbar{grid-column:2/-1;height:6px}.ftot{background:color-mix(in srgb,var(--ink) 5%,transparent);font-weight:700}
   @media(max-width:700px){.frow{grid-template-columns:70px repeat(3,1fr)}.frow>span:nth-child(5){display:none}.fhead span:nth-child(5){display:none}}
   .chance{grid-column:1/-1;border:2px solid var(--pt);background:linear-gradient(135deg,color-mix(in srgb,var(--pt) 12%,var(--card)),var(--card) 60%)}
@@ -87,6 +92,39 @@
   .chance .vitoria{background:var(--pt);color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;margin-top:10px}
   .chance svg.spark{height:56px;margin-top:8px}
   @media(max-width:600px){.chance .grande{font-size:44px}}
+  .pcel .num small{font-size:12px}
+  .chance .medwrap{flex:1 1 240px}
+  .chance .grande.lula{font-size:40px}
+  .chance .metodo summary{cursor:pointer;color:var(--mut);font-size:13px;min-height:44px;display:flex;align-items:center}
+  .dobra>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px}
+  .dobra>summary::-webkit-details-marker{display:none}
+  .dobra>summary h2{margin:0}
+  .dobra>summary::after{content:'▾';color:var(--mut);font-size:18px;transition:transform .2s}
+  .dobra[open]>summary{margin-bottom:8px}
+  .dobra[open]>summary::after{transform:rotate(180deg)}
+  .legenda>span{white-space:nowrap}.legenda>span:last-child{white-space:normal}
+  body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+  main>section{scroll-margin-top:72px}
+  @media(max-width:600px){
+    header{position:sticky;top:0;z-index:10;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;row-gap:0;align-items:center;
+      padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top));
+      background:color-mix(in srgb,var(--bg) 90%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+    header h1{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;grid-column:1;grid-row:1}
+    header .status{display:contents}
+    #status{grid-column:1;grid-row:2;font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #refresh{grid-column:2;grid-row:1/3}
+    main{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+    button,#total summary{min-height:44px}
+    #total summary{display:flex;align-items:center}
+    .banner{padding:0 10px;margin-bottom:6px}.banner div{font-size:13px;padding:6px 10px}
+    .chance .topo{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+    .chance .medwrap{grid-column:1/-1}
+    .chance h2{margin-bottom:8px}
+    .chance .grande{font-size:42px}.chance .grande.lula{font-size:32px}
+    .chance .medidor{margin:8px 0 4px}
+    .chance .fatos{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+    .chance .fato{font-size:12px;line-height:1.3}.chance .fato b{font-size:15px}
+  }
 </style>
 </head>
 <body>
@@ -107,7 +145,7 @@
   <section class="card" id="mapaCard" hidden>
     <h2>Mapa por região <span class="status" id="mapHint">— toque numa região</span></h2>
     <svg id="mapa" aria-hidden="true"></svg>
-    <p class="legenda" id="legenda"><i style="background:var(--pt)"></i>Lula (PT) <i style="background:var(--pl)"></i>Bolsonaro (PL) — a divisão de cores segue a proporção de votos entre os dois; números = % de cada um · % apurado embaixo <i style="background:var(--outro)"></i>sem dados</p>
+    <p class="legenda" id="legenda"><span><i style="background:var(--pt)"></i>Lula (PT)</span><span><i style="background:var(--pl)"></i>Bolsonaro (PL)</span><span><i style="background:var(--outro)"></i>sem dados</span><span style="flex-basis:100%">Cores na proporção de votos entre os dois · números = % de cada um · % apurado embaixo</span></p>
     <div class="regs" id="regs" role="group" aria-label="Apuração por região do Brasil"></div>
   </section>
   <section class="card" id="detalhe" hidden></section>
@@ -134,7 +172,7 @@ let D = null, sel = null;
 const M = window.MAPA_BRASIL;
 const svg = $('mapa'); svg.setAttribute('viewBox', M.viewBox);
 svg.innerHTML = '<defs id="defs"></defs>' + M.estados.map(e=>`<path class="uf" id="p-${e.id}" data-uf="${e.id}" d="${e.path}" fill="var(--outro)"><title>${esc(e.nome)}</title></path>`).join('') + '<g id="labels"></g>';
-svg.addEventListener('click', ev => { const p = ev.target.closest('.uf'); if (p) selecionar(regiaoDe[p.dataset.uf]); else selecionar(null); });
+svg.addEventListener('click', ev => { const p = ev.target.closest('.uf'); if (p) { const r = regiaoDe[p.dataset.uf]; if (r !== sel) selecionar(r); } else selecionar(null); });
 
 function caixa(ids){ // caixa envolvente do grupo de estados
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
@@ -169,22 +207,36 @@ function pintaMapa(){
   let h='';
   if(!sel){
     svg.setAttribute('viewBox', M.viewBox);
+    // rótulos com ~14px reais na tela, qualquer que seja a largura do mapa
+    const k = (+M.viewBox.split(/[\s,]+/)[2]) / (svg.getBoundingClientRect().width || 600);
+    const fA = Math.max(19, 14*k), fB = Math.max(12, 11*k);
     D.regioes.forEach(r=>{const c=caixa(r.ufs),d=duelo(r.candidatos),x=c.x+c.w/2,y=c.y+c.h/2;
-      h+=`<text class="lbl" x="${x}" y="${y}" font-size="19">${p0(d.l)} · ${p0(d.b)}</text><text class="lbl" x="${x}" y="${y+16}" font-size="12">${pct(r.pst,0)} apurado</text>`;});
+      h+=`<text class="lbl" x="${x}" y="${y}" font-size="${fA}">${p0(d.l)} · ${p0(d.b)}</text><text class="lbl" x="${x}" y="${y+fA*0.85}" font-size="${fB}">${pct(r.pst,0)} apurado</text>`;});
   } else {
     const r=D.regioes.find(r=>r.nome===sel), c=caixa(r.ufs), pad=c.w*0.06;
     // zoom na região (mantém proporção do mapa inteiro para não "pular" a altura)
-    const fs = Math.max(c.w,c.h)/34, ext = [];
-    svg.setAttribute('viewBox', `${c.x-pad} ${c.y-pad} ${c.w+2*pad+fs*12} ${c.h+2*pad}`);
+    const cw = svg.getBoundingClientRect().width || 600, base = Math.max(c.w,c.h)/34;
+    const fs = cw > 220 ? Math.max(base, 11*(c.w+2*pad)/(cw-110)) : base, ext = [];
+    svg.setAttribute('viewBox', `${c.x-pad} ${c.y-pad} ${c.w+2*pad+fs*10} ${c.h+2*pad}`);
     D.estados.filter(e=>e.regiao===sel).forEach(e=>{const b=$('p-'+e.uf.toLowerCase()).getBBox();const x=b.x+b.width/2,y=b.y+b.height/2,d=duelo(e.candidatos);
       if(b.width<fs*7||b.height<fs*4.5){ext.push({e,x,y,d});return;} // estado pequeno: rótulo externo
-      h+=`<text class="lbl" x="${x}" y="${y}" font-size="${fs}">${e.uf}</text><text class="lbl" x="${x}" y="${y+fs*1.05}" font-size="${fs*0.85}">${p0(d.l)} · ${p0(d.b)}</text><text class="lbl" x="${x}" y="${y+fs*1.9}" font-size="${fs*0.6}">${pct(e.pst,0)} apurado</text>`;});
+      h+=`<text class="lbl" x="${x}" y="${y}" font-size="${fs}">${e.uf}</text><text class="lbl" x="${x}" y="${y+fs*1.05}" font-size="${fs*0.85}">${p0(d.l)} · ${p0(d.b)}</text>`;});
     const lx = c.x+c.w+fs*0.5; let ly = -1e9;
     ext.sort((a,b)=>a.y-b.y).forEach(o=>{ly=Math.max(o.y,ly+fs*1.3);
-      h+=`<line x1="${o.x}" y1="${o.y}" x2="${lx}" y2="${ly}" stroke="var(--mut)" stroke-width="${fs*0.08}"/><text class="lbl ext" x="${lx}" y="${ly+fs*0.35}" font-size="${fs}">${o.e.uf} ${p0(o.d.l)} · ${p0(o.d.b)} <tspan font-size="${fs*0.65}">${pct(o.e.pst,0)}</tspan></text>`;});
+      h+=`<line x1="${o.x}" y1="${o.y}" x2="${lx}" y2="${ly}" stroke="var(--mut)" stroke-width="${fs*0.08}"/><text class="lbl ext" x="${lx}" y="${ly+fs*0.35}" font-size="${fs}">${o.e.uf} ${p0(o.d.l)} · ${p0(o.d.b)} <tspan font-size="${fs*0.8}">${pct(o.e.pst,0)}</tspan></text>`;});
   }
   $('labels').innerHTML=h;
   $('mapHint').textContent = sel ? '— toque no fundo p/ voltar' : '— toque numa região';
+}
+
+// seção recolhível: no celular começa fechada; o estado aberto/fechado sobrevive às atualizações de 30 s
+const ehMobile = () => matchMedia('(max-width:600px)').matches;
+const abertos = {};
+function dobra(id, titulo, corpo){
+  const el = $(id), d = el.querySelector(':scope > details.dobra');
+  if (d) abertos[id] = d.open;
+  const aberto = abertos[id] ?? !ehMobile();
+  el.innerHTML = `<details class="dobra"${aberto?' open':''}><summary><h2>${titulo}</h2></summary>${corpo}</details>`;
 }
 
 // quantos votos já foram apurados e quantos faltam, por região e no Brasil (soma dos estados)
@@ -194,12 +246,11 @@ function pintaFalta(){
   if (linhas.some(x=>!x.c)) { el.hidden = true; return; }
   el.hidden = false;
   const calc = c => { const tx = c.est ? c.c/c.est : 0; return { feitos:c.c, faltam:Math.round(c.esnt*tx), tot:Math.round(c.c + c.esnt*tx), eleit:c.esnt }; };
-  el.innerHTML = `<h2>Quantos votos já foram apurados e quantos faltam</h2>
-    <p class="hint">“Faltam” é uma <b>estimativa</b>: eleitores das seções ainda não apuradas × a taxa de comparecimento das seções já apuradas. O TSE só informa o número de eleitores dessas seções, não os votos.</p>
+  dobra('falta', 'Quantos votos já foram apurados e quantos faltam', `<p class="hint">“Faltam” é uma <b>estimativa</b>: eleitores das seções ainda não apuradas × a taxa de comparecimento das seções já apuradas. O TSE só informa o número de eleitores dessas seções, não os votos.</p>
     <div class="frow fhead"><span></span><span>Já apurados</span><span>Faltam (estim.)</span><span>Total previsto</span><span>Eleitores nas seções que faltam</span></div>` +
     linhas.map(({nome,c,total})=>{ const x = calc(c), p = x.tot ? x.feitos/x.tot*100 : 0;
       return `<div class="frow ${total?'ftot':''}"><b>${nome}</b><span class="num"><b>${int(x.feitos)}</b><small>votos</small></span><span class="num"><b>${int(x.faltam)}</b><small>votos</small></span><span class="num">${int(x.tot)}<small>${pct(p)} feito</small></span><span class="num">${int(x.eleit)}<small>eleitores</small></span><div class="bar fbar"><i style="width:${p}%"></i></div></div>`; }).join('') +
-    `<p class="nota">Brasil = soma dos estados (sem votos do exterior).</p>`;
+    `<p class="nota">Brasil = soma dos estados (sem votos do exterior).</p>`);
 }
 
 // quanto cada região pesa no resultado nacional de Lula e Bolsonaro
@@ -213,10 +264,9 @@ function pintaPeso(){
   const extL = nac.lv - linhas.reduce((a,x)=>a+x.d.lv,0), extB = nac.bv - linhas.reduce((a,x)=>a+x.d.bv,0);
   if (extL > 1 || extB > 1) linhas.push({nome:'Exterior', d:{lv:Math.max(extL,0), bv:Math.max(extB,0)}});
   const cel = (v, tot, cor) => `<div class="pcel"><div class="bar"><i style="width:${tot?v/tot*100:0}%;--c:${cor}"></i></div><span class="num"><b>${pct(tot?v/tot*100:0)}</b> dos votos <small>· +${(v/vv*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} pp</small></span></div>`;
-  $('peso').innerHTML = `<h2>Peso de cada região no resultado nacional</h2>
-    <p class="hint">Quanto dos votos de cada candidato vem de cada região. <b>pp</b> = pontos percentuais que a região soma à % nacional do candidato (Lula ${pct(nac.l)} · Bolsonaro ${pct(nac.b)}).</p>
+  dobra('peso', 'Peso de cada região no resultado nacional', `<p class="hint">Quanto dos votos de cada candidato vem de cada região. <b>pp</b> = pontos percentuais que a região soma à % nacional do candidato (Lula ${pct(nac.l)} · Bolsonaro ${pct(nac.b)}).</p>
     <div class="phead"><span></span><span style="color:var(--pt)">Lula (PT)</span><span style="color:var(--pl)">Bolsonaro (PL)</span></div>` +
-    linhas.map(x=>`<div class="prow"><b>${x.nome}</b>${cel(x.d.lv,nac.lv,'var(--pt)')}${cel(x.d.bv,nac.bv,'var(--pl)')}</div>`).join('');
+    linhas.map(x=>`<div class="prow"><b>${x.nome}</b>${cel(x.d.lv,nac.lv,'var(--pt)')}${cel(x.d.bv,nac.bv,'var(--pl)')}</div>`).join(''));
 }
 
 
@@ -241,22 +291,27 @@ function pintaChance(){
     const w=600,h=56, pts = TRILHA.map((p,i)=>`${(i/(TRILHA.length-1)*w).toFixed(1)},${(h-p.c*h).toFixed(1)}`).join(' ');
     spark = `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-label="Evolução da chance"><line x1="0" x2="${w}" y1="${h/2}" y2="${h/2}" stroke="var(--line)"/><polyline points="${pts}" fill="none" stroke="var(--pt)" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg><div class="nota">Evolução da chance de Lula neste navegador (linha do meio = 50%)</div>`;
   }
+  const mi = v => v >= 1e6 ? (v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi' : int(v);
+  const lulaOf = duelo(D.brasil.candidatos).l || r.atual*100; // % oficial (arquivo br ou soma dos estados, o que estiver à frente)
   el.innerHTML = `<h2><span class="selo">13</span>Chance de vencer o 2º turno</h2>
-    <div class="topo"><div><div class="grande">${txt}</div><div class="status"><b>Lula</b> · Flávio Bolsonaro <b style="color:var(--pl)">${Chances.formataChance(1-r.chance)}</b></div></div>
-    <div style="flex:1;min-width:240px"><div class="medidor" role="img" aria-label="${txt} de chance"><i style="width:${r.chance*100}%"></i><b></b></div>
-    <div class="status">Lula tem <b>${pp(r.atual)}</b> dos votos válidos apurados até agora · projeção final <b>${pp(r.final.medio)}</b> (faixa provável ${pp(r.final.p5)} a ${pp(r.final.p95)})</div></div></div>
+    <div class="topo">
+      <div class="kpi"><div class="grande">${txt}</div><div class="status">chance do <b>Lula</b> · Flávio <b style="color:var(--pl)">${Chances.formataChance(1-r.chance)}</b></div></div>
+      <div class="kpi"><div class="grande lula">${pct(lulaOf,1)}</div><div class="status">dos votos válidos para <b>Lula</b></div></div>
+      <div class="medwrap"><div class="medidor" role="img" aria-label="${txt} de chance"><i style="width:${r.chance*100}%"></i><b></b></div>
+      <div class="status">Projeção final <b>${pp(r.final.medio)}</b> (faixa provável ${pp(r.final.p5)} a ${pp(r.final.p95)})</div></div>
+    </div>
     ${ganhou?`<div class="vitoria">Vitória de ${lider} praticamente garantida pelos números da apuração.</div>`:''}
     ${r.soPrior.length?`<div class="nota">Sem dados do TSE agora para ${esc(r.soPrior.join(', '))}: entram só pelo resultado do 1º turno.</div>`:''}
     <div class="fatos">
-      <div class="fato"><b>${caminho}</b>dos votos que faltam o Lula precisa para chegar a 50%</div>
-      <div class="fato"><b>~${int(r.votosFaltam)}</b>votos válidos ainda por apurar (estimativa)</div>
-      <div class="fato"><b>${pct(r.fracaoApurada*100,1)}</b>do eleitorado já apurado</div>
+      <div class="fato"><b>${caminho}</b>do que falta p/ Lula chegar a 50%</div>
+      <div class="fato"><b>~${mi(r.votosFaltam)}</b>votos válidos a apurar (estim.)</div>
+      <div class="fato"><b>${pct(r.fracaoApurada*100,1)}</b>do eleitorado apurado</div>
     </div>${spark}
-    <p class="nota"><b>Estimativa do modelo, não resultado oficial.</b> Simulação de 20 mil cenários: cada estado entra com o duelo Lula x Flávio do 1º turno e passa a pesar mais a % observada conforme a apuração avança. No começo da noite o número oscila bastante (as primeiras urnas não representam o país); só vale como oficial o que o TSE divulgar.</p>`;
+    <details class="metodo"><summary>Como a chance é calculada</summary><p class="nota"><b>Estimativa do modelo, não resultado oficial.</b> Simulação de 20 mil cenários: cada estado entra com o duelo Lula x Flávio do 1º turno e passa a pesar mais a % observada conforme a apuração avança. No começo da noite o número oscila bastante (as primeiras urnas não representam o país); só vale como oficial o que o TSE divulgar.</p></details>`;
   document.title = `Lula ${pp(r.atual)} · ${txt} de chance`;
 }
 
-function selecionar(r){ sel = (r===sel)? null : r; render(); if(sel && innerWidth<=860) $('detalhe').scrollIntoView({behavior:'smooth',block:'start'}); }
+function selecionar(r, rolar=false){ sel = (r===sel)? null : r; render(); if(rolar && sel && innerWidth<=860) $('detalhe').scrollIntoView({behavior:'smooth',block:'start'}); }
 
 function candBlock(lista, n=4){
   const max = lista[0]?.votos || 1;
@@ -270,12 +325,12 @@ function render(){
     <div style="flex:1;min-width:240px"><div class="bar"><i style="width:${b.pst}%"></i></div><div class="status" style="margin-top:6px">${int(b.votosValidos)} votos nominais contados</div><div class="nota">inclui votos do exterior</div></div>
     <div style="flex:2;min-width:260px">${candBlock(b.candidatos,3)}${b.candidatos.length>3?`<details><summary>Ver todos (${b.candidatos.length})</summary>${candBlock(b.candidatos,b.candidatos.length)}</details>`:''}</div>`;
   $('regs').innerHTML = D.regioes.slice().sort((a,b)=>b.pst-a.pst).map(r=>`<button type="button" class="reg ${sel===r.nome?'sel':''}" aria-pressed="${sel===r.nome}" style="--c:${corLider(r.candidatos)}" data-r="${r.nome}"><b>${r.nome}</b><span class="bar"><i style="width:${r.pst}%;--c:${corLider(r.candidatos)}"></i></span><span class="num">${pct(r.pst)}</span></button>`).join('');
-  document.querySelectorAll('.reg').forEach(el=>el.onclick=()=>{selecionar(el.dataset.r);document.querySelector(`.reg[data-r="${el.dataset.r}"]`).focus();});
+  document.querySelectorAll('.reg').forEach(el=>el.onclick=()=>{selecionar(el.dataset.r, true);document.querySelector(`.reg[data-r="${el.dataset.r}"]`).focus();});
   pintaMapa(); pintaPeso(); pintaFalta(); pintaChance();
   const det = $('detalhe');
   if(!sel){
-    det.innerHTML = `<h2>Votos por região</h2><p class="hint">Toque numa região (no mapa ou na lista) para ver os estados do mais apurado ao menos apurado.</p>` +
-      D.regioes.map(r=>`<h2 style="margin-top:14px;color:var(--ink)">${r.nome} <span class="status">${pct(r.pst)} apurado</span></h2>${candBlock(r.candidatos,3)}`).join('');
+    dobra('detalhe', 'Votos por região', `<p class="hint">Toque numa região (no mapa ou na lista) para ver os estados do mais apurado ao menos apurado.</p>` +
+      D.regioes.map(r=>`<h2 style="margin-top:14px;color:var(--ink)">${r.nome} <span class="status">${pct(r.pst)} apurado</span></h2>${candBlock(r.candidatos,3)}`).join(''));
     return;
   }
   const r = D.regioes.find(r=>r.nome===sel);
@@ -326,6 +381,7 @@ async function carregar(){
     }
   }
 }
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (D) { pintaMapa(); desenhaGrafico(); } }, 200); });
 $('refresh').onclick = carregar;
 carregaHistorico().then(carregar); setInterval(carregar, 30000); setInterval(()=>carregaHistorico().then(()=>D&&desenhaGrafico()), 120000);
 </script>

@@ -138,7 +138,7 @@ function normalizaUF(uf, d) {
   if (secoes && secoesTot == null && pst != null) secoesTot = Math.round((secoes * pst) / 100);
   // eleitores aptos (te), nas seções já totalizadas (est) e nas que faltam (esnt); c = votos já computados (comparecimento)
   const contagem = { te: num(d.e?.te), est: num(d.e?.est), esnt: num(d.e?.esnt), c: num(d.e?.c) };
-  return { uf, nome: NOMES[uf], regiao: regiaoDe[uf], pst: pst ?? 0, secoes, secoesTot, peso: secoes || ELEITORADO[uf], contagem, candidatos: cands };
+  return { uf, nome: NOMES[uf], regiao: regiaoDe[uf], pst: pst ?? 0, secoes, secoesTot, peso: secoes || ELEITORADO[uf], contagem, candidatos: cands, t: isoDoTSE(d.dg, d.hg) };
 }
 
 function agrega(estados) {
@@ -201,13 +201,22 @@ async function buscaTSE() {
   try { insumos = await insumosModelo(id); } catch { /* modelo opcional */ }
   const b = normalizaUF('BR', br);
   const candidatos = comPct(b.candidatos);
-  const brasil = candidatos.length
+  let brasil = candidatos.length
     ? { contagem: agregado.brasil.contagem, pst: b.pst, secoes: b.secoes, secoesTot: b.secoesTot, votosValidos: candidatos.reduce((a, c) => a + c.votos, 0), candidatos }
     : agregado.brasil;
+  // o arquivo "br" pode estar atrasado em relação aos estados: se a soma das UFs já está à frente, usa a soma (mesma fonte do modelo)
+  const ag = agregado.brasil;
+  if (ag.votosValidos > brasil.votosValidos) {
+    const sec = ag.contagem || {};
+    brasil = { ...brasil, ...ag, secoes: sec.secoes ?? brasil.secoes, secoesTot: sec.secoesTot ?? brasil.secoesTot, somaDosEstados: true };
+  }
+  // horário mais recente entre o "br" e as UFs
+  const instantes = [isoDoTSE(br.dg, br.hg), ...estados.map((e) => e.t)].filter(Boolean);
+  const atualizadoEm = instantes.reduce((a, t) => (Date.parse(t) > Date.parse(a) ? t : a));
   return {
     fonte: 'TSE',
     eleicao: { ano: ANO, id, turno: Number(br.t) },
-    atualizadoEm: isoDoTSE(br.dg, br.hg),
+    atualizadoEm,
     falhas,
     brasil,
     regioes: agregado.regioes,
