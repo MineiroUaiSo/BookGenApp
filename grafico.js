@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const fmt = (v, d = 1) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmt = (v, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const hora = (t) => t.slice(11, 16);
 let W = 640, H = 280; const M = { l: 44, r: 74, t: 14, b: 30 };
 const PT = '13', PL = '22';
