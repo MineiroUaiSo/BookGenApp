@@ -113,9 +113,15 @@ def _largest(mask: np.ndarray) -> np.ndarray:
     return lab == counts.argmax()
 
 
-def psp_probs(work: np.ndarray) -> Optional[np.ndarray]:
-    """Sigmoid probabilities (14, 512, 512) of the ChestX-Det PSPNet for a working-res image (0..1), or None."""
-    if not models_enabled():
+def _resolve_enabled(use_model: Optional[bool]) -> bool:
+    """Explicit True/False wins; the MEDLENS_RX_MODELS env only applies when the argument is None."""
+    return models_enabled() if use_model is None else bool(use_model)
+
+
+def psp_probs(work: np.ndarray, use_model: Optional[bool] = None) -> Optional[np.ndarray]:
+    """Sigmoid probabilities (14, 512, 512) of the ChestX-Det PSPNet for a working-res image (0..1), or None.
+    use_model: explicit True/False overrides the env; None defers to MEDLENS_RX_MODELS."""
+    if not _resolve_enabled(use_model):
         return None
     model = _psp()
     if model is None:
@@ -174,19 +180,20 @@ def lung_field_from_probs(prob: np.ndarray, shape: tuple[int, int]) -> Optional[
     return resize(m.astype(np.uint8), shape, order=0, preserve_range=True, anti_aliasing=False) > 0
 
 
-def segment_chest_model(work: np.ndarray, prob: Optional[np.ndarray] = None) -> Optional[dict[str, np.ndarray]]:
+def segment_chest_model(work: np.ndarray, prob: Optional[np.ndarray] = None,
+                        use_model: Optional[bool] = None) -> Optional[dict[str, np.ndarray]]:
     """work: float 0..1 image at working res. Returns masks at working res, or None.
     `prob` lets the caller reuse a PSP pass already made for view detection."""
     if prob is None:
-        prob = psp_probs(work)
+        prob = psp_probs(work, use_model)
     if prob is None:
         return None
     masks = masks_from_probs(prob, work.shape)
     return masks if masks_plausible(masks, work.shape) else None
 
 
-def pathology_scores(work: np.ndarray) -> dict[str, float]:
-    if not models_enabled():
+def pathology_scores(work: np.ndarray, use_model: Optional[bool] = None) -> dict[str, float]:
+    if not _resolve_enabled(use_model):
         return {}
     model = _dense()
     if model is None:

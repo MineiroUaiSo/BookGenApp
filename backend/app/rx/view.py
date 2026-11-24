@@ -154,13 +154,13 @@ def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False, al
     model_kind: Optional[str] = None
 
     if use_model and work is not None and region in (None, BodyRegion.CHEST):
-        prob = M.psp_probs(work)
+        prob = M.psp_probs(work, True)
         if prob is not None:
             feats = model_features(prob)
             model_kind, why = classify_from_features(feats)
             if allow_rotate and region is None and (
                     model_kind == "nochest" or (model_kind == "chest_frontal" and not _upright(feats))):
-                k, f2, p2 = estimate_rotation(work, s, feats, model_kind, M.psp_probs)
+                k, f2, p2 = estimate_rotation(work, s, feats, model_kind, lambda w: M.psp_probs(w, True))
                 if k:
                     rot, feats, prob = k, f2, p2
                     model_kind, why = classify_from_features(feats)
