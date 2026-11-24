@@ -183,11 +183,12 @@ class RangeFile(io.RawIOBase):
         from medlens_data import USER_AGENT
         self.url, self.s = url, session or requests.Session()
         self.s.headers["User-Agent"] = USER_AGENT
-        r = self.s.head(url, allow_redirects=True, timeout=60)
+        r = self.s.get(url, headers={"Range": "bytes=0-0"}, timeout=60)
         r.raise_for_status()
-        self.size = int(r.headers["Content-Length"])
-        if r.headers.get("Accept-Ranges", "").lower() != "bytes":
+        cr = r.headers.get("Content-Range", "")
+        if r.status_code != 206 or "/" not in cr:
             raise RuntimeError("server does not support Range")
+        self.size = int(cr.rsplit("/", 1)[1])
         self.pos = 0
 
     def seekable(self): return True
@@ -391,29 +392,51 @@ def build_shenzhen(zen_dir: Path, img_dir: Path, source: str = "shenzhen") -> li
 
 # --------------------------------------------------------------------------- PAX-Ray++ (synthetic frontal + lateral)
 
-PAX_KEEP = ("lung", "heart", "clavicle", "trachea", "rib", "scapula", "spine", "diaphragm", "mediastinum", "aorta")
+PAX_DIRECT = {  # PAX-Ray++ category -> our structure name (patient-side anatomical names: derived from CT)
+    "right lung": "right_lung", "left lung": "left_lung", "heart": "heart", "trachea": "trachea",
+    "clavicle right": "right_clavicle", "clavicle left": "left_clavicle", "spine": "spine", "sternum": "sternum",
+    "right hemidiaphragm": "right_hemidiaphragm", "left hemidiaphragm": "left_hemidiaphragm",
+    "aorta": "aorta", "cardiomediastinum": "cardiomediastinum",
+    "scapula right": "right_scapula", "scapula left": "left_scapula",
+}
+_RIB_RE = re.compile(r"^(anterior|posterior) \d+(st|nd|rd|th) rib (left|right)$")
 
 
-def _pax_name(name: str) -> str:
-    n = name.lower().strip().replace(" ", "_").replace("-", "_")
-    return re.sub(r"[^a-z0-9_]", "", n)
+def pax_structure(cat_name: str) -> Optional[str]:
+    """Map a PAX-Ray++ category name to our structure name; individual ribs -> 'ribs_left'/'ribs_right' (union)."""
+    n = cat_name.strip().lower()
+    if n in PAX_DIRECT:
+        return PAX_DIRECT[n]
+    m = _RIB_RE.match(n)
+    return f"ribs_{m.group(3)}" if m else None
 
 
-def build_paxray(raw: Path, source: str = "rx_masks_other", max_images: Optional[int] = None,
-                 keep: tuple[str, ...] = PAX_KEEP) -> list[Record]:
-    """raw: dir with paxray_test.json (COCO), paxray_images.tar.gz, paxray_label_dictionary.json."""
+def build_paxray(raw: Path, source: str = "rx_masks_other", max_volumes: Optional[int] = 400) -> list[Record]:
+    """raw: dir with paxray_test.json (COCO), paxray_images.tar.gz, metadata.csv (pixel spacing).
+    Keeps the first `max_volumes` test volumes (frontal + lateral each). Masks 512x512, aligned with the image."""
+    import csv
     d = source_dir(source)
     coco = json.loads((raw / "paxray_test.json").read_text())
-    cats = {c["id"]: _pax_name(c["name"]) for c in coco["categories"]}
-    imgs = {i["id"]: i for i in coco["images"]}
+    cats = {c["id"]: c["name"] for c in coco["categories"]}
     anns: dict[int, list] = {}
     for a in coco["annotations"]:
         anns.setdefault(a["image_id"], []).append(a)
-    wanted = {Path(i["file_name"]).name: i for i in imgs.values()}
-    if max_images:
-        wanted = dict(list(wanted.items())[:max_images])
-    recs = []
+    meta = {}
+    mp = raw / "metadata.csv"
+    if mp.exists():
+        for row in csv.DictReader(mp.open()):
+            meta[row["volume_id"]] = row
+    imgs = sorted(coco["images"], key=lambda i: i["file_name"])
+    vols = sorted({re.sub(r"_(frontal|lateral)\.png$", "", i["file_name"]) for i in imgs})
+    if max_volumes:
+        step = max(1, len(vols) // max_volumes)
+        vols = set(vols[::step][:max_volumes])
+    else:
+        vols = set(vols)
+    wanted = {i["file_name"]: i for i in imgs if re.sub(r"_(frontal|lateral)\.png$", "", i["file_name"]) in vols}
     spec = _lic("paxrayplusplus")
+    recs = []
+    (d / "images").mkdir(exist_ok=True)
     with tarfile.open(raw / "paxray_images.tar.gz") as tf:
         for member in tf:
             nm = Path(member.name).name
@@ -422,15 +445,14 @@ def build_paxray(raw: Path, source: str = "rx_masks_other", max_images: Optional
             info = wanted[nm]
             im = Image.open(io.BytesIO(tf.extractfile(member).read())).convert("L")
             stem = Path(nm).stem
-            view = "LATERAL" if "lateral" in nm.lower() or "lat" in stem.lower().split("_") else "PA"
+            view = "LATERAL" if stem.endswith("_lateral") else "PA"   # PAX-Ray++ frontal = AP/PA projection of CT
             rel_img = f"images/{stem}.png"
-            (d / "images").mkdir(exist_ok=True)
             im.save(d / rel_img, optimize=True)
             h, w = info["height"], info["width"]
-            masks: dict[str, str] = {}
+            acc: dict[str, np.ndarray] = {}
             for a in anns.get(info["id"], []):
-                cname = cats[a["category_id"]]
-                if not any(k in cname for k in keep):
+                key = pax_structure(cats[a["category_id"]])
+                if key is None:
                     continue
                 seg = a["segmentation"]
                 if isinstance(seg, dict):
@@ -439,18 +461,27 @@ def build_paxray(raw: Path, source: str = "rx_masks_other", max_images: Optional
                     m = np.zeros((h, w), bool)
                     for poly in seg:
                         m |= polygon_mask(list(zip(poly[0::2], poly[1::2])), (w, h))
-                key = cname
-                if key in masks:  # several instances of one class: union
-                    m |= np.asarray(Image.open(d / masks[key])) > 0
-                rel = f"masks/{stem}/{key}.png"
-                save_mask(m, d / rel)
-                masks[key] = rel
+                acc[key] = acc[key] | m if key in acc else m
+            masks = {}
+            for key, m in sorted(acc.items()):
+                if m.any():
+                    rel = f"masks/{stem}/{key}.png"; save_mask(m, d / rel); masks[key] = rel
+            vol = re.sub(r"_(frontal|lateral)$", "", stem)
+            mm = meta.get(vol) or {}
+            sp = None
+            try:
+                sp = [float(mm[f"{'frontal' if view == 'PA' else 'lateral'}_mm_per_px_x"]),
+                      float(mm[f"{'frontal' if view == 'PA' else 'lateral'}_mm_per_px_y"])]
+            except (KeyError, ValueError, TypeError):
+                pass
             recs.append(Record(
                 id=stem, source=source, modality="RX", kind="image", path=rel_img,
                 url="https://zenodo.org/records/23627483", license=spec[0], attribution=spec[1], labels=[],
-                view=view, group=re.sub(r"(frontal|lateral)$", "", stem, flags=re.I),
-                extra={"masks": masks, "image_size": [w, h], "synthetic": True,
-                       "left_right": "dataset names; for LATERAL views left/right is not patient-side defined",
+                view=view, group=vol,
+                extra={"masks": masks, "image_size": [w, h], "synthetic": True, "ct_source": mm.get("source"),
+                       "pixel_spacing_mm": sp,
+                       "left_right": "patient-anatomical names (from CT); in LATERAL views the side is not visible",
+                       "ribs": "ribs_left/ribs_right = union of anterior+posterior ribs 1-12 of that side",
                        "mask_source": "CT projection of volumetric pseudo-labels (not radiologist GT)"}))
     write_manifest(source, recs)
     return recs

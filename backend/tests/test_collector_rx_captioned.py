@@ -85,6 +85,9 @@ def test_extract_view_region_labels_arrows():
     assert S.extract_view(GOOD) == "PA"
     assert S.extract_view("Portable AP chest film, supine") == "AP"
     assert S.extract_view("Lateral view of the chest") == "LATERAL"
+    assert S.extract_view("Chest radiograph showing opacity of the lateral costophrenic angle") is None
+    assert S.panel_letters("(A, B) initial films. (C-D) follow up and (E and F)") == list("ABCDEF")
+    assert S.panel_letters("Only one panel (A) shown") == ["A"]
     assert S.extract_view("Right lateral decubitus film") == "DECUBITUS"
     assert S.extract_view("Radiograph of the hand") is None
     assert S.extract_region(GOOD) == "chest"
@@ -181,6 +184,8 @@ def test_montage_without_matching_subcaptions_dropped(tmp_path):
     assert recs == [] and st.reasons["panels:montage_unassignable"] == 1
     recs = S.sieve_candidate(cand(GOOD.replace("(arrows)", "(A) arrows (B) here"), xray()), tmp_path, "t", st)
     assert recs == [] and st.reasons["panels:subcaptions_but_single_image"] == 1
+    recs = S.sieve_candidate(cand(GOOD.replace("(arrows)", "(A, B) arrows"), xray()), tmp_path, "t", st)
+    assert recs == [] and st.reasons["panels:subcaptions_but_single_image"] == 2
 
 
 def test_sub_panel_that_is_ct_is_dropped_but_xray_kept(tmp_path):

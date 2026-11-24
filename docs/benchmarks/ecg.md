@@ -1,15 +1,15 @@
 # ECG benchmark results
 
-_Generated 2026-11-24 10:56 UTC by `bench`._
+_Generated 2026-11-24 11:15 UTC by `bench`._
 
 
 ## Summary
 
 | Capability / metric | Result | Dataset, N |
 |---|---|---|
-| Delineation: QRS on/off within CSE tol | 36% / 61% | LUDB, 65 records |
-| Delineation: P onset / T offset within CSE tol | 50% / 55% | LUDB, 65 records |
-| Detection sensitivity QRS / P / T | 99% / 66% / 88% | LUDB, 7110 beats |
+| Delineation: QRS on/off within CSE tol | 32% / 57% | LUDB, 200 records |
+| Delineation: P onset / T offset within CSE tol | 51% / 55% | LUDB, 200 records |
+| Detection sensitivity QRS / P / T | 99% / 66% / 91% | LUDB, 21843 beats |
 | Diagnosis AF: sens / spec / PPV | 30% / 99% / 75% | PTB-XL, 511 recs (40 pos) |
 | Diagnosis AV1: sens / spec / PPV | 43% / 68% / 28% | PTB-XL, 511 recs (115 pos) |
 | Diagnosis RBBB_complete: sens / spec / PPV | 69% / 59% / 29% | PTB-XL, 511 recs (100 pos) |
@@ -25,17 +25,17 @@ _Generated 2026-11-24 10:56 UTC by `bench`._
 
 ## LUDB: wave delineation vs cardiologist annotations
 
-65 records analysed (0 failed), 776 record-leads; annotated beats 7110, P waves 5338, T waves 6361.  Timing: median 0.72 s, p95 4.58 s, max 6.0 s per record (N=65).
+200 records analysed (0 failed), 2396 record-leads; annotated beats 21843, P waves 16780, T waves 19538.  Timing: median 0.50 s, p95 1.19 s, max 6.0 s per record (N=200).
 
 ### Fiducial-point error vs cardiologist annotation (per lead, per matched beat)
 
 | Fiducial | N matched | error ours-gold, mean ± SD (ms) | median \|err\| (ms) | CSE 2SD tol | within tol | within 2x tol |
 |---|---|---|---|---|---|---|
-| P onset | 3514 | +2.6 ± 26.0 | 12.0 | ±10.2 | 49.9% (1753/3514) | 78.3% (2751/3514) |
-| P offset | 3514 | -2.9 ± 22.0 | 8.0 | ±12.7 | 66.3% (2330/3514) | 83.8% (2945/3514) |
-| QRS onset | 6999 | +7.5 ± 15.3 | 10.0 | ±6.5 | 35.8% (2505/6999) | 59.0% (4132/6999) |
-| QRS offset | 6999 | -4.9 ± 19.6 | 8.0 | ±11.6 | 61.2% (4284/6999) | 86.1% (6029/6999) |
-| T offset | 5603 | +45.4 ± 81.8 | 24.0 | ±30.6 | 54.8% (3070/5603) | 67.6% (3789/5603) |
+| P onset | 11082 | -0.3 ± 27.1 | 10.0 | ±10.2 | 50.7% (5624/11082) | 77.5% (8585/11082) |
+| P offset | 11082 | -3.2 ± 22.0 | 8.0 | ±12.7 | 64.6% (7160/11082) | 84.4% (9353/11082) |
+| QRS onset | 21647 | +7.2 ± 16.5 | 12.0 | ±6.5 | 32.1% (6951/21647) | 55.0% (11908/21647) |
+| QRS offset | 21647 | -5.3 ± 23.9 | 10.0 | ±11.6 | 56.7% (12268/21647) | 83.1% (17981/21647) |
+| T offset | 17742 | +44.0 ± 82.3 | 24.0 | ±30.6 | 55.5% (9838/17742) | 68.1% (12082/17742) |
 
 Tolerances: CSE 2-SD values (P on 10.2, P off 12.7, QRS on 6.5, QRS off 11.6, T off 30.6 ms) — Willems et al., _Methods Inf Med_ 1990;29:263; Martinez et al., _IEEE TBME_ 2004;51:570. Note: LUDB annotators place the QRS 'N' on the dominant deflection; error sign = ours - gold.
 
@@ -43,9 +43,9 @@ Tolerances: CSE 2-SD values (P on 10.2, P off 12.7, QRS on 6.5, QRS off 11.6, T 
 
 | Wave | Sensitivity (detected / annotated) | PPV (correct / ours, matched beats) |
 |---|---|---|
-| QRS (beat match R ±75 ms) | 98.6% (7011/7110) | 98.5% (7011/7119) |
-| P wave | 65.8% (3514/5338) | 76.8% (3514/4577) |
-| T wave | 88.1% (5603/6361) | 87.1% (5603/6432) |
+| QRS (beat match R ±75 ms) | 99.2% (21659/21843) | 99.0% (21659/21880) |
+| P wave | 66.0% (11082/16780) | 76.7% (11082/14455) |
+| T wave | 90.8% (17742/19538) | 88.2% (17742/20122) |
 
 P/T counted detected when our peak lies within the annotated wave ±30 ms (P) / ±50 ms (T). PPV counts our waves in beats matched to an annotated beat.
 
@@ -53,37 +53,37 @@ P/T counted detected when our peak lies within the annotated wave ±30 ms (P) / 
 
 | Global interval | N records | error ours-gold mean ± SD | median \|err\| | within tolerance | Pearson r |
 |---|---|---|---|---|---|
-| PR | 53 | -2.6 ± 34.6 | 12.0 | 69.8% (37/53) (\|err\|<=20) | 0.68 |
-| QRS | 65 | +15.6 ± 49.9 | 17.0 | 58.5% (38/65) (\|err\|<=20) | 0.40 |
-| QT | 65 | +69.8 ± 84.5 | 84.0 | 32.3% (21/65) (\|err\|<=30) | 0.52 |
-| HR (bpm) | 65 | +0.5 ± 3.2 | 0.4 | 92.3% (60/65) (\|err\|<=5) | 0.97 |
+| PR | 155 | +1.7 ± 35.4 | 12.0 | 68.4% (106/155) (\|err\|<=20) | 0.60 |
+| QRS | 200 | +33.2 ± 77.4 | 20.5 | 50.0% (100/200) (\|err\|<=20) | 0.38 |
+| QT | 197 | +83.6 ± 87.3 | 106.0 | 23.9% (47/197) (\|err\|<=30) | 0.35 |
+| HR (bpm) | 200 | +0.1 ± 2.6 | 0.4 | 94.5% (189/200) (\|err\|<=5) | 0.98 |
 
 ### Per-lead mean ± SD error (ms)
 
 | Lead | P on | P off | QRS on | QRS off | T off |
 |---|---|---|---|---|---|
-| I | +1.4 ± 26.4 | -7.1 ± 18.9 | +2.3 ± 14.0 | -1.3 ± 25.4 | +35.6 ± 73.3 |
-| II | +4.1 ± 19.3 | -6.1 ± 16.5 | +5.8 ± 14.7 | -1.8 ± 19.3 | +61.8 ± 87.9 |
-| III | +6.6 ± 26.1 | -0.3 ± 28.6 | +3.9 ± 16.2 | -3.6 ± 19.8 | +32.8 ± 77.4 |
-| aVR | +0.7 ± 22.0 | -5.6 ± 17.7 | +2.3 ± 17.8 | +0.2 ± 18.7 | +61.3 ± 89.9 |
-| aVL | +3.1 ± 26.5 | -5.2 ± 21.9 | +1.0 ± 15.8 | -1.4 ± 26.8 | +16.9 ± 60.8 |
-| aVF | +2.4 ± 22.5 | -4.4 ± 20.3 | +3.7 ± 15.6 | -1.0 ± 18.1 | +55.6 ± 81.9 |
-| V1 | +13.5 ± 32.9 | +15.9 ± 32.7 | +6.9 ± 16.0 | -2.0 ± 16.9 | +38.4 ± 86.8 |
-| V2 | -3.9 ± 30.7 | -3.5 ± 24.3 | +10.8 ± 12.7 | -3.9 ± 12.6 | +47.4 ± 83.0 |
-| V3 | -1.9 ± 28.1 | -4.5 ± 19.1 | +14.3 ± 12.4 | -6.8 ± 13.3 | +47.3 ± 81.9 |
-| V4 | +0.2 ± 26.2 | -4.7 ± 18.8 | +16.6 ± 12.4 | -11.8 ± 18.1 | +44.6 ± 80.1 |
-| V5 | +0.9 ± 27.7 | -3.8 ± 14.9 | +13.2 ± 12.1 | -13.5 ± 17.0 | +52.9 ± 82.5 |
-| V6 | +0.8 ± 22.7 | -3.1 ± 14.6 | +9.0 ± 11.8 | -11.4 ± 16.9 | +49.0 ± 82.4 |
+| I | -0.8 ± 24.7 | -6.2 ± 17.4 | +1.4 ± 16.1 | +0.3 ± 28.9 | +32.4 ± 73.2 |
+| II | +2.6 ± 21.6 | -7.5 ± 17.6 | +4.9 ± 16.3 | -2.4 ± 22.8 | +61.0 ± 89.6 |
+| III | +1.3 ± 29.6 | -1.7 ± 26.7 | +1.7 ± 19.5 | -4.0 ± 27.9 | +36.2 ± 80.4 |
+| aVR | +0.9 ± 20.9 | -6.5 ± 16.6 | +1.7 ± 18.6 | -0.6 ± 26.4 | +58.5 ± 87.9 |
+| aVL | +0.9 ± 29.7 | -4.1 ± 24.3 | -0.4 ± 18.3 | +1.2 ± 29.8 | +21.0 ± 64.5 |
+| aVF | +0.0 ± 23.1 | -5.0 ± 21.5 | +3.0 ± 16.6 | -3.2 ± 26.1 | +55.8 ± 85.6 |
+| V1 | +5.4 ± 35.5 | +10.9 ± 30.5 | +8.0 ± 14.5 | -1.9 ± 17.6 | +32.8 ± 86.8 |
+| V2 | -8.8 ± 32.5 | -0.2 ± 25.7 | +12.3 ± 12.5 | -5.4 ± 16.2 | +45.9 ± 81.3 |
+| V3 | -3.6 ± 27.8 | -2.0 ± 21.7 | +14.4 ± 12.0 | -7.7 ± 14.8 | +46.5 ± 82.8 |
+| V4 | -1.5 ± 24.9 | -3.9 ± 16.8 | +15.8 ± 12.0 | -13.1 ± 20.5 | +43.3 ± 79.8 |
+| V5 | -3.3 ± 27.8 | -4.4 ± 18.2 | +13.7 ± 13.0 | -14.1 ± 21.5 | +47.0 ± 82.2 |
+| V6 | -3.4 ± 25.7 | -4.0 ± 17.4 | +10.3 ± 13.1 | -12.5 ± 21.3 | +45.3 ± 81.3 |
 
 ### Worst examples
 
 | Criterion | Worst record ids (mean \|err\|) |
 |---|---|
-| QRS onset | ludb-111 (47 ms), ludb-109 (22 ms), ludb-104 (20 ms), ludb-12 (19 ms), ludb-14 (19 ms) |
-| QRS offset | ludb-104 (77 ms), ludb-111 (43 ms), ludb-108 (35 ms), ludb-12 (24 ms), ludb-10 (22 ms) |
-| P onset | ludb-130 (54 ms), ludb-12 (34 ms), ludb-107 (31 ms), ludb-133 (31 ms), ludb-108 (30 ms) |
-| T offset | ludb-153 (145 ms), ludb-15 (140 ms), ludb-102 (127 ms), ludb-126 (120 ms), ludb-122 (119 ms) |
-| lowest QRS detection | ludb-116, ludb-111, ludb-106, ludb-125, ludb-12 |
+| QRS onset | ludb-93 (56 ms), ludb-111 (47 ms), ludb-90 (32 ms), ludb-8 (32 ms), ludb-74 (31 ms) |
+| QRS offset | ludb-74 (136 ms), ludb-45 (121 ms), ludb-34 (97 ms), ludb-104 (77 ms), ludb-72 (49 ms) |
+| P onset | ludb-42 (123 ms), ludb-130 (54 ms), ludb-5 (51 ms), ludb-31 (48 ms), ludb-48 (44 ms) |
+| T offset | ludb-153 (145 ms), ludb-176 (142 ms), ludb-15 (140 ms), ludb-63 (139 ms), ludb-174 (136 ms) |
+| lowest QRS detection | ludb-116, ludb-111, ludb-74, ludb-83, ludb-45 |
 
 ## PTB-XL: diagnostic statements
 
@@ -156,10 +156,10 @@ Axis category agreement: 71.2% [66.0-76.0] (n=313) (metadata `heart_axis`: LAD/A
 
 | Class | What the FPs really are (gold SCP codes) | What we reported for FNs |
 |---|---|---|
-| AF | FP gold labels -> CRBBB:3, PVC:2, BIGU:2, ASMI:1 | FN our findings -> non_sinus_p:19, long_qt:16, rbbb:16, lvh:15 |
+| AF | FP gold labels -> CRBBB:3, PVC:2, BIGU:2, ASMI:1 | FN our findings -> non_sinus_p:19, rbbb:16, long_qt:16, lvh:15 |
 | AV1 | FP gold labels -> SR:101, CLBBB:37, CRBBB:32, NORM:29 | FN our findings -> long_qt:45, non_sinus_p:31, lvh:27, lae:21 |
 | AV2 | FP gold labels -> SR:48, 1AVB:20, IRBBB:17, NORM:12 | FN our findings -> - |
-| AV3 | FP gold labels -> SR:4, IRBBB:2, ASMI:1, ALMI:1 | FN our findings -> non_sinus_p:2, lvh:2, rbbb:2, t_inversion_anterolateral:1 |
+| AV3 | FP gold labels -> SR:4, IRBBB:2, ASMI:1, ALMI:1 | FN our findings -> rbbb:2, non_sinus_p:2, lvh:2, st_depression_inferior:1 |
 | RBBB_complete | FP gold labels -> SR:111, CLBBB:95, 1AVB:33, ILBBB:28 | FN our findings -> ivcd:30, rvh:27, long_qt:23, left_axis_deviation:20 |
 | RBBB_incomplete | FP gold labels -> SR:8, NORM:7, 1AVB:7, IMI:2 | FN our findings -> long_qt:42, sinus_rhythm:33, rbbb:29, lae:18 |
 | RBBB_any | FP gold labels -> SR:101, CLBBB:95, 1AVB:38, ILBBB:29 | FN our findings -> long_qt:46, ivcd:32, sinus_rhythm:31, rvh:28 |
@@ -168,24 +168,24 @@ Axis category agreement: 71.2% [66.0-76.0] (n=313) (metadata `heart_axis`: LAD/A
 | LAFB | FP gold labels -> IRBBB:1, NST_:1, AFIB:1 | FN our findings -> left_axis_deviation:47, long_qt:39, rbbb:24, ivcd:21 |
 | LPFB | FP gold labels -> NORM:1, IRBBB:1, SARRH:1 | FN our findings -> right_axis_deviation:12, ivcd:8, rvh:7, st_depression_inferior:7 |
 | WPW | FP gold labels -> CLBBB:1, IRBBB:1, ISCAL:1, SR:1 | FN our findings -> - |
-| LVH | FP gold labels -> SR:107, CLBBB:82, 1AVB:43, ASMI:27 | FN our findings -> st_depression_lateral:2, t_inversion_anterolateral:1, rbbb:1, sinus_rhythm:1 |
+| LVH | FP gold labels -> SR:107, CLBBB:82, 1AVB:43, ASMI:27 | FN our findings -> st_depression_lateral:2, sinus_rhythm:1, rbbb:1, t_inversion_anterolateral:1 |
 | RVH | FP gold labels -> CRBBB:25, LAFB:15, SR:11, ABQRS:10 | FN our findings -> rbbb:8, long_qt:6, left_axis_deviation:4, sinus_rhythm:3 |
 | LAE | FP gold labels -> SR:126, 1AVB:48, CRBBB:37, CLBBB:36 | FN our findings -> long_qt:12, lvh:9, rbbb:9, st_depression_lateral:6 |
-| RAE | FP gold labels -> SR:5, CRBBB:3, IMI:3, ASMI:2 | FN our findings -> left_axis_deviation:1, sinus_rhythm:1 |
+| RAE | FP gold labels -> SR:5, CRBBB:3, IMI:3, ASMI:2 | FN our findings -> sinus_rhythm:1, left_axis_deviation:1 |
 | LQT | FP gold labels -> SR:244, CRBBB:79, CLBBB:78, 1AVB:69 | FN our findings -> - |
-| SBRAD | FP gold labels -> SR:30, NORM:13, IRBBB:10, CRBBB:6 | FN our findings -> rbbb:3, irregular_rhythm:2, non_sinus_p:2, lvh:2 |
-| STACH | FP gold labels -> SR:4, 1AVB:3, CLBBB:3, ASMI:3 | FN our findings -> long_qt:12, lvh:10, non_sinus_p:9, st_depression_lateral:9 |
+| SBRAD | FP gold labels -> SR:30, NORM:13, IRBBB:10, CRBBB:6 | FN our findings -> rbbb:3, irregular_rhythm:2, non_sinus_p:2, av_block_1:2 |
+| STACH | FP gold labels -> SR:4, 1AVB:3, CLBBB:3, ASMI:3 | FN our findings -> long_qt:12, lvh:10, st_depression_lateral:9, rbbb:9 |
 | SR | FP gold labels -> SARRH:10, IRBBB:8, NORM:7, 1AVB:5 | FN our findings -> long_qt:108, rbbb:69, lvh:59, lae:53 |
 | MI_any | FP gold labels -> CLBBB:82, SR:70, 1AVB:18, PVC:15 | FN our findings -> long_qt:48, rbbb:28, lae:26, left_axis_deviation:22 |
 | MI_inferior | FP gold labels -> SR:20, CLBBB:19, LAFB:9, 1AVB:8 | FN our findings -> long_qt:31, rbbb:20, lae:14, left_axis_deviation:14 |
 | MI_anterior | FP gold labels -> CLBBB:83, SR:67, 1AVB:18, PVC:15 | FN our findings -> long_qt:37, rbbb:20, left_axis_deviation:20, sinus_rhythm:18 |
 | MI_lateral | FP gold labels -> CRBBB:8, SR:7, LAFB:5, ABQRS:3 | FN our findings -> long_qt:13, rbbb:7, sinus_rhythm:7, left_axis_deviation:7 |
-| STTC | FP gold labels -> SR:111, CLBBB:90, CRBBB:59, 1AVB:48 | FN our findings -> long_qt:13, lae:9, sinus_rhythm:9, lvh:7 |
+| STTC | FP gold labels -> SR:111, CLBBB:90, CRBBB:59, 1AVB:48 | FN our findings -> long_qt:13, sinus_rhythm:9, lae:9, lvh:7 |
 | STE | FP gold labels -> SR:85, CLBBB:82, 1AVB:30, ASMI:23 | FN our findings -> - |
 | STD | FP gold labels -> SR:114, CLBBB:79, CRBBB:57, 1AVB:47 | FN our findings -> long_qt:4, lae:3, sinus_rhythm:3, irbbb:2 |
-| LOWV | FP gold labels -> SR:10, ASMI:8, 1AVB:6, CRBBB:6 | FN our findings -> av_block_1:1, sinus_bradycardia:1, long_qt:1, lae:1 |
+| LOWV | FP gold labels -> SR:10, ASMI:8, 1AVB:6, CRBBB:6 | FN our findings -> lae:1, av_block_1:1, long_qt:1, sinus_bradycardia:1 |
 | NORM | FP gold labels -> - | FN our findings -> long_qt:66, sinus_rhythm:62, av_block_1:31, lae:31 |
-| AF_AFL | FP gold labels -> CRBBB:3, PVC:2, BIGU:2, ASMI:1 | FN our findings -> non_sinus_p:20, lvh:18, rbbb:18, long_qt:16 |
+| AF_AFL | FP gold labels -> CRBBB:3, PVC:2, BIGU:2, ASMI:1 | FN our findings -> non_sinus_p:20, rbbb:18, lvh:18, long_qt:16 |
 
 ### Example ids for debugging
 

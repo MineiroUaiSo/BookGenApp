@@ -87,3 +87,31 @@ def test_dice_and_save_mask(tmp_path):
     rm.save_mask(a, tmp_path / "x" / "m.png")
     back = np.asarray(Image.open(tmp_path / "x" / "m.png"))
     assert set(np.unique(back)) == {0, 255} and (back > 0).tolist() == a.tolist()
+
+
+def test_pax_structure_mapping():
+    assert rm.pax_structure("right lung") == "right_lung"
+    assert rm.pax_structure("clavicle left") == "left_clavicle"
+    assert rm.pax_structure("posterior 3rd rib left") == "ribs_left"
+    assert rm.pax_structure("anterior 11th rib right") == "ribs_right"
+    assert rm.pax_structure("12th rib") is None          # side-less aggregate classes are skipped
+    assert rm.pax_structure("liver") is None
+
+
+def test_jsrt_build_from_synthetic_raw(tmp_path, monkeypatch):
+    import zipfile
+    import medlens_data as md
+    monkeypatch.setattr(md, "DATA_ROOT", tmp_path)
+    monkeypatch.setattr(rm, "source_dir", lambda s: (tmp_path / s).mkdir(exist_ok=True) or tmp_path / s)
+    raw = tmp_path / "raw"; raw.mkdir()
+    buf = tmp_path / "a.jpg"; Image.new("RGB", (256, 256), (128, 128, 128)).save(buf)
+    with zipfile.ZipFile(raw / "jpg.zip", "w") as z:
+        z.write(buf, "jpg/JPCLN001.jpg")
+    pts = PFS.replace("{ 10, 10 }", "{ 40, 40 }")  # 1024-space coords
+    with zipfile.ZipFile(raw / "points.zip", "w") as z:
+        z.writestr("points/JPCLN001.pfs", pts)
+    monkeypatch.setattr(rm, "write_manifest", lambda s, r: None)
+    recs = rm.build_jsrt(raw=raw, source="jsrt_t")
+    assert len(recs) == 1 and set(recs[0].extra["masks"]) == {"right_lung", "left_lung"}
+    m = np.asarray(Image.open(tmp_path / "jsrt_t" / recs[0].extra["masks"]["right_lung"])) > 0
+    assert m.shape == (256, 256) and m.any() and recs[0].view == "PA"

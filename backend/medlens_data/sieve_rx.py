@@ -41,7 +41,9 @@ _OTHER = re.compile(
 VIEW_PATTERNS = [
     ("PA", re.compile(r"\bpa\b|posteroanterior|postero-anterior|posterior-anterior", re.I)),
     ("AP", re.compile(r"\bap\b|anteroposterior|antero-posterior|anterior-posterior", re.I)),
-    ("LATERAL", re.compile(r"lateral|\blat\b|cross[- ]table|sagittal view", re.I)),
+    ("LATERAL", re.compile(r"\blateral (view|projection|chest|radiograph|radiogram|film|x-?ray|image|position|cxr|cr)\b|"
+                           r"\b(view|projection|radiograph|film)[,:]? (in )?lateral\b|\bcross[- ]table|\blat(eral)? (cxr|view)|"
+                           r"\b(in|on) (the )?lateral\b|\blateral\b[.,;]?\s*$|\blateral and\b|\band lateral\b", re.I)),
     ("DECUBITUS", re.compile(r"decubitus", re.I)),
     ("OBLIQUE", re.compile(r"oblique", re.I)),
 ]
@@ -148,6 +150,21 @@ def extract_arrows(text: str) -> list[str]:
     return res
 
 
+def panel_letters(caption: str) -> list[str]:
+    """Distinct panel letters referenced in the caption: '(A)', '(A, B)', '(A and B)', '(A-C)', 'A)'."""
+    letters: set[str] = set()
+    for m in re.finditer(r"\(([A-Ha-h](?:\s*(?:,|and|&|to|\u2013|\u2014|-)\s*[A-Ha-h])*)\)", caption):
+        grp = m.group(1)
+        parts = re.split(r"\s*(?:,|and|&)\s*", grp)
+        for p in parts:
+            rng = re.split(r"\s*(?:to|\u2013|\u2014|-)\s*", p)
+            if len(rng) == 2 and len(rng[0]) == 1 and len(rng[1]) == 1:
+                letters.update(chr(c).upper() for c in range(ord(rng[0].upper()), ord(rng[1].upper()) + 1))
+            else:
+                letters.update(x.upper() for x in rng if len(x) == 1)
+    return sorted(letters)
+
+
 def split_subcaptions(caption: str) -> tuple[str, dict[str, str]]:
     """'Chest X-ray. (A) PA view ... (B) lateral ...' -> ('Chest X-ray.', {'A': 'PA view ...', 'B': ...}).
     Accepts (A)/(a)/A./A) markers in ascending order A, B, C ... Needs >= 2 consecutive letters starting at A."""
@@ -210,8 +227,8 @@ def _load_gray_and_sat(path_or_img):
     import numpy as np
     im = path_or_img if hasattr(path_or_img, "convert") else Image.open(path_or_img)
     rgb = im.convert("RGB")
-    if max(rgb.size) > 1600:  # speed
-        s = 1600 / max(rgb.size)
+    if max(rgb.size) > 1000:  # speed
+        s = 1000 / max(rgb.size)
         rgb = rgb.resize((int(rgb.width * s), int(rgb.height * s)))
     a = np.asarray(rgb, dtype=np.float32) / 255.0
     mx, mn = a.max(2), a.min(2)
@@ -222,7 +239,11 @@ def _load_gray_and_sat(path_or_img):
 
 def image_stats(path_or_img) -> dict:
     gray, sat = _load_gray_and_sat(path_or_img)
-    return {"width": int(gray.shape[1]), "height": int(gray.shape[0]),
+    im0 = path_or_img if hasattr(path_or_img, "size") else None
+    if im0 is None:
+        from PIL import Image
+        im0 = Image.open(path_or_img)
+    return {"width": int(im0.size[0]), "height": int(im0.size[1]),
             "mean_sat": round(float(sat.mean()), 4),
             "color_frac": round(float((sat > 0.35).mean()), 4),
             "gray_std": round(float(gray.std()), 4),
@@ -382,7 +403,7 @@ def sieve_candidate(c: Candidate, out_dir: Path, source: str, stats: Optional[Si
     n_pan = len(boxes)
     parts: list[tuple[Image.Image, str, str]] = []  # (image, caption, panel_id suffix)
     if n_pan == 1:
-        if len(subs) >= 2:
+        if len(subs) >= 2 or len(panel_letters(c.caption)) >= 2:
             stats.reject("panels:subcaptions_but_single_image")
             return []
         parts.append((im, c.caption, ""))

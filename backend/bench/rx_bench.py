@@ -126,6 +126,10 @@ def norm_struct(name: str) -> Optional[str]:
     toks = set(n.split("_"))
     side = "left" if ("left" in toks or "l" in toks or "esq" in toks) else \
            "right" if ("right" in toks or "r" in toks or "dir" in toks) else None
+    if "cardiomediastin" in n or "diaphragm" in n or n.startswith("ribs"):
+        return None  # no like-for-like structure in our output (merged/other definition)
+    if "sternum" in n:
+        return "sternum"
     if "heart" in n or "cardiac" in n:
         return "heart"
     if "clav" in n:
@@ -334,7 +338,10 @@ def _init_worker():
 def _fake_ds(view: Optional[str] = "PA"):
     """Stand-in for DICOM tags (what a real DICOM would carry): chest + view position."""
     import types
-    return types.SimpleNamespace(BodyPartExamined="CHEST", ViewPosition=view or "PA")
+    d = types.SimpleNamespace(BodyPartExamined="CHEST")
+    if view:
+        d.ViewPosition = view
+    return d
 
 
 def _analyze(img, iid, mode, ds=None):
@@ -416,9 +423,14 @@ def run_iu(task: dict) -> dict:
         for it in task["items"]:
             try:
                 img = load_gray(root / it["path"], task["max_side"])
-                a, dt = _analyze(img, it["id"], task["mode"])
+                # untagged run: what a PNG/JPG upload gets (scored for view/region detection only)
+                a0, _ = _analyze(img, it["id"], "heur")
+                gv = view_class(it["view"])
+                # tagged run (as a DICOM with BodyPart=CHEST and ViewPosition would): used for segmentation/findings
+                a, dt = _analyze(img, it["id"], task["mode"], _fake_ds({"frontal": "PA", "lateral": "LATERAL"}.get(gv)))
                 analyses.append(a)
                 s = _img_summary(a, dt)
+                s.update(auto_view=a0.view.value, auto_region=a0.region.value)
                 s.update(id=it["id"], gt_view=it["view"], vsrc=it.get("vsrc"))
                 imgs.append(s)
             except Exception as e:
@@ -629,7 +641,7 @@ def seg_tables(rows: list[dict]) -> tuple[str, dict, list]:
                 swapped = [m for _, m in items if m.get("dice_swapped", 0) > m["dice"] + 0.2]
                 if swapped:
                     row[-1] += f"; {len(swapped)} lado trocado"
-                for iid, m in sorted(items, key=lambda x: x[1]["dice"])[:3]:
+                for iid, m in sorted(items, key=lambda x: x[1]["dice"])[:6]:
                     worst.append((src, st, mode, iid, m["dice"]))
             trs.append(row)
         parts.append(f"### {src}\n\n" + table(trs, ["estrutura", "Dice modelo [IC95%]", "IoU modelo", "Dice med. modelo", "N modelo",
@@ -682,7 +694,7 @@ def iu_eval(rows: list[dict]) -> tuple[str, dict, list]:
     sec = []
     ok = [r for r in rows if r.get("ok")]
     # ---- view classification
-    for mode, vsrc_f in [(m, f) for m in ("model", "heur") for f in ("caption", "order")]:
+    for mode, vsrc_f in [(m, f) for m in ("heur",) for f in ("caption", "order")]:
         imgs = [(r["id"], i) for r in ok if r["mode"] == mode for i in r["images"] if "error" not in i]
         imgs = [(sid, i) for sid, i in imgs if view_class(i["gt_view"]) and i.get("vsrc") == vsrc_f]
         if not imgs:
@@ -690,18 +702,21 @@ def iu_eval(rows: list[dict]) -> tuple[str, dict, list]:
         cm = Counter()
         for _, i in imgs:
             g = view_class(i["gt_view"])
-            p = "frontal" if i["view"] in ("PA", "AP") else "lateral" if i["view"] == "LATERAL" else "other"
+            p = "frontal" if i["auto_view"] in ("PA", "AP") else "lateral" if i["auto_view"] == "LATERAL" else "other"
             cm[(g, p)] += 1
         n = len(imgs)
         k = cm[("frontal", "frontal")] + cm[("lateral", "lateral")]
         lo, hi = wilson(k, n)
         head[("iu_view", f"{mode}, GT {vsrc_f}")] = (k / n, lo, hi, n)
-        wrong = [(sid, i["id"], i["gt_view"], i["view"]) for sid, i in imgs
-                 if view_class(i["gt_view"]) != ("frontal" if i["view"] in ("PA", "AP") else "lateral" if i["view"] == "LATERAL" else "other")]
+        wrong = [(sid, i["id"], i["gt_view"], i["auto_view"]) for sid, i in imgs
+                 if view_class(i["gt_view"]) != ("frontal" if i["auto_view"] in ("PA", "AP") else "lateral" if i["auto_view"] == "LATERAL" else "other")]
         sec.append(f"**{mode}, GT view_source={vsrc_f}**: acurácia frontal/perfil {k}/{n} = {k / n:.3f} (IC95% {lo:.3f}–{hi:.3f}). Matriz (verdade→previsto): "
                    + ", ".join(f"{g}→{p}: {c}" for (g, p), c in sorted(cm.items()))
                    + (". Erros: " + ", ".join(f"`{w[1]}` (GT {w[2]}, previsto {w[3]})" for w in wrong[:8]) if wrong else ""))
-        pa_ap = Counter(i["view"] for _, i in imgs if view_class(i["gt_view"]) == "frontal")
+        pa_ap = Counter(i["auto_view"] for _, i in imgs if view_class(i["gt_view"]) == "frontal")
+        reg = Counter(i["auto_region"] for _, i in imgs)
+        sec.append(f"  Região detectada sem tags ({vsrc_f}): " + ", ".join(f"{a}={b}" for a, b in sorted(reg.items())))
+        head[("iu_region_chest", f"GT {vsrc_f}")] = (reg["chest"] / n, *wilson(reg["chest"], n), n)
         sec.append(f"  Distribuição PA/AP previstas nos frontais ({mode}/{vsrc_f}): " + ", ".join(f"{a}={b}" for a, b in sorted(pa_ap.items())))
     view_txt = "\n\n".join(sec)
 
@@ -868,7 +883,7 @@ def build_report(path: Optional[Path] = None) -> Path:
         "Imagens reduzidas a no máx. 1024 px no maior lado; máscaras de referência redimensionadas por vizinho mais próximo.",
         "Convenção de lado: pulmão/clavícula 'esquerdo' = lado esquerdo do paciente (lado direito da imagem). Colunas 'lado trocado' contam imagens em que o Dice com a estrutura contralateral supera em > 0,2; indicam convenção invertida na máscara de referência ou erro de lado.",
         "ICT nosso = largura do coração / largura dos campos pulmonares (proxy da largura torácica interna); o ICT de referência usa a mesma fórmula nas máscaras manuais (não a largura torácica interna real).",
-        "Rótulos IU vêm dos laudos (mapeamento por texto/etiquetas, estudo-nível): positivos podem não estar visíveis na imagem; a ausência de menção é tratada como negativo. Escores do DenseNet foram treinados também com IU (nih-pc-chex-mimic_ch-google-openi-kaggle) — risco de vazamento, as métricas de modelo no IU são otimistas.",
+        "Para IU e máscaras, a segmentação/achados usam uma execução 'com tags' (BodyPart=CHEST, ViewPosition conforme a verdade) como num DICOM; a detecção de região/incidência é pontuada numa execução sem tags (como PNG/JPG). Rótulos IU vêm dos laudos (mapeamento por texto/etiquetas, estudo-nível): positivos podem não estar visíveis na imagem; a ausência de menção é tratada como negativo. Escores do DenseNet foram treinados também com IU (nih-pc-chex-mimic_ch-google-openi-kaggle) — risco de vazamento, as métricas de modelo no IU são otimistas.",
         "PA/AP: sem tags DICOM nas imagens PNG a incidência frontal assume PA; só frontal vs perfil é avaliado como acerto.",
         "Legendas de artigos/Wikimedia: dica de região/incidência é heurística de texto (regex) e rótulos são evidência fraca; figuras podem ter painéis múltiplos, setas e texto sobre a imagem.",
     ]
@@ -878,9 +893,25 @@ def build_report(path: Optional[Path] = None) -> Path:
         for (src, st, mode), (m, lo, hi, n) in sorted(h.items()):
             if st in ("lungs", "heart"):
                 headline.append([f"Segmentação {st} ({src}, {mode})", "Dice médio [IC95%]", n, f"{m:.3f} [{lo:.3f}, {hi:.3f}]"])
-        wt = table([[s, st, mode, f"`{iid}`", f"{d:.3f}"] for s, st, mode, iid, d in sorted(worst, key=lambda x: x[4])[:30]],
+        wl = []
+        for mode in ("model", "heur"):
+            for st in ("lungs", "heart"):
+                wl += sorted([w for w in worst if w[1] == st and w[2] == mode], key=lambda x: x[4])[:5]
+        wt = table([[s, st, mode, f"`{iid}`", f"{d:.3f}"] for s, st, mode, iid, d in wl],
                    ["fonte", "estrutura", "caminho", "id", "Dice"])
         sections.append(("Piores casos de segmentação", wt))
+        det = []
+        for src in sorted({r["source"] for r in seg}):
+            rs = [r for r in seg if r.get("ok") and r["source"] == src and r["mode"] == "heur" and r.get("auto_region")]
+            if not rs:
+                continue
+            ch_ = sum(r["auto_region"] == "chest" for r in rs)
+            fr_ = sum(r["auto_region"] == "chest" and r["auto_view"] in ("PA", "AP", "LATERAL") for r in rs)
+            gtl = [r for r in rs if view_class(r.get("view")) == "lateral"]
+            det.append([src, len(rs), f"{ch_}/{len(rs)} = {ch_ / len(rs):.3f} [{wilson(ch_, len(rs))[0]:.3f}, {wilson(ch_, len(rs))[1]:.3f}]", f"{fr_}/{len(rs)}"])
+            headline.append([f"Região=tórax sem tags ({src})", "fração [IC95%]", len(rs), f"{ch_ / len(rs):.3f} [{wilson(ch_, len(rs))[0]:.3f}, {wilson(ch_, len(rs))[1]:.3f}]"])
+        if det:
+            sections.append(("Detecção de região sem tags (imagens de tórax)", table(det, ["fonte", "N", "região=tórax [IC95%]", "tórax com incidência reconhecida"])))
         ct, ch = ctr_section(seg)
         sections.append(("ICT: referência (máscaras) vs nosso", ct))
         for (src, mode), (mae, n) in sorted(ch.items()):
@@ -896,6 +927,8 @@ def build_report(path: Optional[Path] = None) -> Path:
         for (k, *rest), v in sorted(h.items(), key=lambda x: str(x)):
             if k == "iu_view":
                 headline.append([f"IU incidência frontal/perfil ({rest[0]})", "acurácia [IC95%]", v[3], f"{v[0]:.3f} [{v[1]:.3f}, {v[2]:.3f}]"])
+            elif k == "iu_region_chest":
+                headline.append([f"IU tórax reconhecido sem tags ({rest[0]})", "fração região=chest [IC95%]", v[3], f"{v[0]:.3f} [{v[1]:.3f}, {v[2]:.3f}]"])
             elif k == "recon":
                 headline.append([f"IU reconstrução 3D ({rest[0]})", "taxa de sucesso [IC95%]", v[3], f"{v[0]:.3f} [{v[1]:.3f}, {v[2]:.3f}]"])
             elif k == "iu_auc" and rest[2] == "model":
