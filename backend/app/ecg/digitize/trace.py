@@ -118,10 +118,11 @@ def find_pulse(ink: np.ndarray, y_base: float, xs_left: int, ppm_x: float, ppm_y
                 x_start=x0 + i, thick=thick)
 
 
-def extract_row(ink: np.ndarray, xa: int, xb: int, y_base: float, half_band: int, ppm_y: float):
+def extract_row(ink: np.ndarray, xa: int, xb: int, y_base: float, half_band: int, ppm_y: float,
+                y_lo: int | None = None, y_hi: int | None = None, node_w: float = 0.02):
     """DP column tracking. Returns arrays (len xb-xa): centre y (NaN missing), top, bottom, valid mask."""
-    y0 = int(max(0, y_base - half_band))
-    y1 = int(min(ink.shape[0], y_base + half_band))
+    y0 = int(max(0, y_base - half_band)) if y_lo is None else int(max(0, y_lo))
+    y1 = int(min(ink.shape[0], y_base + half_band)) if y_hi is None else int(min(ink.shape[0], y_hi))
     B = ink[y0:y1, xa:xb]
     h, w = B.shape
     pad = np.zeros((h + 2, w), np.int8)
@@ -153,7 +154,7 @@ def extract_row(ink: np.ndarray, xa: int, xb: int, y_base: float, half_band: int
     prev_c = None
     for k, c in enumerate(cols):
         t, b, ctr = cand[k]
-        node = 0.02 * np.abs(ctr - yb) / pm
+        node = node_w * np.abs(ctr - yb) / pm
         if prev_cost is None:
             cost = node
             bp = np.zeros(len(t), int)
