@@ -1,0 +1,57 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: misc
+cartoes:
+- id: misc.nenhuma_anormalidade
+  versao: 1
+  nome_pt: ECG dentro dos limites da normalidade
+  criterio: Ritmo sinusal, intervalos e eixo normais, sem alterações de ST-T.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.within_normal_limits
+  armadilhas:
+  - ECG normal não afasta cardiopatia.
+  nao_confundir:
+  - normal.fc_ritmo
+  fonte:
+    ref: sbc_laudos_2022
+    local: Arq Bras Cardiol 2022;119(4):638-680, seção sobre laudo normal
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: misc.alternancia_eletrica
+  versao: 1
+  nome_pt: Alternância elétrica
+  criterio: 'Variação de amplitude do QRS a cada batimento: derrame pericárdico volumoso; TSV rápida.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.low_voltage
+  armadilhas:
+  - Na TSV pode ocorrer sem derrame.
+  nao_confundir:
+  - pericardite.derrame_alternancia
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre doenças pericárdicas
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: misc.sobrecarga_biventricular
+  versao: 1
+  nome_pt: Sobrecarga biventricular
+  criterio: Critérios de HVE com R alta em V1/eixo à direita, ou voltagem de HVE com S profunda em V1-V2.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.lvh
+  - ecg.rvh
+  armadilhas:
+  - Critérios de baixa sensibilidade.
+  nao_confundir:
+  - lvh.sokolow_lyon
+  - hvd.criterios_r_v1
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir

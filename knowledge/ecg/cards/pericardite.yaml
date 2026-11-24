@@ -1,0 +1,79 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: pericardite
+cartoes:
+- id: pericardite.tipica
+  versao: 1
+  nome_pt: Pericardite aguda
+  criterio: Supra de ST côncavo difuso (sem território), depressão de PR em várias derivações, supra de
+    PR em aVR; sem alterações recíprocas fora de aVR e V1.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  armadilhas:
+  - Distinguir de STEMI e repolarização precoce.
+  - 'Sinal de Spodick: depressão do TP.'
+  nao_confundir:
+  - iam.stemi_universal
+  - repol.repolarizacao_precoce
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre pericardite
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: critério consolidado, citação específica a conferir
+- id: pericardite.estagios
+  versao: 1
+  nome_pt: Estágios da pericardite
+  criterio: 'I: supra + PR; II: normalização; III: T negativa; IV: normalização.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  - ecg.t_inversion_*
+  armadilhas:
+  - Nem todo paciente passa por todos.
+  nao_confundir:
+  - pericardite.tipica
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre pericardite
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: pericardite.razao_st_t
+  versao: 1
+  nome_pt: 'Pericardite x repolarização precoce: ST/T em V6'
+  criterio: Razão ST/T em V6 maior que 0,25 favorece pericardite.
+  limiares:
+    razao: '>0.25'
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  armadilhas:
+  - Uso isolado limitado.
+  nao_confundir:
+  - repol.repolarizacao_precoce
+  fonte:
+    ref: ginzton_1982
+    local: '1982'
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: citação e corte não confirmados
+- id: pericardite.derrame_alternancia
+  versao: 1
+  nome_pt: Derrame com alternância elétrica
+  criterio: Baixa voltagem com alternância da amplitude do QRS batimento a batimento sugere derrame volumoso/tamponamento.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.low_voltage
+  armadilhas:
+  - Ecocardiograma confirma.
+  nao_confundir:
+  - voltagem.baixa_voltagem
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre doenças pericárdicas
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir

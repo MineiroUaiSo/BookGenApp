@@ -1,0 +1,57 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: taq
+cartoes:
+- id: taq.tsv
+  versao: 1
+  nome_pt: Taquicardia supraventricular de QRS estreito
+  criterio: 'Taquicardia regular de QRS <120 ms, FC 140-250, P ausente/retrógrada: AVNRT, AVRT ou atrial.'
+  limiares: {}
+  medidas: []
+  gatilhos: []
+  armadilhas:
+  - Flutter 2:1 e taquicardia sinusal fazem parte do diferencial.
+  nao_confundir:
+  - af.flutter
+  - ritmo.taquicardia_sinusal
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, taquicardias
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: taq.qrs_largo
+  versao: 1
+  nome_pt: Taquicardia de QRS largo
+  criterio: 'Presumir TV até prova contrária; favorecem TV: dissociação AV, captura, fusão, concordância
+    precordial, eixo extremo.'
+  limiares: {}
+  medidas: []
+  gatilhos: []
+  armadilhas:
+  - Aberrância de condução e pré-excitação também.
+  - Brugada 1991 e Vereckei servem de auxílio.
+  nao_confundir:
+  - conducao.aberrancia
+  - taq.tv
+  fonte:
+    ref: brugada_1991
+    local: Circulation 1991;83:1649
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: taq.tv
+  versao: 1
+  nome_pt: Taquicardia ventricular
+  criterio: Três ou mais batimentos ventriculares consecutivos >100 bpm; sustentada >30 s.
+  limiares: {}
+  medidas: []
+  gatilhos: []
+  armadilhas:
+  - Monomórfica ou polimórfica.
+  nao_confundir:
+  - taq.qrs_largo
+  - qt.torsades
+  fonte:
+    ref: esc_va_2022
+    local: ESC 2022, definições
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir

@@ -1,0 +1,66 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: eixo
+cartoes:
+- id: eixo.desvio_esquerda
+  versao: 1
+  nome_pt: Desvio do eixo para a esquerda
+  criterio: Eixo entre -30 e -90 graus; QRS negativo em DII e aVF. Considerar BDAS, HVE, infarto inferior,
+    pré-excitação, hiperpotassemia.
+  limiares:
+    eixo_graus: <-30
+  medidas:
+  - qrs_axis_deg
+  gatilhos:
+  - ecg.left_axis*
+  - ecg.left_axis_deviation
+  - ecg.left_axis_mild
+  armadilhas:
+  - Desvio leve (-30 a -45) com QRS estreito pode ser variante.
+  nao_confundir:
+  - bloqueio.bdas
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, eixo do QRS
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: eixo.desvio_direita
+  versao: 1
+  nome_pt: Desvio do eixo para a direita
+  criterio: 'Eixo entre +90 e +180 graus: DI negativo. Considerar HVD, BDPI, TEP, DPOC, dextrocardia,
+    troca de eletrodos.'
+  limiares:
+    eixo_graus: '>90'
+  medidas:
+  - qrs_axis_deg
+  gatilhos:
+  - ecg.right_axis*
+  - ecg.right_axis_deviation
+  armadilhas:
+  - Em jovens magros pode ser normal.
+  nao_confundir:
+  - bloqueio.bdpi
+  - eletrodos.braco_esq_dir
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, eixo do QRS
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: eixo.extremo
+  versao: 1
+  nome_pt: Eixo extremo (noroeste)
+  criterio: 'Eixo entre -90 e 180 graus (QRS negativo em DI e aVF): suspeitar de TV, hiperpotassemia ou
+    troca de eletrodos.'
+  limiares: {}
+  medidas:
+  - qrs_axis_deg
+  gatilhos:
+  - ecg.left_axis*
+  - ecg.right_axis*
+  armadilhas:
+  - Em taquicardia de QRS largo, favorece origem ventricular.
+  nao_confundir:
+  - eixo.desvio_direita
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, eixo do QRS
+    tipo: paráfrase
+  revisado_por_medico: false

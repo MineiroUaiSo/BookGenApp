@@ -1,0 +1,100 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: cmh
+cartoes:
+- id: cmh.voltagem_extrema
+  versao: 1
+  nome_pt: 'CMH: voltagem muito elevada'
+  criterio: Voltagem de QRS extrema em adolescente ou adulto jovem com HVE desproporcional ao estímulo
+    hipertensivo sugere cardiomiopatia hipertrófica.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.lvh
+  - ecg.lvh_voltage
+  armadilhas:
+  - ECG pode ser normal em parte dos pacientes com CMH.
+  nao_confundir:
+  - lvh.sokolow_lyon
+  - cmh.atleta
+  fonte:
+    ref: ommen_2024
+    local: Circulation 2024;149:e1239, seção diagnóstica ECG
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: sem limiar numérico confirmado
+- id: cmh.t_gigante_apical
+  versao: 1
+  nome_pt: 'CMH apical: T negativa gigante'
+  criterio: T negativa profunda (10 mm ou mais) em derivações precordiais médias e laterais com voltagem
+    alta aponta para forma apical.
+  limiares:
+    t_neg_mm: '>=10'
+  medidas: []
+  gatilhos:
+  - ecg.t_inversion_*
+  - ecg.lvh
+  armadilhas:
+  - 'Diferencial: isquemia, Wellens, hemorragia subaracnóidea.'
+  nao_confundir:
+  - isquemia.wellens
+  fonte:
+    ref: ommen_2024
+    local: Circulation 2024;149:e1239
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: corte de 10 mm conferido de memória
+- id: cmh.q_septais
+  versao: 1
+  nome_pt: 'CMH: ondas Q septais estreitas e profundas'
+  criterio: Q profundas e estreitas em inferiores e laterais, de hipertrofia septal, podem simular infarto.
+  limiares:
+    duracao_ms: <40
+  medidas: []
+  gatilhos:
+  - ecg.pathologic_q_*
+  armadilhas:
+  - Q de infarto tende a ser mais larga e com perda de R.
+  nao_confundir:
+  - iam.q_patologica
+  fonte:
+    ref: ommen_2024
+    local: Circulation 2024;149:e1239
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: limiar de largura/profundidade confirmar
+- id: cmh.ae
+  versao: 1
+  nome_pt: 'CMH: sobrecarga atrial esquerda'
+  criterio: Sinais de aumento do átrio esquerdo acompanham a CMH e predizem fibrilação atrial.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.lae
+  armadilhas:
+  - Achado inespecífico.
+  nao_confundir:
+  - atrial.ae_morris
+  fonte:
+    ref: ommen_2024
+    local: Circulation 2024;149:e1239
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: cmh.atleta
+  versao: 1
+  nome_pt: CMH versus coração de atleta
+  criterio: Atleta tem voltagem alta com T positiva e Q normais; T negativa profunda lateral, Q patológica
+    ou desvio de eixo sugerem doença.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.lvh
+  - ecg.lvh_voltage
+  armadilhas:
+  - Encaminhar para ecocardiograma na dúvida.
+  nao_confundir:
+  - cmh.voltagem_extrema
+  fonte:
+    ref: sbc_laudos_2022
+    local: Arq Bras Cardiol 2022;119(4):638-680, seção sobre ECG do atleta
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: achados distintivos conferir na seção de atletas

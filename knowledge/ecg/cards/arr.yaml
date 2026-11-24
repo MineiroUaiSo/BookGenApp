@@ -1,0 +1,40 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: arr
+cartoes:
+- id: arr.extrassistole
+  versao: 1
+  nome_pt: Extrassístoles atriais e ventriculares
+  criterio: 'Batimento prematuro: ESV tem QRS largo sem P precedente; ESSV tem P prematura de morfologia
+    distinta.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.irregular_rhythm
+  armadilhas:
+  - Aberrância em ESSV simula ESV.
+  nao_confundir:
+  - af.fibrilacao
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, batimentos prematuros
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: arr.escape
+  versao: 1
+  nome_pt: Ritmo de escape
+  criterio: Batimento/ritmo juncional (QRS estreito 40-60) ou ventricular (QRS largo <40) que surge após
+    pausa.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.av_block_3
+  armadilhas:
+  - Não suprimir.
+  nao_confundir:
+  - conducao.bav3
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir

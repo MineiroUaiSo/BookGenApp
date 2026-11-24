@@ -1,0 +1,73 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: eletrodos
+cartoes:
+- id: eletrodos.braco_esq_dir
+  versao: 1
+  nome_pt: Troca de eletrodos braço direito-esquerdo
+  criterio: P, QRS e T negativos em DI, aVR e aVL trocados; precordiais normais (diferencia de dextrocardia).
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.right_axis*
+  - ecg.non_sinus_p
+  armadilhas:
+  - Em dextrocardia a progressão precordial também se inverte.
+  nao_confundir:
+  - eixo.desvio_direita
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I, erros de posicionamento
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: eletrodos.perna
+  versao: 1
+  nome_pt: Troca com eletrodo da perna
+  criterio: Troca BE-PE ou BD-PE dá morfologias atípicas em inferiores; perna direita é terra (traçado
+    linear em DII por RL-BD).
+  limiares: {}
+  medidas: []
+  gatilhos: []
+  armadilhas:
+  - Rever ECG anterior.
+  nao_confundir:
+  - eletrodos.braco_esq_dir
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I, erros de posicionamento
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: detalhes conferir
+- id: eletrodos.precordiais
+  versao: 1
+  nome_pt: Troca ou posicionamento errado de precordiais
+  criterio: V1-V2 invertidos ou altos criam R pequena e Q falsas; V1-V2 altos mimetizam padrão tipo Brugada.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.pathologic_q_*
+  armadilhas:
+  - Repetir o traçado.
+  nao_confundir:
+  - brugada.tipo1
+  - normal.transicao_precordial
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I, posicionamento
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: eletrodos.dextrocardia
+  versao: 1
+  nome_pt: Dextrocardia
+  criterio: P, QRS e T negativos em DI, R diminui de V1 a V6.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.right_axis*
+  armadilhas:
+  - Confirmar com eletrodos precordiais direitos.
+  nao_confundir:
+  - eletrodos.braco_esq_dir
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I
+    tipo: paráfrase
+  revisado_por_medico: false

@@ -1,0 +1,93 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: mp
+cartoes:
+- id: mp.ritmo_estimulado
+  versao: 1
+  nome_pt: Ritmo de marca-passo
+  criterio: Espículas seguidas de P (átrio) e/ou QRS largo (ventrículo, tipo BRE com eixo superior no
+    ápice de VD).
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.paced_rhythm
+  armadilhas:
+  - Espícula bipolar pode ser pequena.
+  nao_confundir:
+  - conducao.bre_completo
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I, marca-passos
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: mp.falha_captura
+  versao: 1
+  nome_pt: Falha de captura
+  criterio: Espículas sem despolarização consequente.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.paced_rhythm
+  armadilhas:
+  - Urgente se bradicardia.
+  nao_confundir:
+  - mp.falha_sensibilidade
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: mp.falha_sensibilidade
+  versao: 1
+  nome_pt: Falha de sensibilidade
+  criterio: Espículas inadequadas após batimento espontâneo ou ausência por oversensing.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.paced_rhythm
+  armadilhas:
+  - Interrogar o dispositivo.
+  nao_confundir:
+  - mp.falha_captura
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: mp.fusao
+  versao: 1
+  nome_pt: Fusão e pseudofusão
+  criterio: 'Fusão: QRS híbrido; pseudofusão: espícula sobre QRS nativo sem alterar.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.paced_rhythm
+  armadilhas:
+  - Normais, não são falha.
+  nao_confundir:
+  - mp.falha_captura
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: mp.bivent
+  versao: 1
+  nome_pt: Estimulação biventricular
+  criterio: QRS com R em V1 e eixo desviado, QRS estreito após ressincronização.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.paced_rhythm
+  armadilhas:
+  - R em V1 ausente sugere perda de captura do VE.
+  nao_confundir:
+  - mp.ritmo_estimulado
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir

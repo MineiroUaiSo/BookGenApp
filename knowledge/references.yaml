@@ -141,3 +141,98 @@ xrv_cohen_2022:
   year: 2022
   publisher: PMLR
   url: "https://github.com/mlmed/torchxrayvision"
+sokolow_1949:
+  title: "The ventricular complex in left ventricular hypertrophy as obtained by unipolar precordial and limb leads"
+  authors: "Sokolow M, Lyon TP"
+  year: 1949
+  journal: "Am Heart J 37:161-186"
+casale_1985:
+  title: "Improved sex-specific criteria of left ventricular hypertrophy for clinical and computer interpretation of electrocardiograms: validation with autopsy findings"
+  authors: "Casale PN, Devereux RB, Alonso DR, Campo E, Kligfield P"
+  year: 1985
+  journal: "Circulation 71:549-554"
+okin_1995:
+  title: "Electrocardiographic identification of increased left ventricular mass by simple voltage-duration products"
+  authors: "Okin PM, Roman MJ, Devereux RB, Kligfield P"
+  year: 1995
+  journal: "J Am Coll Cardiol 25:417-423"
+romhilt_1968:
+  title: "A point-score system for the ECG diagnosis of left ventricular hypertrophy"
+  authors: "Romhilt DW, Estes EH Jr"
+  year: 1968
+  journal: "Am Heart J 75:752-758"
+peguero_2017:
+  title: "Electrocardiographic criteria for the diagnosis of left ventricular hypertrophy"
+  authors: "Peguero JG, Lo Presti S, Perez J, Issa O, Brenes JC, Tolentino A"
+  year: 2017
+  journal: "J Am Coll Cardiol 69:1694-1703"
+sgarbossa_1996:
+  title: "Electrocardiographic diagnosis of evolving acute myocardial infarction in the presence of left bundle-branch block"
+  authors: "Sgarbossa EB, Pinski SL, Barbagelata A, et al. (GUSTO-1)"
+  year: 1996
+  journal: "N Engl J Med 334:481-487"
+smith_2012:
+  title: "Diagnosis of ST-elevation myocardial infarction in the presence of left bundle branch block with the ST-elevation to S-wave ratio in a modified Sgarbossa rule"
+  authors: "Smith SW, Dodd KW, Henry TD, Dvorak DM, Pearce LA"
+  year: 2012
+  journal: "Ann Emerg Med 60:766-776"
+morris_1964:
+  title: "Left atrial hypertrophy / Morris index: terminal P-wave force in V1"
+  authors: "Morris JJ Jr, Estes EH Jr, Whalen RE, Thompson HK Jr, McIntosh HD"
+  year: 1964
+  journal: "Circulation 29:242-252"
+strauss_2011:
+  title: "Defining left bundle branch block in the era of cardiac resynchronization therapy"
+  authors: "Strauss DG, Selvester RH, Wagner GS"
+  year: 2011
+  journal: "Am J Cardiol 107:927-934"
+ommen_2024:
+  title: "2024 AHA/ACC/AATS/ACR/ASE/ASNC/HRS/SCCT/SCMR/SNMMI Guideline for the Management of Hypertrophic Cardiomyopathy"
+  authors: "Ommen SR, et al."
+  year: 2024
+  journal: "Circulation 149:e1239-e1311"
+brugada_consenso_2002:
+  title: "Brugada syndrome: report of the second consensus conference"
+  authors: "Antzelevitch C, Brugada P, Borggrefe M, et al."
+  year: 2005
+  journal: "Circulation 111:659-670"
+shanghai_2016:
+  title: "J-Wave syndromes expert consensus conference report: emerging concepts and gaps in knowledge (Shanghai score)"
+  authors: "Antzelevitch C, Yan GX, Ackerman MJ, et al."
+  year: 2016
+  journal: "Heart Rhythm 13:e295-e324"
+macfarlane_2015:
+  title: "Consensus on early repolarization pattern (J-point elevation) definition"
+  authors: "Macfarlane PW, Antzelevitch C, Haissaguerre M, et al."
+  year: 2015
+  journal: "J Am Coll Cardiol 66:470-477"
+haissaguerre_2008:
+  title: "Sudden cardiac arrest associated with early repolarization"
+  authors: "Haïssaguerre M, Derval N, Sacher F, et al."
+  year: 2008
+  journal: "N Engl J Med 358:2016-2023"
+schwartz_2011:
+  title: "Diagnostic criteria for the long QT syndrome: an update (Schwartz score)"
+  authors: "Schwartz PJ, Crotti L"
+  year: 2011
+  journal: "Circulation 124:2181-2184"
+esc_va_2022:
+  title: "2022 ESC Guidelines for the management of patients with ventricular arrhythmias and the prevention of sudden cardiac death"
+  authors: "Zeppenfeld K, et al."
+  year: 2022
+  journal: "Eur Heart J 43:3997-4126"
+esc_af_2024:
+  title: "2024 ESC Guidelines for the management of atrial fibrillation"
+  authors: "Van Gelder IC, et al."
+  year: 2024
+  journal: "Eur Heart J 45:3314-3414"
+brugada_1991:
+  title: "A new approach to the differential diagnosis of a regular tachycardia with a wide QRS complex"
+  authors: "Brugada P, Brugada J, Mont L, Smeets J, Andries EW"
+  year: 1991
+  journal: "Circulation 83:1649-1659"
+ginzton_1982:
+  title: "Electrocardiographic differentiation of acute pericarditis from early repolarization: ST/T ratio in V6"
+  authors: "Ginzton LE, Laks MM"
+  year: 1982
+  journal: "Am J Cardiol / Chest, 1982 (verificar citação exata)"

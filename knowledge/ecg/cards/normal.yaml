@@ -1,0 +1,205 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: normal
+cartoes:
+- id: normal.p_pr
+  versao: 1
+  nome_pt: Onda P e intervalo PR normais
+  criterio: P com duração abaixo de cerca de 120 ms e amplitude abaixo de 2,5 mm; PR de 120 a 200 ms medido
+    do início da P ao início do QRS.
+  limiares:
+    p_ms: <120
+    p_mm: <2.5
+    pr_ms: 120-200
+  medidas:
+  - p_duration_ms
+  - pr_ms
+  gatilhos:
+  - ecg.within_normal_limits
+  - ecg.sinus_rhythm
+  - ecg.av_block_1
+  - ecg.short_pr
+  armadilhas:
+  - Medir PR na derivação com PR mais longo ou na mediana multiderivação.
+  - PR varia com FC e idade.
+  nao_confundir:
+  - conducao.bav1
+  - wpw.pr_curto
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, definições de ondas e intervalos
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: normal.qrs_duracao
+  versao: 1
+  nome_pt: Duração do QRS normal
+  criterio: QRS normal abaixo de 110-120 ms; 110-119 ms é condução intraventricular limítrofe; 120 ms
+    ou mais é bloqueio de ramo ou atraso inespecífico.
+  limiares:
+    normal_ms: <110
+    limitrofe_ms: 110-119
+    alargado_ms: '>=120'
+  medidas:
+  - qrs_ms
+  gatilhos:
+  - ecg.qrs_borderline
+  - ecg.ivcd
+  - ecg.within_normal_limits
+  armadilhas:
+  - Marca-passo e pré-excitação alargam o QRS sem ser bloqueio de ramo.
+  nao_confundir:
+  - conducao.bre_completo
+  - conducao.brd_completo
+  - conducao.ivcd
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, critérios de duração do QRS
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: normal.eixo_qrs
+  versao: 1
+  nome_pt: Eixo elétrico do QRS normal
+  criterio: Eixo frontal normal entre -30 e +90 graus; QRS predominantemente positivo em DI e aVF situa
+    o eixo no quadrante normal.
+  limiares:
+    normal_graus: -30 a +90
+  medidas:
+  - qrs_axis_deg
+  gatilhos:
+  - ecg.within_normal_limits
+  armadilhas:
+  - Troca de eletrodos de braço inverte DI e simula desvio extremo.
+  nao_confundir:
+  - eixo.desvio_esquerda
+  - eixo.desvio_direita
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, eixo frontal
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: normal.fc_ritmo
+  versao: 1
+  nome_pt: Frequência cardíaca de repouso e ritmo sinusal
+  criterio: FC de repouso entre 60 e 100 bpm; ritmo sinusal tem P positiva em DI e DII, negativa em aVR,
+    antes de cada QRS com PR estável.
+  limiares:
+    fc_bpm: 60-100
+  medidas:
+  - heart_rate_bpm
+  - p_axis_deg
+  - pr_ms
+  - rr_sd_ms
+  gatilhos:
+  - ecg.sinus_rhythm
+  - ecg.within_normal_limits
+  - ecg.irregular_rhythm
+  armadilhas:
+  - Variação respiratória do RR em jovens é fisiológica (arritmia sinusal).
+  nao_confundir:
+  - ritmo.sinusal_arritmia
+  - ritmo.atrial_ectopico
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, ritmo e frequência
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: normal.transicao_precordial
+  versao: 1
+  nome_pt: Transição precordial e progressão da onda R
+  criterio: A relação R/S passa a favorecer R habitualmente em V3-V4; R cresce de V1 a V5 e S diminui
+    em direção a V6.
+  limiares: {}
+  medidas:
+  - precordial_transition
+  gatilhos:
+  - ecg.within_normal_limits
+  armadilhas:
+  - Colocação alta ou baixa dos eletrodos precordiais desloca a transição.
+  - Transição precoce pode ser variante normal, posterior infarto ou HVD.
+  nao_confundir:
+  - isquemia.onda_r_alta_v1
+  - pulmonar.dpoc_padrao
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I, posicionamento e morfologia precordial
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: normal.convencoes_medida
+  versao: 1
+  nome_pt: Calibração e convenções de medida
+  criterio: Sensibilidade padrão 10 mm/mV e velocidade 25 mm/s; amplitudes em mm dependem dessa calibração
+    e devem ser conferidas antes de aplicar limiares.
+  limiares:
+    sensibilidade: 10 mm/mV
+    velocidade: 25 mm/s
+  medidas: []
+  gatilhos: []
+  armadilhas:
+  - Traçado com metade do ganho subestima voltagem e simula baixa voltagem.
+  - Linha de base pelo segmento TP; ponto J como referência do ST.
+  nao_confundir:
+  - voltagem.baixa_voltagem
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I, padronização de registro
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: normal.derivacoes_contiguas
+  versao: 1
+  nome_pt: Derivações contíguas
+  criterio: 'Para critérios de ST/T/Q conta-se alteração em duas ou mais derivações contíguas: sequência
+    frontal de Cabrera e precordiais V1-V6.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  - ecg.st_depression_*
+  - ecg.t_inversion_*
+  - ecg.pathologic_q_*
+  armadilhas:
+  - aVR é contígua a DII só na ordem de Cabrera invertida; tratar com cuidado.
+  nao_confundir:
+  - iam.stemi_universal
+  fonte:
+    ref: udmi4_2018
+    local: Seção sobre critérios eletrocardiográficos de IAM
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: normal.artefatos
+  versao: 1
+  nome_pt: Artefatos que simulam achados
+  criterio: Tremor muscular, interferência de rede 60 Hz, oscilação da linha de base e movimento podem
+    simular fibrilação, flutter ou desnível de ST.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.irregular_rhythm
+  - ecg.atrial_fibrillation
+  - ecg.atrial_flutter
+  armadilhas:
+  - Confirmar a alteração em múltiplas derivações e em batimentos consecutivos.
+  - Parkinson e tremor imitam ondas de flutter.
+  nao_confundir:
+  - af.fibrilacao
+  - af.flutter
+  fonte:
+    ref: aha_2007_part_i
+    local: Parte I, qualidade técnica do traçado
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: normal.p_amplitude_variantes
+  versao: 1
+  nome_pt: Variantes normais frequentes
+  criterio: Padrões como onda T invertida em V1, repolarização precoce de atleta e arritmia sinusal em
+    jovens são achados benignos comuns.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.within_normal_limits
+  armadilhas:
+  - Atribuir variante apenas após excluir cardiopatia pelo contexto clínico.
+  nao_confundir:
+  - repol.repolarizacao_precoce_atleta
+  fonte:
+    ref: sbc_laudos_2022
+    local: Arq Bras Cardiol 2022;119(4):638-680, seção sobre variantes da normalidade
+    tipo: paráfrase
+  revisado_por_medico: false
