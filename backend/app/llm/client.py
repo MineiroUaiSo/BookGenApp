@@ -15,6 +15,7 @@ DEFAULT_MODEL = "claude-opus-5-5"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_TOKENS_DESCRIBE = 32000
 MAX_TOKENS_ANALYZE = 48000
+MAX_TOKENS_LAUDO = 8000
 
 
 def effort() -> str:

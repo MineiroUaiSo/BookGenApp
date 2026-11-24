@@ -1,0 +1,81 @@
+{
+ "seed": 20261124,
+ "note": "Conjunto fixo do laudo: 10 primeiros ECG (round-robin estratificado) da lista congelada em wt/r2-llm (bench/llm_eval_ids.json; PTB-XL strat_fold 1-8) + caso1 (entradas estruturadas em tests/laudo_fixtures.py, sem imagem).",
+ "ecg": [
+  {
+   "id": "ptbxl-00001",
+   "cls": "normal"
+  },
+  {
+   "id": "ptbxl-07489",
+   "cls": "FA"
+  },
+  {
+   "id": "ptbxl-04359",
+   "cls": "BAV"
+  },
+  {
+   "id": "ptbxl-07485",
+   "cls": "BRE"
+  },
+  {
+   "id": "ptbxl-00428",
+   "cls": "BRD"
+  },
+  {
+   "id": "ptbxl-01463",
+   "cls": "IAM"
+  },
+  {
+   "id": "ptbxl-03247",
+   "cls": "HVE"
+  },
+  {
+   "id": "ptbxl-00840",
+   "cls": "QT longo"
+  },
+  {
+   "id": "ptbxl-01389",
+   "cls": "normal"
+  },
+  {
+   "id": "ptbxl-13217",
+   "cls": "BAV"
+  }
+ ],
+ "caso1": [
+  {
+   "id": "caso1-ok",
+   "fixture": "CASO1_OK",
+   "cls": "caso1 correta"
+  },
+  {
+   "id": "caso1-errada",
+   "fixture": "CASO1_ERRADA",
+   "cls": "caso1 digitalizacao divergente"
+  }
+ ],
+ "caso1_gabarito": {
+  "ok": {
+   "impressao_deve_conter": [
+    "sobrecarga de câmaras esquerdas",
+    "miocardiopatia hipertrófica",
+    "repolarização secundária"
+   ],
+   "eixo": "sem desvio de eixo",
+   "peguero": "não preenchido",
+   "nao_deve_afirmar": [
+    "isquemia"
+   ]
+  },
+  "errada": {
+   "aviso_topo_obrigatorio": true,
+   "nao_deve_afirmar": [
+    "pré-excitação",
+    "WPW",
+    "isquemia",
+    "infra de ST"
+   ]
+  }
+ }
+}
