@@ -117,6 +117,9 @@ def gold_rules_section() -> str:
             "- Subgrupos: sexo (0=M, 1=F), idade (<40, 40–65, >65; 300 = '>89' entra em >65), aparelho (6 mais frequentes + other), "
             "flags de ruído do PTB-XL (texto não vazio em baseline_drift, static_noise, burst_noise, electrodes_problems = 'com').\n"
             "- Medidas: PTB-XL+ 1.0.1, algoritmo 12SL (não é padrão-ouro humano).\n"
+            "- IC95% = bootstrap percentil por registro (2000 reamostras, semente fixa). Com 0 (ou todos) acertos em n pequeno o intervalo "
+            "degenera em [0,0–0,0]: nesses casos ler como limite superior ~3/n (regra dos três), não como certeza.\n"
+            "- Tempo: a execução R2base levou 3723 s com --workers 3 numa máquina compartilhada (carga média ~100); mediana 0,68 s/registro por worker.\n"
             "- RX (IU dev): **os metadados do IU X-Ray só trazem PA/LATERAL (incidência frontal por ordem/legenda, sem DICOM ViewPosition): "
             "não há distinção AP vs PA, portanto não há tabela por incidência AP/PA.**")
 
@@ -126,7 +129,14 @@ def main(argv=None) -> int:
     ap.add_argument("--tag", required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--repro", default="", help="exact command line that generated the cache (shown at the top)")
+    ap.add_argument("--repro-file", type=Path, default=None, help="same as --repro, read from a text file")
     a = ap.parse_args(argv)
+    if a.repro_file:
+        a.repro = a.repro_file.read_text(encoding="utf-8").strip()
+    if not a.repro:
+        a.repro = ("export MEDLENS_DATASETS=/path/to/data/datasets MEDLENS_BENCH=$PWD/../data/bench PYTHONPATH=.   # datasets: ptbxl_full, ptbxl_plus\n"
+                   f"python -m bench.ecg_bench --source ptbxl --split dev --set large --tag {a.tag} --workers 3\n"
+                   f"python -m bench.r2_report --tag {a.tag} --out ../docs/benchmarks/r2_base.md")
     res = load_results(a.tag)
     meta = {ptbxl_large.rid_of(r): r for r in ptbxl_large.load_database(ptbxl_large.database_csv(eb.DATA_ROOT))}
     eb.CACHE_TAG = a.tag
