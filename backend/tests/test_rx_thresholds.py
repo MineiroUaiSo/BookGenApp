@@ -81,3 +81,22 @@ def test_findings_default_when_file_missing(monkeypatch):
     monkeypatch.setattr(F, "_TUNING", {})
     assert F.model_threshold("Effusion") == F.MODEL_THRESHOLD
     assert not F.costophrenic_demoted()
+
+
+def _with_angle(angle):
+    from test_rx_phantoms import pa_phantom
+    from app.rx import analyze_image
+    a = analyze_image(pa_phantom()[0], "x", None)
+    from app.schemas import RXMeasurement
+    m = RXMeasurement(key="costophrenic_angle_left", label="ângulo costofrênico E", value=angle, unit="°")
+    a.measurements = [x for x in a.measurements if x.key != "costophrenic_angle_left"] + [m]
+    return a
+
+
+def test_costophrenic_rule_demoted_lowers_confidence(monkeypatch):
+    a = _with_angle(120.0)
+    monkeypatch.setattr(F, "_TUNING", {"costophrenic_rule": {"demoted": False}})
+    base = [f for f in F._frontal_findings(a, "") if f.code == "rx.costophrenic_blunting_left"][0]
+    monkeypatch.setattr(F, "_TUNING", {"costophrenic_rule": {"demoted": True}})
+    low = [f for f in F._frontal_findings(a, "") if f.code == "rx.costophrenic_blunting_left"][0]
+    assert low.confidence <= 0.15 < base.confidence and any("baixa sensibilidade" in e for e in low.evidence)

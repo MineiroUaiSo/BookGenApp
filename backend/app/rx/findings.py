@@ -126,10 +126,14 @@ def _frontal_findings(img: RXImageAnalysis, tag: str) -> list[Finding]:
     for side, nome in (("right", "direito"), ("left", "esquerdo")):
         a = _val(img, f"costophrenic_angle_{side}")
         if a is not None and a >= 95:
+            base_conf = 0.3 if img.structures and img.structures[0].origin == "heuristic" else 0.45
+            ev = [f"ângulo costofrênico estimado = {a:.0f}° (agudo é normal)",
+                  "estimativa a partir da máscara pulmonar; sugere derrame/espessamento pleural — confirmar visualmente (perfil ou decúbito)"]
+            if costophrenic_demoted():
+                ev.append("regra geométrica com baixa sensibilidade validada (IU); o escore do modelo para derrame é o sinal principal")
             out.append(Finding(code=f"rx.costophrenic_blunting_{side}", label=f"Possível velamento/embotamento do seio costofrênico {nome}",
-                               severity="borderline", evidence=[f"ângulo costofrênico estimado = {a:.0f}° (agudo é normal)",
-                                                                "estimativa a partir da máscara pulmonar; sugere derrame/espessamento pleural — confirmar visualmente (perfil ou decúbito)"],
-                               references=[REF_FELSON, REF_FLEISCHNER], confidence=0.3 if img.structures and img.structures[0].origin == "heuristic" else 0.45))
+                               severity="borderline", evidence=ev,
+                               references=[REF_FELSON, REF_FLEISCHNER], confidence=min(base_conf, 0.15) if costophrenic_demoted() else base_conf))
 
     d = _val(img, "hemidiaphragm_height_difference_pct")
     dmm = _m(img, "hemidiaphragm_height_difference")
