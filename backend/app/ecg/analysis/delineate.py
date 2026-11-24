@@ -312,8 +312,6 @@ def detect_p(y, fs, lo, hi, noise):
         return None
     ys = _smooth(y, fs, 12)
     seg = ys[lo:hi + 1]
-    # linear detrend over window borders removes residual T-tail slope
-    seg = seg - np.linspace(seg[:3].mean(), seg[-3:].mean(), len(seg)) * 0.0
     prom = max(P_PROM, P_NK * noise)
     pk_p, pr_p = find_peaks(seg, prominence=prom)
     pk_n, pr_n = find_peaks(-seg, prominence=prom)
