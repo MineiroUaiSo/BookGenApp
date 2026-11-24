@@ -506,13 +506,33 @@ def build_paxray(raw: Path, source: str = "rx_masks_other", max_volumes: Optiona
     return recs
 
 
+def fetch_zenodo(record: str, keys: list[str], dest: Path) -> list[str]:
+    """Download files of a Zenodo record (resumable, via curl). Returns the keys that failed."""
+    import subprocess
+    from medlens_data import USER_AGENT
+    dest.mkdir(parents=True, exist_ok=True)
+    bad = []
+    for k in keys:
+        url = f"https://zenodo.org/records/{record}/files/{k}?download=1"
+        rc = subprocess.call(["curl", "-sS", "-L", "-C", "-", "--retry", "5", "--retry-delay", "5", "-A", USER_AGENT,
+                              "-o", str(dest / k), url])
+        if rc != 0:
+            bad.append(k)
+    return bad
+
+
 if __name__ == "__main__":  # pragma: no cover
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["jsrt", "montgomery_shenzhen", "paxray"])
+    ap.add_argument("what", choices=["jsrt", "montgomery_shenzhen", "paxray", "fetch_jsrt", "fetch_paxray"])
     ap.add_argument("--max-side", type=int, default=None)
     a = ap.parse_args()
-    if a.what == "jsrt":
+    if a.what == "fetch_jsrt":   # Zenodo SCR database (images + contour points)
+        print("failed:", fetch_zenodo("7056076", ["jpg.zip", "points.zip"], DATA_ROOT / "jsrt_masks" / "raw"))
+    elif a.what == "fetch_paxray":   # PAX-Ray++ test split only (~1.9 GB)
+        print("failed:", fetch_zenodo("23627483", ["paxray_test.json", "metadata.csv", "paxray_images.tar.gz",
+                                                   "ATTRIBUTION.txt"], DATA_ROOT / "rx_masks_other" / "paxrayplusplus_raw"))
+    elif a.what == "jsrt":
         print(len(build_jsrt()))
     elif a.what == "montgomery_shenzhen":
         m = build_montgomery(DATA_ROOT / "montgomery" / "raw" / "NLM-MontgomeryCXRSet.zip", DATA_ROOT / "montgomery" / "raw")

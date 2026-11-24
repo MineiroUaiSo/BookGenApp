@@ -32,6 +32,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
+from bench import splits  # noqa: E402
 from bench.report import fmt, pct, table, wilson, write_markdown  # noqa: E402
 
 REPO = BACKEND.parent
@@ -589,6 +590,11 @@ def litfl_split_of(rec: dict) -> str:
     return "dev" if h < 70 else "test"
 
 
+def ludb_split_of(rid: str) -> str:
+    """dev / test of a LUDB record id (frozen in bench/splits.json)."""
+    return splits.split_of("ludb", rid)
+
+
 RECORD_RANGE: Optional[tuple[int, int]] = None   # set by --records A-B (numeric suffix of the record id, inclusive)
 
 
@@ -1061,13 +1067,17 @@ def build_report() -> Path:
     if SPLIT != "all":
         _folds = ptbxl_fold_map()
         allr["ptbxl"] = {k: v for k, v in allr["ptbxl"].items() if in_split(k, SPLIT, _folds)}
-    if allr["ludb"]:
-        body, h = report_ludb(allr["ludb"])
-        sections.append(("LUDB: wave delineation vs cardiologist annotations", body))
+    for part, label in (("dev", "dev, records 1-160"), ("test", "TEST, records 161-200")):
+        sub = {k: v for k, v in allr["ludb"].items() if ludb_split_of(k) == part}
+        if not sub:
+            continue
+        body, h = report_ludb(sub)
+        sections.append((f"LUDB {label}: wave delineation vs cardiologist annotations", body))
         if h:
-            summ.append(["Delineation: QRS on/off within CSE tol", f"{100 * h['qrs_on_within'][0] / max(1, h['qrs_on_within'][1]):.0f}% / {100 * h['qrs_off_within'][0] / max(1, h['qrs_off_within'][1]):.0f}%", f"LUDB, {h['N']} records"])
-            summ.append(["Delineation: P onset / T offset within CSE tol", f"{100 * h['p_on_within'][0] / max(1, h['p_on_within'][1]):.0f}% / {100 * h['t_off_within'][0] / max(1, h['t_off_within'][1]):.0f}%", f"LUDB, {h['N']} records"])
-            summ.append(["Detection sensitivity QRS / P / T", f"{100 * h['qrs_se'][0] / max(1, h['qrs_se'][1]):.0f}% / {100 * h['p_se'][0] / max(1, h['p_se'][1]):.0f}% / {100 * h['t_se'][0] / max(1, h['t_se'][1]):.0f}%", f"LUDB, {h['qrs_se'][1]} beats"])
+            tag = f"LUDB {part}, {h['N']} records"
+            summ.append([f"Delineation [{part}]: QRS on/off within CSE tol", f"{100 * h['qrs_on_within'][0] / max(1, h['qrs_on_within'][1]):.0f}% / {100 * h['qrs_off_within'][0] / max(1, h['qrs_off_within'][1]):.0f}%", tag])
+            summ.append([f"Delineation [{part}]: P onset / T offset within CSE tol", f"{100 * h['p_on_within'][0] / max(1, h['p_on_within'][1]):.0f}% / {100 * h['t_off_within'][0] / max(1, h['t_off_within'][1]):.0f}%", tag])
+            summ.append([f"Detection sensitivity [{part}] QRS / P / T", f"{100 * h['qrs_se'][0] / max(1, h['qrs_se'][1]):.0f}% / {100 * h['p_se'][0] / max(1, h['p_se'][1]):.0f}% / {100 * h['t_se'][0] / max(1, h['t_se'][1]):.0f}%", f"{tag}, {h['qrs_se'][1]} beats"])
     if allr["ptbxl"]:
         body, h = report_ptbxl(allr["ptbxl"])
         sections.append(("PTB-XL: diagnostic statements", body))

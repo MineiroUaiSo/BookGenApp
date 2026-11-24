@@ -6,6 +6,8 @@ Usage (from backend/):
     python -m medlens_data.collectors.physionet_ecg ptbxl-select      # writes ptbxl/selected_files.txt
     python -m medlens_data.collectors.physionet_ecg ptbxl-download    # wget -c --input-file
     python -m medlens_data.collectors.physionet_ecg ptbxl-build
+    python -m medlens_data.collectors.physionet_ecg qtdb-download     # QT Database (external test set)
+    python -m medlens_data.collectors.physionet_ecg qtdb-build
 
 Pure python (no wfdb): LUDB annotation files are parsed with a tiny WFDB annotation reader.
 """
@@ -20,15 +22,24 @@ import re
 import struct
 import subprocess
 import sys
+import time
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
 
 from medlens_data import USER_AGENT, Record, source_dir, write_manifest
 
 LUDB_VER = "1.0.1"
+QTDB_VER = "1.0.0"
 PTBXL_VER = "1.0.3"
 LUDB_BASE = f"https://physionet.org/files/ludb/{LUDB_VER}/"
 PTBXL_BASE = f"https://physionet.org/files/ptb-xl/{PTBXL_VER}/"
+QTDB_BASE = f"https://physionet.org/files/qtdb/{QTDB_VER}/"
+QTDB_LICENSE = "ODC-By 1.0 (Open Data Commons Attribution License v1.0)"
+QTDB_ATTR = ("Laguna P. et al., A database for evaluation of algorithms for measurement of QT and other waveform "
+             "intervals in the ECG, Computers in Cardiology 24:673-676 (1997); PhysioNet "
+             "https://physionet.org/content/qtdb/1.0.0/")
 LUDB_LICENSE = "ODC-By 1.0 (Open Data Commons Attribution License v1.0)"
 PTBXL_LICENSE = "CC BY 4.0"
 LUDB_ATTR = ("Kalyakulina A. et al., LUDB: A New Open-Access Validation Tool for Electrocardiogram Delineation "
@@ -39,7 +50,7 @@ PTBXL_ATTR = ("Wagner P. et al., PTB-XL, a large publicly available electrocardi
 LUDB_LEADS = ["i", "ii", "iii", "avr", "avl", "avf", "v1", "v2", "v3", "v4", "v5", "v6"]
 
 # ------------------------------------------------------------------ WFDB annotation reader (no wfdb)
-_ANN_SYMBOL = {1: "N", 27: "t", 24: "p", 39: "(", 40: ")"}  # only those used by LUDB
+_ANN_SYMBOL = {1: "N", 27: "t", 24: "p", 28: "u", 39: "(", 40: ")"}  # those used by LUDB / QTDB
 
 
 def read_wfdb_annotation(data: bytes) -> tuple[list[int], list[str]]:
@@ -145,7 +156,7 @@ def ludb_labels_from_header(comments: list[str]) -> tuple[list[str], dict]:
 def parse_hea(text: str) -> tuple[dict, list[str]]:
     lines = text.splitlines()
     first = lines[0].split()
-    hdr = {"name": first[0], "n_sig": int(first[1]), "fs": float(first[2]), "n_samples": int(first[3])}
+    hdr = {"name": first[0], "n_sig": int(first[1]), "fs": float(re.split(r"[/(]", first[2])[0]), "n_samples": int(first[3])}
     return hdr, [l for l in lines if l.startswith("#")]
 
 
@@ -179,6 +190,45 @@ def build_ludb(limit: Optional[int] = None) -> Path:
     return write_manifest("ludb", recs)
 
 
+# ------------------------------------------------------------------ download helpers (no wget needed)
+def _http_get(url: str, dest: Path, tries: int = 5) -> bool:
+    """Download url -> dest (skips existing non-empty file). Returns True on success."""
+    if dest.exists() and dest.stat().st_size > 0:
+        return True
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    for k in range(tries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = r.read()
+            tmp = dest.with_suffix(dest.suffix + ".part")
+            tmp.write_bytes(data)
+            tmp.replace(dest)
+            return True
+        except Exception:
+            time.sleep(2 * (k + 1))
+    return False
+
+
+def fetch_many(pairs: list[tuple[str, Path]], workers: int = 8) -> int:
+    """Parallel download; returns number of failures."""
+    with ThreadPoolExecutor(workers) as ex:
+        res = list(ex.map(lambda p: _http_get(*p), pairs))
+    return sum(1 for ok in res if not ok)
+
+
+def fetch_tree(base: str, dest: Path, workers: int = 8) -> int:
+    """Mirror a PhysioNet project using its SHA256SUMS.txt file list. Returns failures."""
+    sums = dest / "SHA256SUMS.txt"
+    if not _http_get(base + "SHA256SUMS.txt", sums):
+        return 1
+    names = []
+    for line in sums.read_text().splitlines():
+        if line.strip():
+            names.append(line.split(None, 1)[1].strip().lstrip("*"))
+    return fetch_many([(base + n, dest / n) for n in names], workers)
+
+
 def verify_sha256(root: Path, sums: Path, only_prefix: Optional[str] = None) -> tuple[int, list[str]]:
     ok, bad = 0, []
     for line in sums.read_text().splitlines():
@@ -196,6 +246,40 @@ def verify_sha256(root: Path, sums: Path, only_prefix: Optional[str] = None) -> 
         else:
             bad.append(name)
     return ok, bad
+
+
+# ------------------------------------------------------------------ QTDB (external test set)
+QTDB_ANN_EXTS = ("q1c", "q2c", "pu", "pu0", "pu1")  # q1c/q2c: manual (cardiologist 1/2); pu*: automatic
+
+
+def build_qtdb(limit: Optional[int] = None) -> Path:
+    sd = source_dir("qtdb")
+    raw = sd / "raw"
+    recs: list[Record] = []
+    names = sorted(p.stem for p in raw.glob("*.hea"))
+    for name in names[:limit]:
+        hdr, comments = parse_hea((raw / f"{name}.hea").read_text())
+        ann: dict = {}
+        for ext in QTDB_ANN_EXTS:
+            p = raw / f"{name}.{ext}"
+            if p.exists():
+                s, sym = read_wfdb_annotation(p.read_bytes())
+                d = delineation_from_annotation(s, sym)
+                d["u"] = [s[i] for i, y in enumerate(sym) if y == "u"]
+                ann[ext] = d
+        ann_path = raw / f"{name}.delineation.json"
+        ann_path.write_text(json.dumps({"fs": hdr["fs"], "n_samples": hdr["n_samples"], "annotations": ann}))
+        recs.append(Record(
+            id=f"qtdb-{name}", source="qtdb", modality="ECG", kind="signal",
+            path=f"raw/{name}.hea", url=f"{QTDB_BASE}{name}.hea", license=QTDB_LICENSE, attribution=QTDB_ATTR,
+            caption="; ".join(c.lstrip("#").strip() for c in comments if c.lstrip("#").strip()),
+            labels=[], view="2-lead",
+            extra={"fs": hdr["fs"], "n_samples": hdr["n_samples"], "n_sig": hdr["n_sig"],
+                   "dat": f"raw/{name}.dat", "annotations_json": f"raw/{name}.delineation.json",
+                   "annotators": [e for e in ann],
+                   "n_waves": {e: {k: len(v) for k, v in a.items()} for e, a in ann.items()}},
+        ))
+    return write_manifest("qtdb", recs)
 
 
 # ------------------------------------------------------------------ PTB-XL
@@ -302,6 +386,8 @@ def select_ptbxl(target: int = 3000, per_stmt: int = 100, per_super: int = 350, 
 
 
 def ptbxl_select_cmd() -> Path:
+    if ptbxl_meta_cmd():
+        raise SystemExit("could not fetch PTB-XL metadata")
     sel = select_ptbxl()
     root = source_dir("ptbxl")
     out = root / "selected_files.txt"
@@ -315,9 +401,13 @@ def ptbxl_select_cmd() -> Path:
 
 def ptbxl_download_cmd() -> int:
     root = source_dir("ptbxl")
-    cmd = ["wget", "-q", "-c", "-x", "-nH", "--cut-dirs=3", "-e", "robots=off", "-U", USER_AGENT, "-P", str(root / "raw"),
-           "--tries=5", "--waitretry=5", "-i", str(root / "selected_files.txt")]
-    return subprocess.call(cmd)
+    urls = [u for u in (root / "selected_files.txt").read_text().splitlines() if u.strip()]
+    return fetch_many([(u, root / "raw" / u[len(PTBXL_BASE):]) for u in urls], workers=12)
+
+
+def ptbxl_meta_cmd() -> int:
+    root = source_dir("ptbxl")
+    return fetch_many([(PTBXL_BASE + n, root / n) for n in ("ptbxl_database.csv", "scp_statements.csv", "SHA256SUMS.txt")])
 
 
 def build_ptbxl() -> Path:
@@ -350,11 +440,15 @@ def build_ptbxl() -> Path:
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "ludb-download":
-        sd = source_dir("ludb")
-        sys.exit(subprocess.call(["wget", "-q", "-r", "-np", "-nH", "--cut-dirs=3", "-c", "-e", "robots=off", "-U",
-                                  USER_AGENT, "-P", str(sd / "raw"), LUDB_BASE]))
+        sys.exit(1 if fetch_tree(LUDB_BASE, source_dir("ludb") / "raw") else 0)
+    elif cmd == "qtdb-download":
+        sys.exit(1 if fetch_tree(QTDB_BASE, source_dir("qtdb") / "raw") else 0)
+    elif cmd == "qtdb-build":
+        print(build_qtdb())
     elif cmd == "ludb-build":
         print(build_ludb())
+    elif cmd == "ptbxl-meta":
+        sys.exit(1 if ptbxl_meta_cmd() else 0)
     elif cmd == "ptbxl-select":
         ptbxl_select_cmd()
     elif cmd == "ptbxl-download":
