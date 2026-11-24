@@ -137,23 +137,28 @@ def estimate_pitch(profile: np.ndarray, min_pitch: float = 3.0):
 
 
 def rr_lag_px(ink: np.ndarray):
-    """Dominant beat period (px) from the column-wise ink extent (works for multi-row pages); None if weak."""
+    """Dominant beat period (px) from the column-wise ink: spacing of tall QRS columns, else autocorrelation."""
     c = ink.sum(0).astype(np.float64)
     if c.sum() < 50:
         return None
     c = c - ndi.gaussian_filter1d(c, max(6, len(c) // 40))
+    sm = ndi.gaussian_filter1d(c, 1.0)
+    if sm.max() > 0:
+        pk, _ = find_peaks(sm, height=0.45 * sm.max(), distance=max(8, len(c) // 30))
+        if len(pk) >= 4:
+            return float(np.median(np.diff(pk)))
     ac = _autocorr(c)
-    n = len(ac) // 2
+    n = len(ac) * 3 // 4
     pk, _ = find_peaks(ac[:n], height=0.08)
     pk = [p for p in pk if p >= 6]
     return float(pk[0]) if pk else None
 
 
-def plausible_scale(ppm: float, lag_px, speed: float = 25.0, lo: float = 0.25, hi: float = 2.6):
+def plausible_scale(ppm: float, lag_px, speed: float = 25.0, lo: float = 0.28, hi: float = 2.3):
     if lag_px is None:
         return None
     rr = lag_px / (ppm * speed)
-    return lo <= rr <= hi
+    return bool(lo <= rr <= hi)
 
 
 def detect_grid(norm: np.ndarray, ink: np.ndarray):
@@ -172,7 +177,7 @@ def detect_grid(norm: np.ndarray, ink: np.ndarray):
                 v, m, i, c = ph, mh, ih, ch
             else:
                 v, m, i, c = pw, mw, iw, cw
-            res.update(px_per_mm_x=v, px_per_mm_y=v, map_x=(m, i), map_y=(m, i), confidence=c * 0.6)
+            res.update(px_per_mm_x=v, px_per_mm_y=v, map_x=(m, i), map_y=(m, i), confidence=c * 0.8)
     elif ph or pw:
         v, m, i = (ph, mh, ih) if ph else (pw, mw, iw)
         res.update(px_per_mm_x=v, px_per_mm_y=v, map_x=(m, i), map_y=(m, i), confidence=res["confidence"] * 0.5)

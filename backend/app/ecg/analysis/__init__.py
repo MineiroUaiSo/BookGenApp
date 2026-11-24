@@ -62,9 +62,12 @@ def _align_segments(d, signal, fs, warnings):
     calibration['offset_s.<lead>']. Place them on a common timeline (zeros outside the recorded
     window) and return a per-lead validity mask; None when all leads already share one timeline."""
     lens = {k: len(v) for k, v in d.items()}
-    if len(set(lens.values())) <= 1:
-        return None
     cal = signal.calibration or {}
+    # equal-length leads on one timeline -> nothing to align; a 3x4 page without rhythm strip has equal-length
+    # 2.5 s leads that start at different offsets and must NOT be treated as simultaneous
+    offs = {round(float(cal.get(f"offset_s.{k}", 0.0)), 3) for k in d}
+    if len(set(lens.values())) <= 1 and len(offs) <= 1:
+        return None
     n = max(int(round(cal.get(f"offset_s.{k}", 0.0) * fs)) + ln for k, ln in lens.items())
     valid = {}
     for k, v in list(d.items()):

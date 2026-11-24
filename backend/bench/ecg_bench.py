@@ -2,6 +2,7 @@
 
 Usage (from backend/):
     python -m bench.ecg_bench [--source ludb|ptbxl|images|all] [--limit N] [--workers K] [--force] [--report-only]
+    python -m bench.ecg_bench --source litfl --litfl-split dev|test --workers 2 --force   # page-level 70/30 LITFL split
 
 Per-record raw results are cached as JSONL in  data/bench/ecg/<source>.jsonl  (one line per record id;
 re-runs only process ids that are not cached unless --force).  The report (docs/benchmarks/ecg.md) is

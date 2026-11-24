@@ -213,3 +213,58 @@ def refine_extrema(cen, top, bot, thick):
         elif c[q] >= c[q - 1] and c[q] >= c[q + 1]:
             y[i] = bot[i] - thick / 2
     return y
+
+
+def classify_triplet(rows: list[np.ndarray]):
+    """Identify what three simultaneously recorded rows are, from physics alone (no lead labels needed):
+    I,II,III obey II = I + III (Einthoven); aVR,aVL,aVF sum to zero (Goldberger); anything else is a chest triplet.
+    Scores are the residual of the correct relation divided by that of the sign/row-permuted wrong ones
+    (<< 1 means the relation holds). Returns (einthoven_ratio, goldberger_ratio, median R/S ratio)."""
+    r = [np.asarray(x, float) for x in rows]
+    r = [x - ndi.median_filter(x, size=max(3, int(0.7 * 500) | 1), mode="nearest") for x in r]  # baseline wander out
+    n = min(len(x) for x in r)
+    a, b, c = (x[:n] for x in r)
+    nz = lambda v: float(np.linalg.norm(v)) + 1e-9
+    ein = nz(b - a - c) / min(nz(a - b - c), nz(c - a - b), nz(a + b + c), nz(b - a + c))
+    gold = nz(a + b + c) / min(nz(a + b - c), nz(a - b + c), nz(-a + b + c))
+    rs = []
+    for x in (a, b, c):
+        hi, lo = float(np.percentile(x, 99.5)), float(np.percentile(x, 0.5))
+        rs.append(hi / max(abs(lo), 1e-6))
+    return float(ein), float(gold), float(np.median(rs))
+
+
+def assign_triplets(cols_rows: list[list[np.ndarray]]):
+    """cols_rows[c] = three row signals of column c. Returns a lead-name triplet per column; columns without clear
+    evidence keep the standard order (I-III, aVR-aVF, V1-V3, V4-V6)."""
+    LIMB, AVR = ["I", "II", "III"], ["aVR", "aVL", "aVF"]
+    std = [LIMB, AVR, ["V1", "V2", "V3"], ["V4", "V5", "V6"]]
+    kinds = []
+    for rows in cols_rows:
+        einth, gold, rs = classify_triplet(rows)
+        if einth < 0.45 and einth <= gold:
+            kinds.append("limb")
+        elif gold < 0.45:
+            kinds.append("avr")
+        elif min(einth, gold) > 0.75:
+            kinds.append(("chest", rs))
+        else:
+            kinds.append(None)
+    out = []
+    n_chest = sum(1 for k in kinds if isinstance(k, tuple))
+    seen_chest = 0
+    for c, k in enumerate(kinds):
+        if k == "limb":
+            out.append(LIMB)
+        elif k == "avr":
+            out.append(AVR)
+        elif k is None:
+            out.append(std[min(c, 3)])
+        else:
+            if n_chest == 1:
+                out.append(["V4", "V5", "V6"] if k[1] > 1.2 and c > 0 else ["V1", "V2", "V3"])
+            else:
+                out.append(["V1", "V2", "V3"] if seen_chest == 0 else ["V4", "V5", "V6"])
+            seen_chest += 1
+    return out
+

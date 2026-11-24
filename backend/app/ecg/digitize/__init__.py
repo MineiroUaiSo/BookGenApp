@@ -47,17 +47,17 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
         ppx, ppy = gr["px_per_mm_x"], gr["px_per_mm_y"]
         mm_x, px_of_mm_x = gr["map_x"]
         mm_y, _ = gr["map_y"]
-        if grid.plausible_scale(ppx, lag) is False:  # wrong harmonic of the grid (1 mm vs 5 mm ...): pick by heart rate
+        if lag is not None and not grid.plausible_scale(ppx, lag):  # wrong harmonic of the grid (1 mm vs 5 mm ...): pick by heart rate
             for f in (5.0, 0.2, 2.0, 0.5, 4.0, 0.25):
                 if grid.plausible_scale(ppx * f, lag):
                     ppx = ppy = ppx * f
                     mm_x = mm_y = np.poly1d([1.0 / ppx, 0.0])
                     px_of_mm_x = np.poly1d([ppx, 0.0])
-                    grid_conf *= 0.5
+                    grid_conf *= 0.8
                     warnings.append(f"grid pitch rescaled x{f:g} to give a plausible heart rate")
                     break
             else:
-                grid_conf *= 0.6
+                grid_conf *= 0.7
                 warnings.append("grid pitch gives an implausible heart rate")
     else:  # no grid at all: scale from the beat period (assume 75 bpm) or from a 250 mm wide page
         if lag:
@@ -135,6 +135,7 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     cps = ppx * speed  # columns per second
     meas = (x_end_data - xs) / cps
     wide = meas >= 7.0
+    layout_given = layout != "auto"
     if layout == "auto":
         if n_rows <= 2:
             layout = "strips"
@@ -152,8 +153,12 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
         lay = trace.LAYOUT_LEADS[layout]
         n_cols = len(lay)
         seg_nom = 10.0 / n_cols
-        if n_cols == 1 or (wide and abs(meas - 10.0) < 1.6):
-            total_s = 10.0 if n_cols > 1 else meas
+        if n_cols == 1:
+            total_s = meas
+        elif wide and abs(meas - 10.0) < 2.5:
+            # columns are equal parts of the printed trace: place the boundaries on the measured span (a nominal
+            # 2.5 s grid drifts by 100+ ms on scaled/cropped prints and corrupts RR across column borders)
+            total_s = meas if abs(meas - 10.0) > 0.15 else 10.0
         else:  # cropped / narrower page: keep the nominal segment length, drop columns that do not fit
             n_fit = max(1, min(n_cols, int(round(meas / seg_nom))))
             lay = lay[:n_fit]
@@ -164,6 +169,7 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     if n_rows != expect_rows and layout != "strips":
         warnings.append(f"detected {n_rows} rows, layout {layout} expects {expect_rows}")
     seg_s = total_s / n_cols
+    bounds_t = [c * seg_s for c in range(n_cols + 1)]
 
     leads: dict[str, list[float]] = {}
     quality: dict[str, float] = {}
@@ -203,16 +209,28 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
             mv = gaussian_filter1d(mv, 0.5 * cps / OUT_FS)
         return np.interp(px - a, np.arange(len(mv)), mv), q
 
+    if layout in ("3x4", "3x4+1") and n_rows >= 3:
+        cr = [[lead_from(r, bounds_t[c], bounds_t[c + 1]) for r in range(3)] for c in range(n_cols)]
+        okc = [c for c in range(n_cols) if all(x[0] is not None for x in cr[c])]
+        std_ok = wide  # a full 10 s page is overwhelmingly the standard 3x4 order; only cropped pages are re-identified
+        if okc and not layout_given and not std_ok:
+            trip = trace.assign_triplets([[cr[c][r][0] for r in range(3)] for c in okc])
+            new = [list(l) for l in lay]
+            for c, t in zip(okc, trip):
+                new[c] = t
+            if new != [list(l) for l in lay]:
+                warnings.append("lead groups identified from signal physics: " + " | ".join("/".join(n) for n in new))
+            lay = new
     for c, names in enumerate(lay):
         for r, name in enumerate(names):
             if r >= n_rows:
                 continue
-            sig, q = lead_from(r, c * seg_s, (c + 1) * seg_s)
+            sig, q = lead_from(r, bounds_t[c], bounds_t[c + 1])
             if sig is None:
                 continue
             leads[name] = sig.tolist()
             quality[name] = round(q, 3)
-            calib_extra[f"offset_s.{name}"] = c * seg_s
+            calib_extra[f"offset_s.{name}"] = bounds_t[c]
     if has_rhythm and n_rows > len(lay[0]):
         sig, q = lead_from(len(lay[0]), 0.0, total_s)
         if sig is not None:

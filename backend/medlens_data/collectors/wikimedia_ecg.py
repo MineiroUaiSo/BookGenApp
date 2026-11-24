@@ -209,6 +209,31 @@ class Crawler:
             return d
         raise RuntimeError("API unavailable")
 
+    def download(self, url: str) -> bytes:
+        """File download honouring Retry-After (upload.wikimedia.org throttles shared IPs hard: 600 s)."""
+        import requests
+        if not hasattr(self, "_ds"):
+            self._ds = requests.Session()
+            self._ds.headers["User-Agent"] = USER_AGENT
+            self._dlast = 0.0
+        for attempt in range(30):
+            time.sleep(max(0.0, 3.0 - (time.time() - self._dlast)))
+            try:
+                r = self._ds.get(url, timeout=120)
+            except Exception as e:
+                print(f"  download net error: {str(e)[:80]}", flush=True)
+                time.sleep(30)
+                continue
+            self._dlast = time.time()
+            if r.status_code == 429 or r.status_code >= 500:
+                wait = min(900, float(r.headers.get("retry-after", 60)) + 5)
+                print(f"  download http {r.status_code}, waiting {wait:.0f}s", flush=True)
+                time.sleep(wait)
+                continue
+            r.raise_for_status()
+            return r.content
+        raise RuntimeError("download throttled")
+
     def members(self, cat: str, cmtype: str) -> list[dict]:
         res, cont = [], {}
         while True:
@@ -239,15 +264,17 @@ class Crawler:
         return files
 
     def imageinfos(self, titles: list[str]):
-        for i in range(0, len(titles), 20):
-            chunk = titles[i:i + 20]
+        for i in range(0, len(titles), 50):
+            chunk = titles[i:i + 50]
             d = self.api(titles="|".join(chunk), prop="imageinfo", iiprop="url|size|mime|extmetadata")
-            print(f"  imageinfo chunk {i // 20}", flush=True)
+            print(f"  imageinfo chunk {i // 50}", flush=True)
             for p in d.get("query", {}).get("pages", {}).values():
                 yield p
 
 
-def run(max_files: int | None = None, depth: int = 3) -> None:
+def run(max_files: int | None = None, depth: int = 3, metadata_only: bool = False) -> None:
+    """Phase 1: walk categories + imageinfo -> manifest (path empty, extra.download='pending').
+    Phase 2 (unless metadata_only): download_pending()."""
     out = source_dir(SOURCE)
     (out / "images").mkdir(exist_ok=True)
     cr = Crawler(out)
@@ -255,48 +282,68 @@ def run(max_files: int | None = None, depth: int = 3) -> None:
     titles = sorted(files)[: max_files or None]
     print(f"{len(titles)} candidate files", flush=True)
     recs: list[Record] = []
-    rejects = (out / "rejects.jsonl").open("w")
+    why_count: dict[str, int] = {}
     n = 0
     for page in cr.imageinfos(titles):
         n += 1
         rec, why = record_from_imageinfo(page)
         if rec is None:
-            rejects.write(json.dumps({"title": page.get("title"), "why": why}) + "\n")
+            k = why.split(":")[0] if not why.startswith("licence") else "licence"
+            why_count[k] = why_count.get(k, 0) + 1
             continue
-        ii = page["imageinfo"][0]
-        big = False
-        url = ii["url"]
-        if ii["width"] > MAX_W:  # huge original: ask for a 3000 px rendition instead
-            t = cr.api(titles=page["title"], prop="imageinfo", iiprop="url", iiurlwidth=str(MAX_W))
-            tp = next(iter(t["query"]["pages"].values()))
-            tu = (tp.get("imageinfo") or [{}])[0].get("thumburl")
-            if tu:
-                big, url = True, tu
-        ext = ".png" if ii["mime"] == "image/png" and not big else (".jpg" if big or ii["mime"] == "image/jpeg" else ".png")
-        if big and ii["mime"] == "image/png":
-            ext = ".png"
-        rel = f"images/{rec.id}{ext}"
+        rec.extra["download"] = "pending"
+        recs.append(rec)
+    (out / "reject_counts.json").write_text(json.dumps({"seen": n, "kept_metadata": len(recs), "rejected": why_count}))
+    write_manifest(SOURCE, recs)
+    print(f"METADATA kept={len(recs)} of {n} rejects={why_count}", flush=True)
+    if not metadata_only:
+        download_pending()
+
+
+def download_pending(limit: int | None = None) -> None:
+    """Download images for manifest records still pending; image check; dedupe; rewrite manifest.
+    Records failing the image check are kept but flagged quality.image_check.ecg_like=False and file removed."""
+    from medlens_data import read_manifest
+    out = source_dir(SOURCE)
+    (out / "images").mkdir(exist_ok=True)
+    cr = Crawler(out)
+    recs = list(read_manifest(SOURCE))
+    done = 0
+    for rec in recs:
+        if rec.extra.get("download") != "pending":
+            continue
+        if limit and done >= limit:
+            break
+        title = rec.extra["title"]
+        w = rec.extra.get("width") or 0
+        url, big = rec.extra.get("original_url"), False
         try:
-            data = cr.ps.get(url, binary=True, use_cache=False, timeout=180)
-            (out / rel).write_bytes(data)
+            if w > MAX_W:  # huge original: ask for a 3000 px rendition instead
+                t = cr.api(titles=title, prop="imageinfo", iiprop="url", iiurlwidth=str(MAX_W))
+                tu = (next(iter(t["query"]["pages"].values())).get("imageinfo") or [{}])[0].get("thumburl")
+                if tu:
+                    big, url = True, tu
+            ext = ".png" if url.lower().split("?")[0].endswith(".png") else ".jpg"
+            rel = f"images/{rec.id}{ext}"
+            (out / rel).write_bytes(cr.download(url))
             chk = image_check(out / rel)
         except Exception as e:
-            rejects.write(json.dumps({"title": page.get("title"), "why": f"download:{str(e)[:80]}"}) + "\n")
+            rec.extra["download"] = f"failed: {str(e)[:80]}"
             continue
-        if not chk["ecg_like"]:
-            (out / rel).unlink(missing_ok=True)
-            rejects.write(json.dumps({"title": page.get("title"), "why": "image_check", **chk}) + "\n")
-            continue
-        rec.path = rel
         rec.quality["image_check"] = chk
-        rec.extra["downloaded_thumb"] = bool(big)
-        recs.append(rec)
-        if len(recs) % 20 == 0:
-            print(f"  kept {len(recs)} / seen {n}", flush=True)
-    rejects.close()
-    dedupe(recs, out)
+        rec.extra["downloaded_thumb"] = big
+        if chk["ecg_like"]:
+            rec.path, rec.extra["download"] = rel, "ok"
+        else:
+            (out / rel).unlink(missing_ok=True)
+            rec.extra["download"] = "rejected_image_check"
+        done += 1
+        if done % 20 == 0:
+            print(f"  downloaded {done}", flush=True)
+            write_manifest(SOURCE, recs)
+    dedupe([r for r in recs if r.path], out)
     write_manifest(SOURCE, recs)
-    print(f"DONE kept={len(recs)} of {n}", flush=True)
+    print(f"DONE downloaded={done}", flush=True)
 
 
 if __name__ == "__main__":
@@ -304,5 +351,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-files", type=int, default=None)
     ap.add_argument("--depth", type=int, default=3)
+    ap.add_argument("--metadata-only", action="store_true")
+    ap.add_argument("--download-only", action="store_true", help="resume downloads for pending manifest records")
     a = ap.parse_args()
-    run(a.max_files, a.depth)
+    if a.download_only:
+        download_pending()
+    else:
+        run(a.max_files, a.depth, a.metadata_only)
