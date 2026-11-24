@@ -375,7 +375,7 @@ def run_seg(task: dict) -> dict:
         if task.get("decontour"):
             img = decontour(img, gts)
         # untagged run (what a PNG/JPG upload gets): only region/view detection is scored from it
-        a0, _ = _analyze(img, task["id"], "heur")
+        a0, _ = _analyze(img, task["id"], "model")
         out["auto_view"], out["auto_region"] = a0.view.value, a0.region.value
         gv = view_class(task.get("view"))
         a, dt = _analyze(img, task["id"], task["mode"], _fake_ds("LATERAL" if gv == "lateral" else "PA"))
@@ -424,7 +424,7 @@ def run_iu(task: dict) -> dict:
             try:
                 img = load_gray(root / it["path"], task["max_side"])
                 # untagged run: what a PNG/JPG upload gets (scored for view/region detection only)
-                a0, _ = _analyze(img, it["id"], "heur")
+                a0, _ = _analyze(img, it["id"], "model")
                 gv = view_class(it["view"])
                 # tagged run (as a DICOM with BodyPart=CHEST and ViewPosition would): used for segmentation/findings
                 a, dt = _analyze(img, it["id"], task["mode"], _fake_ds({"frontal": "PA", "lateral": "LATERAL"}.get(gv)))
@@ -905,7 +905,7 @@ def build_report(path: Optional[Path] = None) -> Path:
         sections.append(("Piores casos de segmentação", wt))
         det = []
         for src in sorted({r["source"] for r in seg}):
-            rs = [r for r in seg if r.get("ok") and r["source"] == src and r["mode"] == "heur" and r.get("auto_region")]
+            rs = [r for r in seg if r.get("ok") and r["source"] == src and r["mode"] == "model" and r.get("auto_region")]
             if not rs:
                 continue
             ch_ = sum(r["auto_region"] == "chest" for r in rs)

@@ -23,11 +23,43 @@ def normalise(rgb: np.ndarray) -> np.ndarray:
     return out
 
 
+def _masked_median(v: np.ndarray, axis: int, lim: float = 0.62) -> np.ndarray:
+    """Median along `axis` ignoring pixels darker than `lim` (trace/text); NaN-filled gaps are interpolated."""
+    m = np.where(v < lim, np.nan, v)
+    with np.errstate(all="ignore"):
+        import warnings as _w
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            med = np.nanmedian(m, axis=axis)
+    n = len(med)
+    ok = np.isfinite(med)
+    if ok.sum() < 3:
+        return np.ones(n, np.float32)
+    return np.interp(np.arange(n), np.nonzero(ok)[0], med[ok]).astype(np.float32)
+
+
+def flatten(norm: np.ndarray) -> np.ndarray:
+    """V (max over channels, 0..1 paper) with the printed grid divided out: the grid is a (near) separable
+    product of a per-column and a per-row factor. Dark vertical lines then vanish while the trace stays dark."""
+    v = norm.max(2).astype(np.float32)
+    cm = _masked_median(v, 0)
+    rm = _masked_median(v, 1)
+    base = float(np.median(v))
+    cmn = np.clip(cm / base, 0.6, 1.3)
+    rmn = np.clip(rm / base, 0.6, 1.3)
+    return np.clip(v / (cmn[None, :] * rmn[:, None]), 0, 1.3)
+
+
 def trace_mask(norm: np.ndarray) -> np.ndarray:
-    """Dark ink (trace/text): low V = max over channels. Red/pink/orange grid keeps high V."""
-    v = norm.max(2)
-    thr = float(np.clip(_otsu(v[::2, ::2].ravel()), 0.35, 0.7))
-    return v < thr
+    """Dark ink (trace/text) after grid flattening. Red/pink/orange grid keeps high V."""
+    v = flatten(norm)
+    thr = float(np.clip(_otsu(v[::2, ::2].ravel()), 0.5, 0.85))
+    core = v < thr
+    # QRS strokes are thin and anti-aliased: bridge short vertical breaks and take the fainter fringe that touches ink
+    loose = v < min(thr + 0.08, 0.92)
+    bridged = ndi.binary_closing(core, structure=np.ones((5, 1), bool))
+    fringe = ndi.binary_dilation(bridged, structure=np.ones((3, 3), bool)) & loose
+    return bridged | fringe
 
 
 def grid_profiles(norm: np.ndarray, ink: np.ndarray):

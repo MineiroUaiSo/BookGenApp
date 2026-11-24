@@ -192,6 +192,7 @@ class Crawler:
                 continue
             self._last = time.time()
             if r.status_code == 429 or r.status_code >= 500:
+                print(f"  http {r.status_code}, wait", flush=True)
                 wait = min(60, float(r.headers.get("retry-after", 15)) + 2)
                 time.sleep(wait)
                 continue
@@ -241,6 +242,7 @@ class Crawler:
         for i in range(0, len(titles), 20):
             chunk = titles[i:i + 20]
             d = self.api(titles="|".join(chunk), prop="imageinfo", iiprop="url|size|mime|extmetadata")
+            print(f"  imageinfo chunk {i // 20}", flush=True)
             for p in d.get("query", {}).get("pages", {}).values():
                 yield p
 
