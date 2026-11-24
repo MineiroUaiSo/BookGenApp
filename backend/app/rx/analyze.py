@@ -10,7 +10,7 @@ from skimage.measure import label
 
 from ..dicom.burned_text import BurnedTextResult, burned_in_tag, scrub as scrub_burned_text
 from ..schemas import BodyRegion, RXImageAnalysis, RXMeasurement, RXView, Structure
-from . import measure, seg_heuristic as H, seg_model, view as V
+from . import measure, seg_cxas, seg_heuristic as H, seg_model, view as V
 from .calibration import calibrate_scores
 from ._common import autocrop, build_structure, encode_png_b64, normalize_polarity, polarity_margin, to_work
 
@@ -20,6 +20,7 @@ HEUR_CONF = {"right_lung": .25, "left_lung": .25, "lung_field": .25, "heart": .2
              "right_diaphragm": .2, "left_diaphragm": .2, "diaphragm": .2, "sternum": .1, "bowel_gas": .2,
              "pelvis_bones": .15, "bones": .15}
 MODEL_CONF = 0.75
+CXAS_CONF = 0.7   # CXAS (opt-in, MEDLENS_RX_CXAS=1): research model, see docs/benchmarks/trilha_r2_cxas_log.md
 # heuristic heart mask is a crude inter-lung gap box: on normal films it gave CTR 0.64-0.87 (model: 0.46-0.52).
 # Outside this window the heuristic CTR is not shown as a measurement (downgraded to "não confiável").
 HEUR_CTR_RANGE = (0.30, 0.70)   # upper bound just above the largest truthful phantom CTR (0.64); real heuristic films gave up to 0.87
@@ -114,7 +115,7 @@ def _structures(masks, full_shape, scale, spacing, origin, order=None) -> list[S
         m = masks.get(k)
         if m is None or k.startswith("_"):
             continue
-        conf = MODEL_CONF if origin == "model" else HEUR_CONF.get(k, 0.3)
+        conf = MODEL_CONF if origin == "model" else CXAS_CONF if origin == "cxas" else HEUR_CONF.get(k, 0.3)
         st = build_structure(k, m, full_shape, scale, spacing, conf, origin)
         if st is not None:
             out.append(st)
@@ -130,10 +131,11 @@ _LATERAL = {"lung_field", "lungs", "heart", "diaphragm", "spine", "sternum", "tr
 def supported_structures(mode: str, view_class: str = "frontal") -> set[str]:
     """mode: 'model' | 'heur'; view_class: 'frontal' | 'lateral'. Keys the pipeline is able to produce."""
     if view_class == "lateral":
-        return set(_LATERAL)
+        return set(_LATERAL) | (set(seg_cxas.CXAS_KEYS) if seg_cxas.enabled() else set())
+    extra = set(seg_cxas.CXAS_KEYS) if seg_cxas.enabled() else set()
     if mode == "model":
-        return set(seg_model.PSP_KEYS.values()) | {"lungs"}
-    return set(_FRONTAL_HEUR)
+        return set(seg_model.PSP_KEYS.values()) | {"lungs"} | extra
+    return set(_FRONTAL_HEUR) | extra
 
 
 _ORDER = ["right_lung", "left_lung", "lung_field", "right_hilum", "left_hilum", "heart", "aorta", "mediastinum",
@@ -278,6 +280,15 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
         for st in structures:
             if region == BodyRegion.PELVIS:
                 st.label = "ossos da pelve (limiar)"
+
+    if kind in ("chest_frontal", "chest_lateral") and structures and seg_cxas.enabled():
+        cx = seg_cxas.segment(img, "lateral" if kind == "chest_lateral" else "frontal")
+        add = seg_cxas.fill_masks(cx, {s.key for s in structures}) if cx else {}
+        added = _structures(add, full, (1.0, 1.0), spacing, "cxas") if add else []
+        if added:
+            structures = structures + added
+            notes.append("estruturas adicionais por CXAS (modelo de pesquisa, MIT, não certificado): "
+                         + ", ".join(s.key for s in added))
 
     quality["incidência"] = (f"{view.value} ({'tag DICOM' if V.view_from_tags(ds) else 'estimada'})"
                              if view != RXView.OTHER else "indeterminada")

@@ -175,7 +175,7 @@ export interface Structure {
   bbox?: number[] | null;
   area_mm2?: number | null;
   confidence: number;
-  origin: "model" | "heuristic" | "llm";
+  origin: "model" | "heuristic" | "llm" | "cxas";
 }
 
 export interface RXMeasurement {
