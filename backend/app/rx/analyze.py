@@ -17,6 +17,9 @@ HEUR_CONF = {"right_lung": .25, "left_lung": .25, "lung_field": .25, "heart": .2
              "right_diaphragm": .2, "left_diaphragm": .2, "diaphragm": .2, "sternum": .1, "bowel_gas": .2,
              "pelvis_bones": .15, "bones": .15}
 MODEL_CONF = 0.75
+# heuristic heart mask is a crude inter-lung gap box: on normal films it gave CTR 0.64-0.87 (model: 0.46-0.52).
+# Outside this window the heuristic CTR is not shown as a measurement (downgraded to "não confiável").
+HEUR_CTR_RANGE = (0.30, 0.70)   # upper bound just above the largest truthful phantom CTR (0.64); real heuristic films gave up to 0.87
 HEUR_WARN = ("segmentação por heurística clássica: BAIXA CONFIABILIDADE (benchmark: Dice ~0,1-0,25 em RX de tórax "
              "reais; medidas como ICT/desvio traqueal não são confiáveis) — não usar para decisão; confirmar visualmente.")
 
@@ -70,6 +73,18 @@ def _heart_side_check(masks) -> Optional[str]:
         return ("coração projetado à esquerda da imagem: possível imagem espelhada ou dextrocardia — "
                 "lateralidade (D/E) não confirmada")
     return None
+
+
+def _distrust_heuristic_ctr(measurements, ex, quality):
+    """Heuristic mode: drop an implausible CTR (and the heart width it came from) instead of presenting it as a measure."""
+    ctr = ex.get("ctr")
+    if ctr is None or HEUR_CTR_RANGE[0] <= ctr <= HEUR_CTR_RANGE[1]:
+        return measurements
+    ex.pop("ctr", None)
+    quality["ICT"] = (f"não confiável: ICT heurístico {ctr:.2f} fora do intervalo plausível "
+                      f"({HEUR_CTR_RANGE[0]:.2f}-{HEUR_CTR_RANGE[1]:.2f}); silhueta cardíaca heurística não é confiável — "
+                      "use o modelo de segmentação ou meça manualmente")
+    return [m for m in measurements if m.key not in ("cardiothoracic_ratio", "heart_width")]
 
 
 def _spacing(ds: Any, H_: int, W_: int) -> Optional[tuple[float, float]]:
@@ -211,6 +226,8 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
             s_full = to_canvas(s)
             structures = _structures(masks, full, scale, spacing, origin, _ORDER)
             measurements, ex = measure.measure_frontal(masks, conv, view.value)
+            if origin == "heuristic":
+                measurements = _distrust_heuristic_ctr(measurements, ex, quality)
             quality.update(measure.quality_frontal(s_full, masks, ex))
             side = _heart_side_check(masks)
             if side:
