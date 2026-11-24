@@ -33,7 +33,8 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from bench import ptbxl_large, splits  # noqa: E402
-from bench.report import fmt, pct, table, wilson, write_markdown  # noqa: E402
+from bench.report import (bootstrap_binary_ci, bootstrap_prop_ci, fmt, fmt_ci, pct, table, wilson,  # noqa: E402
+                          write_markdown)
 
 REPO = BACKEND.parent
 DATA_ROOT = Path(os.environ.get("MEDLENS_DATASETS", REPO / "data" / "datasets"))
@@ -898,8 +899,7 @@ def _prf(tp, fp, fn, tn):
 def _ci(k, n):
     if n <= 0:
         return "-"
-    lo, hi = wilson(k, n)
-    return f"{100 * k / n:.0f} [{max(0, 100 * lo):.0f}-{100 * hi:.0f}]"
+    return fmt_ci(*bootstrap_prop_ci(k, n))
 
 
 def axis_class(a):
@@ -967,16 +967,17 @@ def report_ptbxl(res: dict[str, dict]) -> tuple[str, dict]:
         adj = "-"
         if pv and se == se and sp == sp and (se * pv + (1 - sp) * (1 - pv)) > 0:
             adj = f"{100 * se * pv / (se * pv + (1 - sp) * (1 - pv)):.0f} (prev {100 * pv:.1f}%)"
-        rows.append([c, CLASS_DESC[c], npos, tp, fp, _ci(tp, npos), _ci(tn, tn + fp), _ci(tp, tp + fp),
-                     adj, fmt(f1, 2)])
+        bs = bootstrap_binary_ci(tp, fp, fn, tn)
+        rows.append([c, CLASS_DESC[c], npos, tp, fp, fmt_ci(*bs["sens"]), fmt_ci(*bs["spec"]), fmt_ci(*bs["ppv"]),
+                     fmt_ci(*bs["acc"]), adj, fmt(f1, 2)])
         head[c] = (se, sp, ppv, f1, npos)
         if npos + fp:
             top_fp = ", ".join(f"{k}:{v}" for k, v in fp_gold.most_common(4)) or "-"
             top_fn = ", ".join(f"{k}:{v}" for k, v in fn_pred.most_common(4)) or "-"
             conf_rows.append([c, f"FP gold labels -> {top_fp}", f"FN our findings -> {top_fn}"])
             worst_rows.append([c, ", ".join(fps[:5]) or "-", ", ".join(fns[:5]) or "-"])
-    t1 = table(rows, ["Class", "Meaning", "N pos", "TP", "FP", "Sens % [95% CI]", "Spec % [95% CI]",
-                      "PPV % [95% CI] (this sample)", "PPV % at full-PTB-XL prevalence", "F1"])
+    t1 = table(rows, ["Class", "Meaning", "N pos", "TP", "FP", "Sens [IC95% bootstrap]", "Spec [IC95%]",
+                      "PPV [IC95%] (this sample)", "Acc [IC95%]", "PPV % at full-PTB-XL prevalence", "F1"])
     # NORM agreement
     norm = [r for r in recs if "NORM" in r["gold"]]
     abn = [r for r in recs if "NORM" not in r["gold"]]
