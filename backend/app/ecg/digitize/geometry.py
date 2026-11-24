@@ -71,6 +71,11 @@ def find_paper_quad(rgb: np.ndarray):
     gray = ndi.gaussian_filter(gray, 2)
     thr = _otsu(gray[::2, ::2].ravel())
     mask = gray > thr
+    # pink/red printed grid marks paper even in a shadowed corner whose brightness matches a light table
+    diff = ndi.gaussian_filter(small[..., 0].astype(np.float32) - small[..., 1].astype(np.float32), 6)
+    hi = float(np.percentile(diff, 95))
+    if hi > 6.0:
+        mask = mask | (diff > 0.4 * hi)
     if mask.mean() > 0.94 or mask.mean() < 0.2:
         return None
     mask = ndi.binary_closing(mask, iterations=3)
