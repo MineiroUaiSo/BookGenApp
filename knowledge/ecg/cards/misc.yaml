@@ -55,3 +55,21 @@ cartoes:
     tipo: paráfrase
   revisado_por_medico: false
   verificar: conferir
+- id: misc.medida_implausivel
+  versao: 1
+  nome_pt: Medida fisiologicamente implausível
+  criterio: Intervalo ou amplitude fora da faixa fisiológica sem causa que o explique (ex. QRS acima de 200 ms sem bloqueio de ramo ou marca-passo; PR abaixo de 100 ms com onda P duvidosa); indica erro de aquisição ou digitalização e os achados que dependem dessa medida não devem ser laudados.
+  limiares: {qrs_ms: "> 200 sem BRE/marca-passo", pr_ms: "< 100 com P duvidosa"}
+  medidas: [qrs_ms, pr_ms]
+  gatilhos:
+  - ecg.implausible_measurement
+  armadilhas:
+  - Hipercalemia grave e intoxicações podem alargar muito o QRS; confirmar no traçado original.
+  nao_confundir:
+  - wpw.criterios
+  fonte:
+    ref: sbc_laudos_2022
+    local: Arq Bras Cardiol 2022;119(4):638-680, seção de qualidade técnica do registro
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
