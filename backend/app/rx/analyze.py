@@ -138,7 +138,8 @@ _ORDER = ["right_lung", "left_lung", "lung_field", "right_hilum", "left_hilum", 
           "diaphragm", "right_diaphragm", "left_diaphragm", "bowel_gas", "pelvis_bones", "bones"]
 
 
-def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, use_model: Optional[bool] = None) -> RXImageAnalysis:
+def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, use_model: Optional[bool] = None,
+                  region_override: Optional[BodyRegion] = None) -> RXImageAnalysis:
     img = _as_u8(img_uint8)
     allow_model = seg_model.models_enabled() if use_model is None else use_model
     inverted = False
@@ -156,7 +157,7 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
     imgc, (cy0, cx0) = autocrop(img)
     work, scale = to_work(imgc)
     s = H.smooth(work)
-    info = V.detect_view_region(s, ds, work=work, use_model=allow_model)
+    info = V.detect_view_region(s, ds, work=work, use_model=allow_model, forced_region=region_override)
     if info.get("rot"):
         # the image was found lying on its side / upside down: work on (and return) the upright image
         img = np.ascontiguousarray(np.rot90(img, info["rot"]))
@@ -199,7 +200,12 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
     full = (Hh, Ww)
     seg_desc = "sem segmentação"
 
-    if kind == "chest_frontal":
+    uncertain = bool(info.get("region_uncertain"))
+    if uncertain:
+        # ambiguous region (tag disagrees with image): abstain from segmentation/measurements/findings
+        seg_desc = "análise suspensa: região incerta — confirme a região do exame"
+        quality["região"] = "INCERTA — tag DICOM e imagem divergem; confirme a região para analisar"
+    elif kind == "chest_frontal":
         masks = None
         origin = "heuristic"
         if allow_model:
@@ -281,4 +287,6 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
     return RXImageAnalysis(
         instance_id=instance_id, view=view, region=region, image_png_b64=encode_png_b64(img),
         width=Ww, height=Hh, pixel_spacing_mm=list(spacing) if spacing else None,
-        structures=structures, measurements=measurements, model_scores=scores, quality=quality)
+        structures=structures, measurements=measurements, model_scores=scores, quality=quality,
+        region_uncertain=uncertain, region_conflict=bool(info.get("region_conflict")),
+        tag_region=info.get("tag_region"))

@@ -76,6 +76,10 @@ LATERAL_GAP_MAX = 0.40        # left/right 'lung' centroids further apart than t
 LATERAL_SPINE_MAX = 0.01
 
 
+# Regions whose DICOM tag is audited against the image (a chest AP film is often mislabelled ABDOMEN/PELVIS/SPINE)
+AUDIT_REGIONS = (BodyRegion.ABDOMEN, BodyRegion.PELVIS, BodyRegion.SPINE)
+
+
 def model_features(prob) -> dict:
     """Anatomical plausibility features from the PSPNet probabilities (14, h, w)."""
     import numpy as np
@@ -137,7 +141,8 @@ def estimate_rotation(work, s, f: dict, kind: str, prob_fn) -> tuple[int, Option
     return 0, None, None
 
 
-def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False, allow_rotate: bool = True) -> dict:
+def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False, allow_rotate: bool = True,
+                       forced_region: Optional[BodyRegion] = None) -> dict:
     """s: smoothed float image at working res (autocropped); work: unsmoothed float image.
     Returns dict(view, region, kind, source, notes, lungs, prob, feats, rot).
     Order: DICOM tags -> PSPNet anatomical plausibility (when models are on) -> image heuristics."""
@@ -149,11 +154,19 @@ def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False, al
     prob = None
     feats = None
     rot = 0
+    tag_region = region
+    conflict = False
+    uncertain = False
     source = "tag" if (region or view) else "heurística"
     kind: Optional[str] = None
     model_kind: Optional[str] = None
 
-    if use_model and work is not None and region in (None, BodyRegion.CHEST):
+    if forced_region is not None:
+        region, source, tag_region = forced_region, "usuário", None
+        notes.append(f"região confirmada manualmente pelo usuário: {forced_region.value}")
+    audit = forced_region is None and region in AUDIT_REGIONS
+    chest_tag = forced_region is None and region == BodyRegion.CHEST
+    if use_model and work is not None and (region in (None, BodyRegion.CHEST) or audit):
         prob = M.psp_probs(work, True)
         if prob is not None:
             feats = model_features(prob)
@@ -165,6 +178,17 @@ def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False, al
                     rot, feats, prob = k, f2, p2
                     model_kind, why = classify_from_features(feats)
                     notes.append(f"imagem rotacionada (np.rot90 k={k}) para posição ortostática")
+            if audit:
+                tagname = tag_region.value.upper()
+                if model_kind == "chest_frontal":
+                    # the image beats the tag: strong chest evidence (lung pair + heart) contradicts the tag
+                    region, kind, source, conflict = BodyRegion.CHEST, "chest_frontal", "modelo", True
+                    notes.append(f"AVISO: tag DICOM diz {tagname} mas a imagem parece tórax ({why}); "
+                                 "região corrigida para tórax")
+                elif model_kind == "chest_lateral":
+                    uncertain = True
+                    notes.append(f"AVISO: tag DICOM diz {tagname} mas a imagem pode ser tórax de perfil; "
+                                 "região incerta — confirme a região")
             if region is None:
                 source = "modelo"
                 notes.append(f"região estimada pela imagem: {why}")
@@ -178,6 +202,13 @@ def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False, al
                     if view is None:
                         view = RXView.LATERAL
 
+    if chest_tag and model_kind == "nochest" and view != RXView.LATERAL:
+        # tag says CHEST but the chest model finds no chest: abdomen/pelvis-like image => ambiguous, abstain
+        hk, _hwhy = H.classify_region_heuristic(s)
+        if hk == "abdomen":
+            uncertain = True
+            notes.append("AVISO: tag DICOM diz CHEST mas a imagem parece abdome/pelve; região incerta — "
+                         "confirme a região")
     if prob is None and region in (None, BodyRegion.CHEST) and view != RXView.LATERAL:
         lungs = H.find_lung_pair(s)
 
@@ -222,5 +253,8 @@ def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False, al
         kind = kind or {BodyRegion.ABDOMEN: "abdomen"}.get(region, "other")
         if kind in ("chest_frontal", "chest_lateral"):
             kind = "other"
+    if uncertain:
+        kind = "other"
     return {"view": view, "region": region, "kind": kind, "source": source, "notes": notes, "lungs": lungs,
-            "prob": prob, "feats": feats, "rot": rot}
+            "prob": prob, "feats": feats, "rot": rot, "tag_region": tag_region, "region_conflict": conflict,
+            "region_uncertain": uncertain}
