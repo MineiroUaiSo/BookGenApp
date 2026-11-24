@@ -60,6 +60,10 @@ RBBB_TERM_R_MV = 0.25      # terminal R/R' >= 2.5 mm in V1 (R' is usually the ta
 RBBB_LAT_S_MV = 0.1        # S wave >= 1 mm in I/V6 ("wide S"; width is unreliable in the delineation)
 RBBB_LAT_S_RATIO = 0.25    # ... and >= 25% of the R in that lead
 IRBBB_MIN_QRS = 100        # AHA 2009: incomplete RBBB 110-119 ms (adults); 100-119 ms is used by SBC for screening
+STD_MV = 0.05            # UDMI-4 / AHA 2009 Part VI: >=0.5 mm (0.05 mV) horizontal or downsloping, 2 contiguous leads
+STE_MV, STE_V23_MV = 0.1, 0.2
+TINV_MV = 0.1
+LVH_R56_MV = 2.6          # R V5/V6 > 26 mm (Minnesota 3.1 / AHA 2009 Part V)
 LBBB_V1_NEG_RATIO = 2.0
 LBBB_LAT_R_MV = 0.4
 LBBB_Q_MAX_MV = 0.1
@@ -250,16 +254,20 @@ def build_findings(c):
             lab = "Desvio do eixo elétrico do QRS para a esquerda" if ax >= -90 else "Desvio extremo do eixo do QRS (indeterminado)"
             out.append(_f("ecg.left_axis_deviation", lab, sev, [f"eixo do QRS {ax:.0f}° (normal -30° a +90°)"],
                           [R_AHA, R_SBC], 0.7))
-            if -90 <= ax <= -45 and qrs < 120 and "q" in morph.get("aVL", "").lower()[:1] and \
-                    all(morph.get(l, "").lower().startswith("r") for l in ("II", "III", "aVF") if l in morph):
+            # LAFB (AHA 2009 Part III): axis -45 to -90, QRS < 120 ms, qR in aVL, rS in II/III/aVF
+            # (the q in aVL is often <0.1 mV or lost in the median beat, so rS in >=2 inferior leads is used)
+            rs_inf = [l for l in ("II", "III", "aVF") if l in bd.leads and -bd.leads[l].s_min > bd.leads[l].r_max]
+            if -90 <= ax <= -45 and qrs < 120 and len(rs_inf) >= 2:
                 out.append(_f("ecg.lafb", "Bloqueio divisional anterossuperior esquerdo (BDAS)", "abnormal",
-                              [f"eixo {ax:.0f}°", f"aVL {morph.get('aVL')}", "rS em D2/D3/aVF", f"QRS {qrs:.0f} ms"],
+                              [f"eixo {ax:.0f}°", f"rS em {pl(rs_inf)}", f"aVL {morph.get('aVL')}", f"QRS {qrs:.0f} ms"],
                               [R_AHA, R_SBC], 0.55))
         elif ax > 90:
             out.append(_f("ecg.right_axis_deviation", "Desvio do eixo elétrico do QRS para a direita", "abnormal",
                           [f"eixo do QRS {ax:.0f}° (normal -30° a +90°)"], [R_AHA, R_SBC], 0.7))
-            if ax <= 180 and qrs < 120 and morph.get("I", "").lower().startswith("rs") and \
-                    morph.get("III", "").lower().startswith("q") and morph.get("aVF", "").lower().startswith("q"):
+            # LPFB (AHA 2009 Part III): axis +90 to +180, rS in I, qR in III/aVF, QRS < 120 ms, no RVH
+            if ax <= 180 and qrs < 120 and "I" in bd.leads and "III" in bd.leads and "aVF" in bd.leads and \
+                    -bd.leads["I"].s_min >= 0.5 * bd.leads["I"].r_max and \
+                    all(bd.leads[l].r_max > -bd.leads[l].s_min for l in ("III", "aVF")):
                 out.append(_f("ecg.lpfb", "Bloqueio divisional posteroinferior esquerdo (BDPI)", "abnormal",
                               [f"eixo {ax:.0f}°", "rS em D1, qR em D3/aVF", f"QRS {qrs:.0f} ms"], [R_AHA, R_SBC], 0.5))
 
@@ -295,16 +303,21 @@ def build_findings(c):
     if sinus and c["p_present"]:
         ev_l, ev_r = [], []
         pII = L.get("II")
-        if pII and pII.p_duration_ms and pII.p_duration_ms > 120:
-            ev_l.append(f"P em D2 com {pII.p_duration_ms:.0f} ms (>120)")
         pd = bd.leads["II"].p if "II" in bd.leads else None
-        if pd is not None and pd.morph == "bífida" and pd.extra.get("interpeak_ms", 0) >= 40:
-            ev_l.append(f"P bífida em D2 (intervalo entre picos {pd.extra['interpeak_ms']:.0f} ms)")
+        p_long = bool(pII and pII.p_duration_ms and pII.p_duration_ms > 120)
+        bifid = pd is not None and pd.morph == "bífida" and pd.extra.get("interpeak_ms", 0) >= 40
         p1 = bd.leads["V1"].p if "V1" in bd.leads else None
-        if p1 is not None and p1.extra.get("neg_depth") is not None and p1.extra["neg_depth"] >= 0.1 \
-                and p1.extra.get("neg_dur_ms", 0) >= 40:
-            ev_l.append(f"índice de Morris: componente negativo terminal em V1 {p1.extra['neg_depth']*10:.1f} mm x "
-                        f"{p1.extra['neg_dur_ms']:.0f} ms")
+        morris = p1 is not None and p1.extra.get("neg_depth") is not None and p1.extra["neg_depth"] >= 0.1 \
+            and p1.extra.get("neg_dur_ms", 0) >= 40
+        # P duration alone (noisy onset) is not enough: needs P-mitrale notch or Morris index (AHA 2009 Part V)
+        if (p_long and bifid) or morris:
+            if p_long:
+                ev_l.append(f"P em D2 com {pII.p_duration_ms:.0f} ms (>120)")
+            if bifid:
+                ev_l.append(f"P bífida em D2 (intervalo entre picos {pd.extra['interpeak_ms']:.0f} ms)")
+            if morris:
+                ev_l.append(f"índice de Morris: componente negativo terminal em V1 {p1.extra['neg_depth']*10:.1f} mm x "
+                            f"{p1.extra['neg_dur_ms']:.0f} ms")
         for l in ("II", "III", "aVF"):
             a = g(l, "p_amplitude_mv")
             if a is not None and a >= 0.25:
@@ -314,20 +327,37 @@ def build_findings(c):
         if ev_r:
             out.append(_f("ecg.rae", "Sobrecarga atrial direita", "abnormal", ev_r, [R_SBC, R_GOLD], 0.5))
 
-    # ---- ventricular hypertrophy
+    # ---- ventricular hypertrophy (AHA/ACCF/HRS 2009 Part V; SBC 2022)
+    # Sokolow-Lyon >35 mm (>45 mm below 40 y, where voltage criteria lose specificity); R V5/V6 >26 mm;
+    # Cornell (S V3 + R aVL) >28 mm men / >20 mm women, which on its own over-calls (measurement of S V3 /
+    # R aVL is the least reliable) and so needs lateral repolarisation strain (ST depression / T inversion
+    # in >=1 of I, aVL, V4-V6) to be called LVH; voltage-only Cornell / R aVL > 11 mm stays "limítrofe".
     sl, cn = gm.sokolow_lyon_mv, gm.cornell_mv
-    lvh = []
-    if sl is not None and sl > 3.5:
-        lvh.append(f"Sokolow-Lyon {sl*10:.0f} mm (>35 mm)")
-    if cn is not None and cn > 2.0:
-        lvh.append(f"Cornell {cn*10:.0f} mm (>28 mm homens / >20 mm mulheres)")
+    age_, sex_ = c.get("age"), c.get("sex")
+    sl_thr = 3.5 if (age_ is None or age_ >= 40) else 4.5
+    cn_thr = 2.8 if sex_ == "M" else (2.0 if sex_ == "F" else 2.4)
+    r56 = max([bd.leads[l].r_max for l in ("V5", "V6") if l in bd.leads], default=0.0)
     ravl = bd.leads["aVL"].r_max if "aVL" in bd.leads else 0
+    strain_l = [l for l in ("I", "aVL", "V4", "V5", "V6") if l in L and (
+        (L[l].st_j60_mv is not None and L[l].st_j60_mv <= -0.05) or
+        (L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -0.1))]
+    strong, weak = [], []
+    if sl is not None and sl > sl_thr:
+        strong.append(f"Sokolow-Lyon {sl*10:.0f} mm (>{sl_thr*10:.0f} mm)")
+    if r56 > LVH_R56_MV:
+        strong.append(f"R em V5/V6 {r56*10:.0f} mm (>{LVH_R56_MV*10:.0f} mm)")
+    if cn is not None and cn > cn_thr:
+        (strong if strain_l else weak).append(
+            f"Cornell {cn*10:.0f} mm (>{cn_thr*10:.0f} mm" + (", homens >28 / mulheres >20)" if sex_ is None else ")"))
     if ravl > 1.1:
-        lvh.append(f"R em aVL {ravl*10:.0f} mm (>11 mm)")
-    if lvh:
-        strong = (sl is not None and sl > 3.5) or (cn is not None and cn > 2.8) or len(lvh) >= 2
-        out.append(_f("ecg.lvh", "Sobrecarga ventricular esquerda (critérios de voltagem)",
-                      "abnormal" if strong else "borderline", lvh, [R_SBC, R_GOLD], 0.55 if strong else 0.4))
+        weak.append(f"R em aVL {ravl*10:.0f} mm (>11 mm)")
+    if strong:
+        ev_l = strong + weak + ([f"alteração de ST-T lateral ({pl(strain_l)})"] if strain_l else [])
+        out.append(_f("ecg.lvh", "Sobrecarga ventricular esquerda (critérios de voltagem)", "abnormal", ev_l,
+                      [R_SBC, R_GOLD], 0.6 if strain_l else 0.5))
+    elif weak:
+        out.append(_f("ecg.lvh_voltage", "Voltagem elevada isolada (critério único limítrofe para sobrecarga "
+                      "ventricular esquerda)", "borderline", weak, [R_SBC, R_GOLD], 0.35))
     rv = []
     if "V1" in bd.leads and c["bbb"] not in ("rbbb",):
         r1, s1 = bd.leads["V1"].r_max, -bd.leads["V1"].s_min
@@ -344,13 +374,23 @@ def build_findings(c):
         out.append(_f("ecg.rvh", "Sobrecarga ventricular direita", "abnormal", rv, [R_SBC, R_GOLD], 0.45))
 
     # ---- QT
+    # The global QT (earliest QRS onset to latest T offset over 12 leads) is biased long by one noisy T offset;
+    # the decision uses the median per-lead QT (>=6 leads), and for QRS >=120 ms the QT is reduced by the QRS
+    # excess over 100 ms (JT-based correction; AHA 2009 Part IV). Report keeps the global value.
     qtc_val = None
-    if gm.qtc_bazett_ms is not None:
+    if gm.qtc_bazett_ms is not None and gm.rr_mean_ms:
+        qts = sorted(m.qt_ms for m in L.values() if m.qt_ms)
+        qt_dec = float(qts[len(qts) // 2]) if len(qts) >= 6 else float(gm.qt_ms)
+        if qrs >= 120:
+            qt_dec -= qrs - 100
+        rr_s = gm.rr_mean_ms / 1000.0
+        qt_baz, qt_fri = qt_dec / rr_s ** 0.5, qt_dec / rr_s ** (1 / 3)
         use_fr = hr is not None and (hr < 60 or hr > 100)
-        qtc_val = gm.qtc_fridericia_ms if use_fr else gm.qtc_bazett_ms
+        qtc_val = qt_fri if use_fr else qt_baz
         nm = "Fridericia" if use_fr else "Bazett"
-        evq = [f"QT {gm.qt_ms:.0f} ms", f"QTc {nm} {qtc_val:.0f} ms (Bazett {gm.qtc_bazett_ms:.0f}, "
-               f"Fridericia {gm.qtc_fridericia_ms:.0f})", "limiares sem distinção de sexo: >450 limítrofe, >470 alterado, >500 crítico"]
+        evq = [f"QT {gm.qt_ms:.0f} ms (global), {qt_dec:.0f} ms (mediana das derivações, ajustada ao QRS)",
+               f"QTc {nm} {qtc_val:.0f} ms (Bazett {qt_baz:.0f}, Fridericia {qt_fri:.0f})",
+               "limiares sem distinção de sexo: >450 limítrofe, >470 alterado, >500 crítico"]
         if qtc_val > 450:
             sev = "critical" if qtc_val > 500 else ("abnormal" if qtc_val > 470 else "borderline")
             out.append(_f("ecg.long_qt", "QT longo", sev, evq, [R_SBC, R_GOLD], 0.6))
@@ -362,13 +402,22 @@ def build_findings(c):
     for l, m in L.items():
         if l == "aVR" or m.st_j_mv is None:
             continue
-        thr = 0.2 if l in ("V2", "V3") else 0.1
+        thr = STE_V23_MV if l in ("V2", "V3") else STE_MV
         if m.st_j_mv >= thr:
             ste[l] = m.st_j_mv
-        j60 = m.st_j60_mv
-        if j60 is not None and j60 <= -0.05 and m.st_j_mv <= 0.0 + 0.02:
+        j60, j80 = m.st_j60_mv, m.st_j80_mv
+        # horizontal/downsloping depression: J+60 (and J+80 when available) below -STD_MV, ST not rising
+        if j60 is not None and j60 <= -STD_MV and (j80 is None or j80 <= -STD_MV) and m.st_j_mv <= 0.02 \
+                and (j80 is None or j80 <= j60 + 0.03):
             std[l] = j60
     caution = []
+    # Secondary repolarisation changes of bundle branch block are expected (AHA 2009 Part III/IV): with LBBB the
+    # ST-T of every lead is discordant to the QRS; with RBBB it is V1-V3. They are not reported as ischaemia.
+    sec_leads = set(L) if c["bbb"] in ("lbbb", "ilbbb") else ({"V1", "V2", "V3"} if c["bbb"] in ("rbbb", "irbbb") else set())
+    suppressed = [l for l in set(ste) | set(std) if l in sec_leads]
+    for l in suppressed:
+        ste.pop(l, None)
+        std.pop(l, None)
     if c["bbb"] in ("lbbb", "rbbb"):
         caution.append("interpretar com cautela na presença de bloqueio de ramo")
     if any(f.code == "ecg.lvh" for f in out):
@@ -387,7 +436,7 @@ def build_findings(c):
     # ---- pathological Q
     qpos = {}
     for l in ["I", "II", "aVL", "aVF", "V2", "V3", "V4", "V5", "V6"]:
-        if l not in L:
+        if l not in L or (c["bbb"] in ("lbbb", "ilbbb") and l in ("V2", "V3")):  # QS in V1-V3 is part of LBBB
             continue
         m = L[l]
         if m.q_amplitude_mv is None:
@@ -417,14 +466,22 @@ def build_findings(c):
 
     # ---- T inversion
     tinv = {l: L[l].t_amplitude_mv for l in ("I", "II", "aVL", "aVF", "V2", "V3", "V4", "V5", "V6")
-            if l in L and L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -0.1}
+            if l in L and L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -TINV_MV and l not in sec_leads}
+    if suppressed or (sec_leads and any(L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -TINV_MV
+                                        for l in sec_leads if l in L)):
+        out.append(_f("ecg.secondary_repolarization", "Alterações secundárias da repolarização ventricular "
+                      "(esperadas com o bloqueio de ramo)", "borderline",
+                      ["ST-T discordante do QRS, não interpretado como isquemia"], [R_AHA, R_SBC], 0.5))
     for name, lds in territories(list(tinv)):
         out.append(_f("ecg.t_inversion_" + name, f"Inversão da onda T ({name}: {pl(lds)})", "abnormal",
                       ["T: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} {tinv[l]*10:.1f} mm" for l in lds),
                        "limiar: T <= -1 mm em 2 derivações contíguas"] + caution, [R_UDMI, R_SBC, R_GOLD], 0.5))
 
-    abn = [f for f in out if f.severity != "normal"]
+    # Isolated borderline observations (SBC 2022 "limítrofe"/variants) do not make an ECG abnormal.
+    abn = [f for f in out if f.severity in ("abnormal", "critical")]
     if not abn:
+        bl = [f.label for f in out if f.severity == "borderline"]
         out.append(_f("ecg.within_normal_limits", "Eletrocardiograma sem alterações pelas regras automáticas",
-                      "normal", ["nenhuma regra de anormalidade foi acionada"], [R_GOLD], 0.5))
+                      "normal", ["nenhuma regra de anormalidade foi acionada"] +
+                      ([f"achados limítrofes isolados: {'; '.join(bl)}"] if bl else []), [R_GOLD], 0.5))
     return out

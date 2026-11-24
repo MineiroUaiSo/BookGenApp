@@ -304,9 +304,9 @@ def segment_chest_frontal(s: np.ndarray, lungs: Optional[dict] = None) -> Option
 # priors in lung-bbox coordinates (u: 0 posterior -> 1 anterior, v: 0 top -> 1 bottom); tuned on PAX-Ray++ lateral (dev)
 _LAT_PRIORS = {
     "heart": dict(c=(0.62, 0.72), r=(0.30, 0.26)),
-    "spine": dict(u=(-0.12, 0.22), v=(-0.12, 1.08)),
-    "sternum": dict(u=(0.92, 1.12), v=(0.05, 0.80)),
-    "trachea": dict(u=(0.30, 0.52), v=(-0.20, 0.30)),
+    "spine": dict(u=(-0.2, 0.3), v=(-0.1, 1.1)),
+    "sternum": dict(u=(0.85, 1.15), v=(0.0, 0.9)),
+    "trachea": dict(u=(0.25, 0.6), v=(-0.25, 0.35)),
 }
 
 

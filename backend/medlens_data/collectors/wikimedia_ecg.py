@@ -171,24 +171,25 @@ class Crawler:
         self.ps = PoliteSession(delay_s=1.2, cache_dir=out / "_cache")
 
     def api(self, **params):
+        import hashlib
         params.update(action="query", format="json", maxlag=5)
+        ck = self.out / "_apicache" / (hashlib.sha1(json.dumps(params, sort_keys=True).encode()).hexdigest() + ".json")
+        ck.parent.mkdir(exist_ok=True)
+        if ck.exists():
+            return json.loads(ck.read_text())
         for attempt in range(12):
             try:
-                txt = self.api_ps.get(API, params=dict(params), timeout=60)
+                txt = self.api_ps.get(API, params=dict(params), timeout=60, use_cache=False)
+                d = json.loads(txt)
             except Exception as e:  # PoliteSession gave up after its own retries (429 etc.)
                 wait = min(300, 20 * (attempt + 1))
                 print(f"  api retry in {wait}s: {str(e)[:100]}", flush=True)
                 time.sleep(wait)
                 continue
-            try:
-                d = json.loads(txt)
-            except Exception:
-                time.sleep(30)
-                continue
             if d.get("error", {}).get("code") == "maxlag":
-                # drop cached lagged response
                 time.sleep(10)
                 continue
+            ck.write_text(txt)
             return d
         raise RuntimeError("API unavailable")
 
