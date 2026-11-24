@@ -13,6 +13,7 @@ from . import client as _client
 from .client import ai_available, model_name  # noqa: F401  (API pública)
 from .render import render_ecg_plot, rx_image_png, rx_overlay_png
 from .schema import output_schema, to_report
+from .validate import validate_report
 
 log = logging.getLogger("medlens.llm")
 PROMPTS = Path(__file__).parent / "prompts"
@@ -97,7 +98,8 @@ def _user_context(domain: str, data: dict, findings, measurement_keys) -> str:
             f"Critérios do bloco de CONHECIMENTO mais pertinentes a estes dados: {ids}.")
 
 
-def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str) -> AIReport:
+def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str,
+               summary: Optional[dict] = None, rule_findings: Optional[list] = None) -> AIReport:
     c = _client
     client = c.make_client()
     system = _system_blocks(domain)
@@ -121,6 +123,11 @@ def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str) -> AI
         text, final = c.run(client, system, msgs, c.MAX_TOKENS_ANALYZE, schema=output_schema(refs))
         data = c.parse_json(text)
         rep = to_report(data, getattr(final, "model", None) or model, description_fallback=desc)
+        if summary is not None:
+            try:
+                rep = validate_report(rep, summary, rule_findings)
+            except Exception:  # validador nunca derruba o laudo
+                log.exception("validate_report failure")
         return rep
     except c.LLMRefusal as e:
         return AIReport(available=True, model=model,
@@ -166,7 +173,8 @@ def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None) -> AIRe
         images.append(("Plot dos 12 derivações a partir do sinal processado, em grade 25 mm/s e 10 mm/mV:", plot))
     ctx = _user_context("ecg", ecg_data_summary(analysis), analysis.findings,
                         [k for k, v in analysis.global_measurements.model_dump().items() if v is not None])
-    rep = _two_stage("ecg", images, ctx)
+    summary = ecg_data_summary(analysis)
+    rep = _two_stage("ecg", images, ctx, summary, analysis.findings)
     if not images and rep.available:
         rep.limitations.append("Sem imagem do traçado; análise baseada somente nas medidas.")
     return rep
@@ -184,4 +192,4 @@ def rx_report(analysis: RXAnalysis) -> AIReport:
             images.append((f"Sobreposição da segmentação automática com legenda de cores, {tag}:", ov))
     keys = [m.key for im in analysis.images for m in im.measurements]
     ctx = _user_context("rx", rx_data_summary(analysis), analysis.findings, keys)
-    return _two_stage("rx", images, ctx)
+    return _two_stage("rx", images, ctx, rx_data_summary(analysis), analysis.findings)

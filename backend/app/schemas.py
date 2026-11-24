@@ -41,6 +41,10 @@ class Finding(BaseModel):
     references: list[Reference] = []
     confidence: float = Field(0.5, ge=0, le=1)
     origin: Literal["rules", "model", "llm"] = "rules"
+    # added: pós-validação do texto da IA (app/llm/validate.py)
+    confidence_source: Optional[Literal["rules", "n/a"]] = None   # origem do número exibido
+    confidence_display: Optional[str] = None                      # ex.: "não aplicável" (confiança autodeclarada pela IA não é exibida)
+    validation_flags: list[str] = []                              # ex.: "não corroborado", "valor divergente"
 
 
 class Differential(BaseModel):
@@ -50,11 +54,17 @@ class Differential(BaseModel):
     against: list[str] = []
     references: list[Reference] = []
     confidence: float = Field(0.5, ge=0, le=1)
+    confidence_source: Optional[Literal["rules", "n/a"]] = None
+    confidence_display: Optional[str] = None
+    validation_flags: list[str] = []
 
 
 class AIReport(BaseModel):
     available: bool = True
     model: Optional[str] = None
+    provider: Optional[str] = None           # added: provedor que respondeu ("anthropic" | "openrouter")
+    external_ai_blocked: bool = False        # added: imagem com texto queimado não enviada à IA externa
+    validation: dict[str, int] = {}          # added: contagens do validador pós-LLM
     description: str = ""                    # minuciosa, estrutura a estrutura / onda a onda
     findings: list[Finding] = []
     differentials: list[Differential] = []
