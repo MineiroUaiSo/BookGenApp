@@ -35,6 +35,35 @@ def test_tuning_files_have_no_test_ids():
     assert check_tuning_dir(TUNING_DIR, lookup) == []
 
 
+def test_ptbxl_large_dev_list_is_dev_only():
+    """The frozen enriched dev list (bench/lists/ptbxl_large_dev.json) must never contain a fold 9-10 (test/BURNED) id."""
+    from bench import ptbxl_large
+    cfg = splits.load_splits()["lists"]["ptbxl_large_dev"]
+    lst = ptbxl_large.load_list(Path(splits.SPLITS_PATH).parent / cfg["file"])
+    folds = {k: int(v) for k, v in lst["ids"].items()}
+    assert len(folds) == lst["n"] >= 5000
+    assert all(splits.split_of("ptbxl", rid, fo) == "dev" for rid, fo in folds.items())
+    assert max(folds.values()) <= 8 and cfg["folds"] == [1, 8]
+    assert lst["class_counts"]["NORM"] >= 400
+    # same check through the leak scanner (ids found in the list text, resolved with the list's own folds)
+    text = json.dumps(sorted(folds))
+    assert splits.test_ids_in(text, folds) == []
+    # and a test-fold id appended to the list text must be caught
+    assert splits.test_ids_in(text + ' "ptbxl-99999"', {**folds, "ptbxl-99999": 9}) == [("ptbxl", "ptbxl-99999")]
+
+
+def test_ptbxl_large_dev_list_matches_database_folds():
+    """When the PTB-XL database csv is present: every listed id has strat_fold 1-8 there too (list not tampered)."""
+    from bench import ptbxl_large
+    try:
+        rows = ptbxl_large.load_database(ptbxl_large.database_csv(_datasets_root()))
+    except FileNotFoundError:
+        pytest.skip("ptbxl_database.csv not available")
+    lst = ptbxl_large.load_list()
+    fold = {ptbxl_large.rid_of(r): int(r["strat_fold"]) for r in rows}
+    assert all(fold[i] == f and 1 <= f <= 8 for i, f in lst["ids"].items())
+
+
 def test_frozen_splits_shape():
     s = splits.load_splits()["sources"]
     assert s["ludb"]["dev"] == [1, 160] and s["ludb"]["test"] == [161, 200]

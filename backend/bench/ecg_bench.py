@@ -32,7 +32,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
-from bench import splits  # noqa: E402
+from bench import ptbxl_large, splits  # noqa: E402
 from bench.report import fmt, pct, table, wilson, write_markdown  # noqa: E402
 
 REPO = BACKEND.parent
@@ -632,8 +632,13 @@ CACHE_TAG = ""   # set by --tag: separate cache file, report printed to stdout, 
 SPLIT = "all"   # --split dev|test|all: PTB-XL strat_fold 1-8 = dev, 9-10 = official test folds
 
 
+SET = "default"  # --set large: frozen class-enriched PTB-XL dev sample (bench/lists/ptbxl_large_dev.json, PTB-XL 1.0.3 full)
+
+
 def ptbxl_fold_map() -> dict[str, int]:
     out = {}
+    if SET == "large":
+        out.update({k: int(v) for k, v in ptbxl_large.load_list()["ids"].items()})
     for r in read_manifest("ptbxl"):
         fo = (r.get("extra") or {}).get("strat_fold")
         if fo not in (None, ""):
@@ -685,7 +690,7 @@ def load_cache(source: str) -> dict[str, dict]:
 
 
 def run_source(source: str, limit: Optional[int], workers: int, force: bool) -> int:
-    recs = read_manifest(source)
+    recs = ptbxl_large.large_dev_records(DATA_ROOT) if (SET == "large" and source == "ptbxl") else read_manifest(source)
     recs = [r for r in recs if source != "ptbxl" or r.get("kind", "signal") != "image"]
     if source in IMAGE_SOURCES:
         recs = [r for r in recs if r.get("kind", "image") == "image"]
@@ -1194,14 +1199,20 @@ def main(argv=None) -> int:
     ap.add_argument("--report-only", action="store_true")
     ap.add_argument("--split", default="all", choices=["all", "dev", "test"],
                     help="PTB-XL split by strat_fold: dev = folds 1-8, test = folds 9-10 (official test folds)")
+    ap.add_argument("--set", default="default", choices=["default", "large"], dest="pset",
+                    help="PTB-XL record set: default = collector manifest (3000 records); large = frozen class-enriched DEV sample "
+                         "(bench/lists/ptbxl_large_dev.json, folds 1-8 only, needs datasets/ptbxl_full); use with --split dev")
     ap.add_argument("--records", default=None, help="restrict to numeric id range A-B (inclusive), e.g. 1-160 (LUDB dev) / 161-200 (test)")
     ap.add_argument("--tag", default="", help="cache-file suffix; with --tag only the LUDB table is printed and docs are not rewritten")
     ap.add_argument("--litfl-split", default="all", choices=["all", "dev", "test"],
                     help="LITFL images: deterministic page-level split (dev ~70%%, test ~30%%); prints the image report to stdout "
                          "and leaves docs/benchmarks/ecg.md untouched")
     a = ap.parse_args(argv)
-    global CACHE_TAG, RECORD_RANGE, SPLIT, LITFL_SPLIT
+    global CACHE_TAG, RECORD_RANGE, SPLIT, LITFL_SPLIT, SET
     SPLIT = a.split
+    SET = a.pset
+    if SET == "large" and SPLIT != "dev":
+        ap.error("--set large is a DEV sample: use --split dev (folds 9-10 are BURNED and never listed)")
     LITFL_SPLIT = a.litfl_split
     if LITFL_SPLIT != "all" and not a.tag:
         a.tag = f"_split_{LITFL_SPLIT}"
