@@ -152,6 +152,8 @@ def _classify_bbb(bd, dur, fs_ms, L=None):
 # rhythm thresholds. HR: sinus bradycardia <50 bpm (SBC 2022 report guideline; ESC brady 2021 uses <50 for
 # pathological significance; 50-59 bpm is the normal lower range in athletes/sleep), tachycardia >100 bpm.
 QRS_BORDERLINE_MS = 110   # E4: 110-119 ms without BBB morphology is only "limítrofe"
+QT_ONSET_COMP_MS = 10.0     # E2: compensates the earlier QRS onset in the QT used for QTc decisions
+QRS_GLOBAL_W = 0.25       # E4: weight of the global (wider) QRS in the width used for BBB/IVCD criteria
 IVCD_MS = 120             # unspecific IVCD reported as abnormal from here
 AV1_PEAK_MS = 165.0   # P peak -> QRS onset (about PR - 45 ms) for PR > 200 ms
 SBRAD_HR = 50.0
@@ -335,7 +337,7 @@ def build_findings(c):
     lead_q = sorted(m.qrs_ms for m in L.values() if m.qrs_ms)
     # E4: QRS width for the conduction criteria = median of the per-lead durations (robust to one lead with a
     # slow start/ST absorbed); the global earliest-onset/latest-offset width is kept when there are too few leads
-    dur = 0.5 * (float(np.median(lead_q)) + qrs) if len(lead_q) >= 6 else qrs
+    dur = float(np.median(lead_q)) + QRS_GLOBAL_W * (qrs - float(np.median(lead_q))) if len(lead_q) >= 6 else qrs
     cbbb, bbb_note = _classify_bbb(bd, dur, fs_ms, L)
     if cbbb in ("lbbb", "rbbb", "ilbbb", "irbbb") and any(f.code == "ecg.preexcitation" for f in out):
         cbbb = None  # delta wave widens the QRS and mimics a bundle branch block (AHA 2009 Part III, exclusions)
@@ -443,8 +445,11 @@ def build_findings(c):
     if gm.qtc_bazett_ms is not None and gm.rr_mean_ms:
         qts = sorted(m.qt_ms for m in L.values() if m.qt_ms)
         qt_dec = float(qts[len(qts) // 2]) if len(qts) >= 6 else float(gm.qt_ms)
-        if qrs >= 120:
-            qt_dec -= qrs - 100
+        qt_dec -= QT_ONSET_COMP_MS   # E2 moved QRS onset ~10 ms earlier: keep the QTc thresholds calibrated
+        lq_qt = sorted(m.qrs_ms for m in L.values() if m.qrs_ms)
+        qrs_adj = float(np.median(lq_qt)) if len(lq_qt) >= 6 else qrs   # E4: lead median (global is earliest/latest)
+        if qrs_adj >= 120:
+            qt_dec -= qrs_adj - 100
         rr_s = gm.rr_mean_ms / 1000.0
         qt_baz, qt_fri = qt_dec / rr_s ** 0.5, qt_dec / rr_s ** (1 / 3)
         use_fr = hr is not None and (hr < 60 or hr > 100)

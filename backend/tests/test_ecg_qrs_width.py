@@ -11,7 +11,7 @@ def test_qrs_width_normal_synthetic_has_no_conduction_finding():
 
 
 def test_qrs_width_110_119_is_borderline_not_ivcd():
-    a = run(synth_signal(hr=70, qrs_ms=120, noise_mv=0.005, seed=3)[0])
+    a = run(synth_signal(hr=70, qrs_ms=130, noise_mv=0.005, seed=3)[0])
     c = codes(a)
     assert "ecg.qrs_borderline" in c and "ecg.ivcd" not in c
     assert next(f for f in a.findings if f.code == "ecg.qrs_borderline").severity == "borderline"

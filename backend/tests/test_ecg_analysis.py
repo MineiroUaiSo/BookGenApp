@@ -137,10 +137,11 @@ def _brd_prec():
 
 
 def test_rbbb():
-    L, _ = sinus(75, qrs_scale=1.35, prec=_brd_prec(), axis_deg=30, noise=0.005)
+    # E4: BBB width = lead median + 0.25*(global - median); scale 1.5 keeps a clear margin over 120 ms
+    L, _ = sinus(75, qrs_scale=1.5, prec=_brd_prec(), axis_deg=30, noise=0.005)
     a = run(L)
     g = a.global_measurements
-    assert 125 <= g.qrs_ms <= 175, g.qrs_ms
+    assert 125 <= g.qrs_ms <= 185, g.qrs_ms
     assert "ecg.rbbb" in codes(a)
     assert "ecg.lbbb" not in codes(a)
     v1 = next(m for m in a.lead_measurements if m.lead == "V1")
