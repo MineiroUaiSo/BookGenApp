@@ -143,7 +143,7 @@ def _abdomen_findings(img: RXImageAnalysis) -> list[Finding]:
     out = []
     d = _m(img, "max_gas_lumen_diameter")
     if d is not None and d.unit == "mm" and d.value >= 60:
-        out.append(Finding(code="rx.bowel_gas_distension", label="Possível distensão de alça com gás (≥ 60 mm)",
+        out.append(Finding(code="rx.bowel_gas_distension", label="Possível distensão de alça com gás (≥ 60 mm) - medida/sugestivo, não validado",
                            severity="borderline",
                            evidence=[f"maior lúmen gasoso = {d.value:g} mm (delgado > 30 mm, cólon > 60 mm, ceco > 90 mm costumam ser os limites); a origem da alça não é identificada automaticamente"],
                            references=[REF_SQUIRE], confidence=0.25))
