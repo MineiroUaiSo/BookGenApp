@@ -1,11 +1,136 @@
 {
   "version": 1,
-  "status": "untuned",
+  "status": "tuned-dev-iu",
   "default": 0.65,
   "specificity_target": 0.9,
-  "note": "Per-pathology TorchXRayVision score thresholds, fixed on DEV (IU X-ray) for 90% specificity by bench/tune_rx_thresholds.py. Empty = use default.",
-  "thresholds": {},
+  "dev_source": "iu_xray (DEV; vazamento: TorchXRayVision 'all' foi treinado em OpenI=IU). Teste primário: VinDr-CXR test (PENDENTE, credencial PhysioNet).",
+  "thresholds": {
+    "Atelectasis": 0.51,
+    "Consolidation": 0.51,
+    "Pneumonia": 0.323,
+    "Effusion": 0.301,
+    "Cardiomegaly": 0.389
+  },
+  "metrics": {
+    "Atelectasis": {
+      "n": 490,
+      "pos": 44,
+      "threshold": 0.51,
+      "auc": 0.8862107623318386,
+      "auc_lo": 0.8378503813613555,
+      "auc_hi": 0.9261844358766234,
+      "sens": 0.5909090909090909,
+      "sens_ci": [
+        0.44409492646606574,
+        0.7231235612099317
+      ],
+      "spec": 0.9013452914798207,
+      "spec_ci": [
+        0.8701485891918592,
+        0.9256871005264773
+      ],
+      "ppv_at_prevalence": 0.37142857142857155,
+      "prevalence": 0.08979591836734693,
+      "ece": 0.12068755102040817
+    },
+    "Consolidation": {
+      "n": 466,
+      "pos": 20,
+      "threshold": 0.51,
+      "auc": 0.85554932735426,
+      "auc_lo": 0.7894612113310848,
+      "auc_hi": 0.914178509285854,
+      "sens": 0.45,
+      "sens_ci": [
+        0.25819502085709295,
+        0.6579179916924003
+      ],
+      "spec": 0.9013452914798207,
+      "spec_ci": [
+        0.8701485891918592,
+        0.9256871005264773
+      ],
+      "ppv_at_prevalence": 0.16981132075471705,
+      "prevalence": 0.04291845493562232,
+      "ece": 0.15710321888412015
+    },
+    "Pneumonia": {
+      "n": 466,
+      "pos": 20,
+      "threshold": 0.323,
+      "auc": 0.8091928251121077,
+      "auc_lo": 0.7505105702293202,
+      "auc_hi": 0.8622262125520765,
+      "sens": 0.25,
+      "sens_ci": [
+        0.11186005278940309,
+        0.4687050099580636
+      ],
+      "spec": 0.9013452914798207,
+      "spec_ci": [
+        0.8701485891918592,
+        0.9256871005264773
+      ],
+      "ppv_at_prevalence": 0.10204081632653067,
+      "prevalence": 0.04291845493562232,
+      "ece": 0.060611587982832615
+    },
+    "Effusion": {
+      "n": 459,
+      "pos": 13,
+      "threshold": 0.301,
+      "auc": 0.9446360814073819,
+      "auc_lo": 0.9104970721320202,
+      "auc_hi": 0.975410044876337,
+      "sens": 0.8461538461538461,
+      "sens_ci": [
+        0.5776482949136899,
+        0.9567427368172621
+      ],
+      "spec": 0.9013452914798207,
+      "spec_ci": [
+        0.8701485891918592,
+        0.9256871005264773
+      ],
+      "ppv_at_prevalence": 0.2000000000000001,
+      "prevalence": 0.02832244008714597,
+      "ece": 0.07702723311546841
+    },
+    "Pneumothorax": {
+      "skipped": "positivos insuficientes (n=449, pos=3)",
+      "threshold": 0.65
+    },
+    "Cardiomegaly": {
+      "n": 478,
+      "pos": 32,
+      "threshold": 0.389,
+      "auc": 0.9312289798206278,
+      "auc_lo": 0.9007339211780034,
+      "auc_hi": 0.9612240276316604,
+      "sens": 0.75,
+      "sens_ci": [
+        0.5789310822975338,
+        0.8674775601737845
+      ],
+      "spec": 0.9013452914798207,
+      "spec_ci": [
+        0.8701485891918592,
+        0.9256871005264773
+      ],
+      "ppv_at_prevalence": 0.3529411764705883,
+      "prevalence": 0.06694560669456066,
+      "ece": 0.059033682008368206
+    }
+  },
   "costophrenic_rule": {
-    "demoted": false
+    "n": 459,
+    "pos": 13,
+    "sens": 0.07692307692307693,
+    "sens_ci": [
+      0.013710066379696323,
+      0.3331453392824736
+    ],
+    "spec": 0.9932735426008968,
+    "demoted": true
   }
 }
