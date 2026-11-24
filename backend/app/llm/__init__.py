@@ -13,6 +13,7 @@ from . import client as _client
 from .client import ai_available, model_name  # noqa: F401  (API pública)
 from .render import render_ecg_plot, rx_image_png, rx_overlay_png
 from .schema import output_schema, to_report
+from .validate import validate_report
 
 log = logging.getLogger("medlens.llm")
 PROMPTS = Path(__file__).parent / "prompts"
@@ -29,6 +30,15 @@ def unavailable(reason: str | None = None) -> AIReport:
     if reason:
         lim.append(reason)
     return AIReport(available=False, model=None, limitations=lim)
+
+
+def blocked_external(analysis: RXAnalysis) -> AIReport:
+    """Política PHI: imagem com texto queimado (tag YES, ou detectado e não mascarado) não vai ao provedor
+    externo; as regras/medidas locais seguem valendo."""
+    why = "; ".join(f"{im.instance_id}: {im.burned_text}" for im in analysis.images[:6] if im.external_ai_blocked)
+    return AIReport(available=False, model=None, external_ai_blocked=True,
+                    limitations=["imagem com texto queimado não enviada à IA externa (regras e medidas locais "
+                                 "permanecem válidas).", why])
 
 
 def _system_blocks(domain: str) -> list[dict]:
@@ -98,7 +108,8 @@ def _user_context(domain: str, data: dict, findings, measurement_keys) -> str:
             f"Critérios do bloco de CONHECIMENTO mais pertinentes a estes dados: {ids}.")
 
 
-def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str) -> AIReport:
+def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str,
+               summary: Optional[dict] = None, rule_findings: Optional[list] = None) -> AIReport:
     c = _client
     client = c.make_client()
     system = _system_blocks(domain)
@@ -110,18 +121,25 @@ def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str) -> AI
     model = c.model_name()
     try:
         # Etapa 1: descrição minuciosa (visão), sem saída estruturada.
-        desc, _ = c.run(client, system,
-                        [{"role": "user", "content": content + [{"type": "text", "text": _prompt(f"{domain}_describe")}]}],
-                        c.MAX_TOKENS_DESCRIBE)
+        desc, _, prov1 = c.run_resilient(
+            client, system,
+            [{"role": "user", "content": content + [{"type": "text", "text": _prompt(f"{domain}_describe")}]}],
+            c.MAX_TOKENS_DESCRIBE)
         # Etapa 2: análise crítica com saída estruturada.
         refs = sorted(known_reference_ids())
         msgs = [{"role": "user", "content": content + [
             {"type": "text", "text": f"DESCRIÇÃO DA ETAPA 1\n{desc}"},
             {"type": "text", "text": _prompt("analyze")},
         ]}]
-        text, final = c.run(client, system, msgs, c.MAX_TOKENS_ANALYZE, schema=output_schema(refs))
+        text, final, prov2 = c.run_resilient(client, system, msgs, c.MAX_TOKENS_ANALYZE, schema=output_schema(refs))
         data = c.parse_json(text)
         rep = to_report(data, getattr(final, "model", None) or model, description_fallback=desc)
+        rep = rep.model_copy(update={"provider": prov2 if prov1 == prov2 else f"{prov1}+{prov2}"})
+        if summary is not None:
+            try:
+                rep = validate_report(rep, summary, rule_findings)
+            except Exception:  # validador nunca derruba o laudo
+                log.exception("validate_report failure")
         return rep
     except c.LLMRefusal as e:
         return AIReport(available=True, model=model,
@@ -167,7 +185,8 @@ def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None) -> AIRe
         images.append(("Plot dos 12 derivações a partir do sinal processado, em grade 25 mm/s e 10 mm/mV:", plot))
     ctx = _user_context("ecg", ecg_data_summary(analysis), analysis.findings,
                         [k for k, v in analysis.global_measurements.model_dump().items() if v is not None])
-    rep = _two_stage("ecg", images, ctx)
+    summary = ecg_data_summary(analysis)
+    rep = _two_stage("ecg", images, ctx, summary, analysis.findings)
     if not images and rep.available:
         rep.limitations.append("Sem imagem do traçado; análise baseada somente nas medidas.")
     return rep
@@ -176,6 +195,8 @@ def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None) -> AIRe
 def rx_report(analysis: RXAnalysis) -> AIReport:
     if not ai_available():
         return unavailable()
+    if any(im.external_ai_blocked for im in analysis.images[:6]):
+        return blocked_external(analysis)
     images: list[tuple[str, bytes]] = []
     for im in analysis.images[:6]:
         tag = f"{im.view.value} / {im.region.value} (id {im.instance_id})"
@@ -185,4 +206,4 @@ def rx_report(analysis: RXAnalysis) -> AIReport:
             images.append((f"Sobreposição da segmentação automática com legenda de cores, {tag}:", ov))
     keys = [m.key for im in analysis.images for m in im.measurements]
     ctx = _user_context("rx", rx_data_summary(analysis), analysis.findings, keys)
-    return _two_stage("rx", images, ctx)
+    return _two_stage("rx", images, ctx, rx_data_summary(analysis), analysis.findings)

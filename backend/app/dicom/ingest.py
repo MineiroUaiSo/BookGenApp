@@ -223,6 +223,8 @@ def _store_dicom(name, data, ds, store, get_study, add, warnings) -> bool:
         warnings.append(f"{name}: DICOM without pixel/waveform data ignored")
         return False
     modality, dmod = classify_dicom(ds)
+    if str(ds.get("BurnedInAnnotation", "") or "").strip().upper() == "YES":
+        warnings.append(f"{name}: BurnedInAnnotation=YES (PHI possivelmente nos pixels): imagem não será enviada à IA externa")
     if dmod == "MG":
         warnings.append(f"{name}: mammography is not supported (kept as UNKNOWN)")
     study_uid = str(ds.get("StudyInstanceUID", "") or "") or None

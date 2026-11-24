@@ -5,7 +5,9 @@ import base64
 import json
 import logging
 import os
-from typing import Any, Optional
+import random
+import time
+from typing import Any, Callable, Optional
 
 log = logging.getLogger("medlens.llm")
 
@@ -74,7 +76,16 @@ def model_name() -> str:  # noqa: F811  (reflete o provedor ativo)
 
 
 class LLMProviderError(Exception):
-    """Erro de provedor com mensagem legível ao usuário (sem segredos)."""
+    """Erro de provedor com mensagem legível ao usuário (sem segredos).
+
+    status: código HTTP quando há (None = timeout/conexão); retry_after: segundos pedidos pelo provedor."""
+
+    def __init__(self, message: str = "", status: Optional[int] = None, retry_after: Optional[float] = None,
+                 transient: bool = False):
+        super().__init__(message)
+        self.status = status
+        self.retry_after = retry_after
+        self.transient = transient   # timeout / falha de conexão
 
 
 class OpenRouterClient:
@@ -94,15 +105,25 @@ class OpenRouterClient:
             resp = httpx.post(f"{self.base_url}/chat/completions", json=payload, headers=headers,
                               timeout=self.timeout)
         except httpx.TimeoutException:
-            raise LLMProviderError("Tempo esgotado ao chamar o OpenRouter.")
+            raise LLMProviderError("Tempo esgotado ao chamar o OpenRouter.", transient=True)
         except httpx.HTTPError:
-            raise LLMProviderError("Falha de conexão com o OpenRouter.")
+            raise LLMProviderError("Falha de conexão com o OpenRouter.", transient=True)
         if resp.status_code != 200:
-            raise LLMProviderError(or_status_message(resp.status_code))
+            raise LLMProviderError(or_status_message(resp.status_code), status=resp.status_code,
+                                   retry_after=parse_retry_after(resp.headers.get("retry-after")))
         try:
             return resp.json()
         except ValueError:
             raise LLMProviderError("Resposta inválida do OpenRouter.")
+
+
+def parse_retry_after(value: Any) -> Optional[float]:
+    """Retry-After em segundos (a forma data HTTP é ignorada)."""
+    try:
+        v = float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return v if v >= 0 else None
 
 
 def or_status_message(code: int) -> str:
@@ -120,7 +141,8 @@ def make_client():
         return OpenRouterClient(or_key())
     import anthropic
 
-    return anthropic.Anthropic()
+    # max_retries=0: a política de retry/failover é nossa (run_resilient), não a do SDK.
+    return anthropic.Anthropic(max_retries=0)
 
 
 def image_block(png: bytes, media_type: str = "image/png") -> dict:
@@ -213,7 +235,8 @@ def run_openrouter(client: OpenRouterClient, system: list[dict], messages: list[
     data = client.post(openrouter_payload(system, messages, max_tokens, schema))
     if data.get("error"):
         code = data["error"].get("code") if isinstance(data["error"], dict) else None
-        raise LLMProviderError(or_status_message(code) if isinstance(code, int) else "Erro do OpenRouter.")
+        raise LLMProviderError(or_status_message(code) if isinstance(code, int) else "Erro do OpenRouter.",
+                               status=code if isinstance(code, int) else None)
     choices = data.get("choices") or []
     if not choices:
         raise LLMProviderError("Resposta vazia do OpenRouter.")
@@ -229,6 +252,98 @@ def run_openrouter(client: OpenRouterClient, system: list[dict], messages: list[
     u = data.get("usage") or {}
     log.info("llm(openrouter) usage in=%s out=%s", u.get("prompt_tokens"), u.get("completion_tokens"))
     return text, SimpleNamespace(model=data.get("model") or or_model(), stop_reason=reason)
+
+
+# ---------------------------------------------------------------- retry + failover
+MAX_ATTEMPTS = 2            # por provedor
+BACKOFF_MIN_S, BACKOFF_MAX_S = 1.0, 4.0
+RETRY_AFTER_CAP_S = 30.0    # Retry-After maior que isto: não espera, parte para o failover
+_sleep: Callable[[float], None] = time.sleep
+_jitter: Callable[[], float] = lambda: random.uniform(0.0, 0.5)
+
+
+def classify_error(exc: BaseException) -> tuple[bool, Optional[float]]:
+    """(retentável, Retry-After em s). Retentável = 429, 5xx, timeout ou falha de conexão; 4xx != 429 não."""
+    if isinstance(exc, LLMProviderError):
+        status = exc.status
+        return (exc.transient or status == 429 or (status is not None and status >= 500)), exc.retry_after
+    try:
+        import anthropic
+    except ImportError:
+        return False, None
+    if isinstance(exc, anthropic.APIStatusError):
+        status = exc.status_code
+        hdrs = getattr(getattr(exc, "response", None), "headers", None) or {}
+        return (status == 429 or status >= 500), parse_retry_after(hdrs.get("retry-after"))
+    if isinstance(exc, (anthropic.APITimeoutError, anthropic.APIConnectionError)):
+        return True, None
+    return False, None
+
+
+def backoff_delay(retry_index: int, retry_after: Optional[float] = None) -> Optional[float]:
+    """Espera antes da próxima tentativa: 1 s, 2 s... (máx 4 s) + jitter; respeita Retry-After.
+    None = Retry-After acima do teto (não vale esperar neste provedor)."""
+    delay = min(BACKOFF_MAX_S, BACKOFF_MIN_S * (2 ** retry_index))
+    delay = min(BACKOFF_MAX_S, delay * (1 + _jitter()))
+    if retry_after is not None:
+        if retry_after > RETRY_AFTER_CAP_S:
+            return None
+        delay = max(delay, retry_after)
+    return delay
+
+
+def _attempt_provider(client, system, messages, max_tokens, schema) -> tuple[str, Any]:
+    last: Optional[BaseException] = None
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            return run(client, system, messages, max_tokens, schema)
+        except (LLMRefusal, LLMTruncated):
+            raise
+        except Exception as e:
+            retryable, retry_after = classify_error(e)
+            if not retryable:
+                raise
+            last = e
+            if attempt + 1 >= MAX_ATTEMPTS:
+                break
+            delay = backoff_delay(attempt, retry_after)
+            if delay is None:
+                break
+            log.warning("llm retry %s/%s in %.1fs (%s)", attempt + 1, MAX_ATTEMPTS - 1, delay, type(e).__name__)
+            _sleep(delay)
+    assert last is not None
+    raise last
+
+
+def provider_of(client) -> str:
+    return "openrouter" if isinstance(client, OpenRouterClient) else "anthropic"
+
+
+def run_resilient(client, system: list[dict], messages: list[dict], max_tokens: int,
+                  schema: Optional[dict] = None) -> tuple[str, Any, str]:
+    """run() com retry (máx 2 tentativas por provedor) e failover Anthropic -> OpenRouter.
+
+    Só 429/5xx/timeout/conexão são retentados/failover; 4xx != 429, recusa e truncamento propagam.
+    Devolve (texto, mensagem final, provedor que respondeu)."""
+    chain = [client]
+    if not isinstance(client, OpenRouterClient) and openrouter_available():
+        chain.append(OpenRouterClient(or_key()))
+    last: Optional[BaseException] = None
+    for i, c in enumerate(chain):
+        try:
+            text, final = _attempt_provider(c, system, messages, max_tokens, schema)
+            return text, final, provider_of(c)
+        except (LLMRefusal, LLMTruncated):
+            raise
+        except Exception as e:
+            if not classify_error(e)[0]:
+                raise
+            last = e
+            if i + 1 < len(chain):
+                log.warning("llm failover %s -> %s (%s)", provider_of(c), provider_of(chain[i + 1]),
+                            type(e).__name__)
+    assert last is not None
+    raise last
 
 
 def parse_json(text: str) -> dict:
