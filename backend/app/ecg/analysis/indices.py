@@ -27,7 +27,7 @@ RE_PROBABLE, RE_DEFINITE = 4, 5
 
 
 def _idx(v: Optional[float], unit: str, thr: Any, fills: Any, comp: dict) -> dict:
-    return {"v": None if v is None else round(float(v), 2), "unidade": unit, "limiar": thr, "preenche": fills,
+    return {"v": v if v is None or isinstance(v, int) else round(float(v), 2), "unidade": unit, "limiar": thr, "preenche": fills,
             "componentes": comp}
 
 
