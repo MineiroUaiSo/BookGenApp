@@ -173,16 +173,17 @@ def score_caption(text: str, modality: str) -> dict:
 
 
 def image_phash(path: Path) -> str:
-    """64-bit average-hash for near-duplicate detection (no extra deps)."""
+    """256-bit difference-hash (16x16 dHash) for near-duplicate detection (no extra deps).
+    (An 8x8 average hash was too coarse: most chest radiographs collided.)"""
     from PIL import Image
     import numpy as np
-    im = Image.open(path).convert("L").resize((8, 8))
+    im = Image.open(path).convert("L").resize((17, 16))
     a = np.asarray(im, dtype=float)
-    bits = (a > a.mean()).flatten()
+    bits = (a[:, 1:] > a[:, :-1]).flatten()
     return "".join("1" if b else "0" for b in bits)
 
 
-def dedupe(records: list[Record], root: Path, max_hamming: int = 4) -> list[Record]:
+def dedupe(records: list[Record], root: Path, max_hamming: int = 10) -> list[Record]:
     """Mark near-duplicate images (quality['duplicate_of']) instead of deleting them."""
     seen: list[tuple[str, str]] = []
     for r in records:
