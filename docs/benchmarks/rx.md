@@ -1,6 +1,6 @@
 # Benchmark RX (MedLens)
 
-_Generated 2026-11-24 11:32 UTC by `bench`._
+_Generated 2026-11-24 11:38 UTC by `bench`._
 
 ## Resumo
 
@@ -14,19 +14,22 @@ _Generated 2026-11-24 11:32 UTC by `bench`._
 | Segmentação heart (montgomery, model) | Dice médio [IC95%] | 138 | 0.891 [0.874, 0.905] |
 | Segmentação lungs (montgomery, heur) | Dice médio [IC95%] | 138 | 0.092 [0.055, 0.141] |
 | Segmentação lungs (montgomery, model) | Dice médio [IC95%] | 138 | 0.862 [0.848, 0.871] |
-| Segmentação heart (rx_masks_other, heur) | Dice médio [IC95%] | 120 | 0.021 [0.005, 0.043] |
-| Segmentação heart (rx_masks_other, model) | Dice médio [IC95%] | 120 | 0.402 [0.334, 0.476] |
-| Segmentação lungs (rx_masks_other, heur) | Dice médio [IC95%] | 56 | 0.025 [0.000, 0.062] |
-| Segmentação lungs (rx_masks_other, model) | Dice médio [IC95%] | 56 | 0.824 [0.782, 0.849] |
+| Segmentação heart (rx_masks_other [LATERAL], heur) | Dice médio [IC95%] | 64 | 0.020 [0.000, 0.045] |
+| Segmentação heart (rx_masks_other [LATERAL], model) | Dice médio [IC95%] | 64 | 0.020 [0.000, 0.040] |
+| Segmentação heart (rx_masks_other [PA], heur) | Dice médio [IC95%] | 56 | 0.021 [0.000, 0.056] |
+| Segmentação heart (rx_masks_other [PA], model) | Dice médio [IC95%] | 56 | 0.838 [0.792, 0.871] |
+| Segmentação lungs (rx_masks_other [PA], heur) | Dice médio [IC95%] | 56 | 0.025 [0.000, 0.062] |
+| Segmentação lungs (rx_masks_other [PA], model) | Dice médio [IC95%] | 56 | 0.824 [0.782, 0.849] |
 | Região=tórax sem tags (jsrt_masks) | fração [IC95%] | 247 | 0.506 [0.444, 0.568] |
 | Região=tórax sem tags (montgomery) | fração [IC95%] | 138 | 0.167 [0.114, 0.238] |
-| Região=tórax sem tags (rx_masks_other) | fração [IC95%] | 120 | 0.083 [0.046, 0.147] |
+| Região=tórax sem tags (rx_masks_other [LATERAL]) | fração [IC95%] | 64 | 0.062 [0.025, 0.150] |
+| Região=tórax sem tags (rx_masks_other [PA]) | fração [IC95%] | 56 | 0.107 [0.050, 0.215] |
 | ICT erro absoluto (jsrt_masks, heur) | MAE | 247 | 0.169 |
 | ICT erro absoluto (jsrt_masks, model) | MAE | 247 | 0.027 |
 | ICT erro absoluto (montgomery, heur) | MAE | 138 | 0.123 |
 | ICT erro absoluto (montgomery, model) | MAE | 138 | 0.023 |
-| ICT erro absoluto (rx_masks_other, heur) | MAE | 56 | 0.177 |
-| ICT erro absoluto (rx_masks_other, model) | MAE | 56 | 0.032 |
+| ICT erro absoluto (rx_masks_other [PA], heur) | MAE | 56 | 0.177 |
+| ICT erro absoluto (rx_masks_other [PA], model) | MAE | 56 | 0.032 |
 | IU atelectasis: modelo Atelectasis | AUC [IC95%] | 107 (pos 21) | 0.903 [0.840, 0.958] |
 | IU cardiomegaly: modelo Cardiomegaly | AUC [IC95%] | 114 (pos 28) | 0.926 [0.874, 0.970] |
 | IU cardiomegaly: regras (rx.cardiomegaly) | AUC [IC95%] | 97 (pos 19) | 0.935 [0.884, 0.973] |
@@ -63,12 +66,22 @@ _Generated 2026-11-24 11:32 UTC by `bench`._
 | right_clavicle | 0.570 [0.538, 0.595] | 0.417 | 0.633 | 138 (4 sem máscara) | 0.006 [0.002, 0.012] | 0.003 | 0.000 | 138 (130 sem máscara) |
 | right_lung | 0.894 [0.879, 0.903] | 0.815 | 0.905 | 138 (1 sem máscara) | 0.090 [0.053, 0.138] | 0.078 | 0.000 | 138 (121 sem máscara); 1 lado trocado |
 
-### rx_masks_other
+### rx_masks_other [LATERAL]
 
 | estrutura | Dice modelo [IC95%] | IoU modelo | Dice med. modelo | N modelo | Dice heurística [IC95%] | IoU heur. | Dice med. heur. | N heur. |
 |---|---|---|---|---|---|---|---|---|
-| aorta | 0.100 [0.078, 0.123] | 0.058 | 0.000 | 120 (69 sem máscara) | 0.000 [0.000, 0.001] | 0.000 | 0.000 | 120 (118 sem máscara) |
-| heart | 0.402 [0.334, 0.476] | 0.353 | 0.000 | 120 (61 sem máscara) | 0.021 [0.005, 0.043] | 0.015 | 0.000 | 120 (114 sem máscara) |
+| aorta | 0.000 [0.000, 0.000] | 0.000 | 0.000 | 64 (64 sem máscara) | 0.000 [0.000, 0.000] | 0.000 | 0.000 | 64 (64 sem máscara) |
+| heart | 0.020 [0.000, 0.040] | 0.014 | 0.000 | 64 (60 sem máscara) | 0.020 [0.000, 0.045] | 0.014 | 0.000 | 64 (60 sem máscara) |
+| spine | 0.009 [0.000, 0.020] | 0.005 | 0.000 | 64 (59 sem máscara) | 0.009 [0.000, 0.020] | 0.005 | 0.000 | 64 (59 sem máscara) |
+| sternum | 0.012 [0.000, 0.029] | 0.008 | 0.000 | 64 (59 sem máscara) | 0.012 [0.000, 0.030] | 0.008 | 0.000 | 64 (59 sem máscara) |
+| trachea | 0.000 [0.000, 0.000] | 0.000 | 0.000 | 64 (62 sem máscara) | 0.000 [0.000, 0.000] | 0.000 | 0.000 | 64 (62 sem máscara) |
+
+### rx_masks_other [PA]
+
+| estrutura | Dice modelo [IC95%] | IoU modelo | Dice med. modelo | N modelo | Dice heurística [IC95%] | IoU heur. | Dice med. heur. | N heur. |
+|---|---|---|---|---|---|---|---|---|
+| aorta | 0.215 [0.181, 0.242] | 0.125 | 0.242 | 56 (5 sem máscara) | 0.001 [0.000, 0.003] | 0.001 | 0.000 | 56 (54 sem máscara) |
+| heart | 0.838 [0.792, 0.871] | 0.741 | 0.881 | 56 (1 sem máscara) | 0.021 [0.000, 0.056] | 0.016 | 0.000 | 56 (54 sem máscara) |
 | left_clavicle | 0.393 [0.312, 0.471] | 0.294 | 0.411 | 56 (12 sem máscara) | 0.000 [0.000, 0.000] | 0.000 | 0.000 | 56 (56 sem máscara) |
 | left_lung | 0.853 [0.813, 0.878] | 0.757 | 0.879 | 56 (1 sem máscara) | 0.027 [0.000, 0.068] | 0.022 | 0.000 | 56 (54 sem máscara) |
 | left_scapula | 0.510 [0.455, 0.558] | 0.365 | 0.526 | 56 (1 sem máscara) | 0.000 [0.000, 0.000] | 0.000 | 0.000 | 56 (56 sem máscara) |
@@ -76,24 +89,24 @@ _Generated 2026-11-24 11:32 UTC by `bench`._
 | right_clavicle | 0.474 [0.397, 0.553] | 0.356 | 0.546 | 56 (5 sem máscara) | 0.000 [0.000, 0.000] | 0.000 | 0.000 | 56 (55 sem máscara) |
 | right_lung | 0.789 [0.748, 0.816] | 0.665 | 0.811 | 56 (1 sem máscara) | 0.022 [0.000, 0.055] | 0.016 | 0.000 | 56 (54 sem máscara) |
 | right_scapula | 0.522 [0.460, 0.577] | 0.381 | 0.560 | 56 (2 sem máscara) | 0.000 [0.000, 0.000] | 0.000 | 0.000 | 56 (56 sem máscara) |
-| spine | 0.336 [0.272, 0.399] | 0.268 | 0.000 | 120 (60 sem máscara) | 0.018 [0.004, 0.039] | 0.013 | 0.000 | 120 (113 sem máscara) |
-| sternum | 0.006 [0.000, 0.017] | 0.004 | 0.000 | 120 (115 sem máscara) | 0.006 [0.000, 0.015] | 0.004 | 0.000 | 120 (115 sem máscara) |
-| trachea | 0.312 [0.252, 0.373] | 0.250 | 0.000 | 120 (64 sem máscara) | 0.002 [0.000, 0.005] | 0.001 | 0.000 | 120 (116 sem máscara) |
+| spine | 0.709 [0.659, 0.752] | 0.569 | 0.769 | 56 (1 sem máscara) | 0.028 [0.000, 0.070] | 0.023 | 0.000 | 56 (54 sem máscara) |
+| sternum | 0.000 [0.000, 0.000] | 0.000 | 0.000 | 56 (56 sem máscara) | 0.000 [0.000, 0.000] | 0.000 | 0.000 | 56 (56 sem máscara) |
+| trachea | 0.669 [0.604, 0.721] | 0.535 | 0.747 | 56 (2 sem máscara) | 0.003 [0.000, 0.010] | 0.002 | 0.000 | 56 (54 sem máscara) |
 
 ## Piores casos de segmentação
 
 | fonte | estrutura | caminho | id | Dice |
 |---|---|---|---|---|
 | montgomery | lungs | model | `MCUCXR_0060_0` | 0.000 |
-| rx_masks_other | lungs | model | `RSNAPE_b9716006589c_a52e60d498d8_frontal` | 0.000 |
-| rx_masks_other | lungs | model | `RSNAPE_9bc09ed256ef_057ab2121050_frontal` | 0.692 |
-| rx_masks_other | lungs | model | `RSNAPE_ab1671510bec_c96ee2f013e8_frontal` | 0.736 |
-| rx_masks_other | lungs | model | `COVID1910_0036_frontal` | 0.753 |
+| rx_masks_other [PA] | lungs | model | `RSNAPE_b9716006589c_a52e60d498d8_frontal` | 0.000 |
+| rx_masks_other [PA] | lungs | model | `RSNAPE_9bc09ed256ef_057ab2121050_frontal` | 0.692 |
+| rx_masks_other [PA] | lungs | model | `RSNAPE_ab1671510bec_c96ee2f013e8_frontal` | 0.736 |
+| rx_masks_other [PA] | lungs | model | `COVID1910_0036_frontal` | 0.753 |
 | montgomery | heart | model | `MCUCXR_0060_0` | 0.000 |
-| rx_masks_other | heart | model | `RSNAPE_0b14caeba6ab_47c0b3be0811_lateral` | 0.000 |
-| rx_masks_other | heart | model | `RSNAPE_2af16d66cc16_eb87ca71cfb0_lateral` | 0.000 |
-| rx_masks_other | heart | model | `COVID1910_0460_lateral` | 0.000 |
-| rx_masks_other | heart | model | `RSNAPE_5364d189c001_b76606bb34fe_lateral` | 0.000 |
+| rx_masks_other [LATERAL] | heart | model | `RSNAPE_0b14caeba6ab_47c0b3be0811_lateral` | 0.000 |
+| rx_masks_other [LATERAL] | heart | model | `RSNAPE_2af16d66cc16_eb87ca71cfb0_lateral` | 0.000 |
+| rx_masks_other [LATERAL] | heart | model | `COVID1910_0460_lateral` | 0.000 |
+| rx_masks_other [LATERAL] | heart | model | `RSNAPE_5364d189c001_b76606bb34fe_lateral` | 0.000 |
 | jsrt_masks | lungs | heur | `JPCLN002` | 0.000 |
 | jsrt_masks | lungs | heur | `JPCLN054` | 0.000 |
 | jsrt_masks | lungs | heur | `JPCNN056` | 0.000 |
@@ -111,7 +124,8 @@ _Generated 2026-11-24 11:32 UTC by `bench`._
 |---|---|---|---|
 | jsrt_masks | 247 | 125/247 = 0.506 [0.444, 0.568] | 125/247 |
 | montgomery | 138 | 23/138 = 0.167 [0.114, 0.238] | 23/138 |
-| rx_masks_other | 120 | 10/120 = 0.083 [0.046, 0.147] | 10/120 |
+| rx_masks_other [LATERAL] | 64 | 4/64 = 0.062 [0.025, 0.150] | 4/64 |
+| rx_masks_other [PA] | 56 | 6/56 = 0.107 [0.050, 0.215] | 6/56 |
 
 ## ICT: referência (máscaras) vs nosso
 
@@ -121,8 +135,8 @@ _Generated 2026-11-24 11:32 UTC by `bench`._
 | jsrt_masks | heur | 247 | 175 | 0.169 [0.143, 0.195] | 0.164 | +0.126 | 0.169 | 0.36 (26/72) |
 | montgomery | model | 138 | 1 | 0.023 [0.018, 0.028] | 0.015 | -0.010 | 0.023 | 0.93 (128/137) |
 | montgomery | heur | 138 | 121 | 0.123 [0.074, 0.189] | 0.078 | +0.024 | 0.123 | 0.65 (11/17) |
-| rx_masks_other | model | 56 | 1 | 0.032 [0.023, 0.043] | 0.025 | -0.028 | 0.032 | 0.82 (45/55) |
-| rx_masks_other | heur | 56 | 54 | 0.177 [0.165, 0.189] | 0.177 | +0.177 | 0.177 | 0.50 (1/2) |
+| rx_masks_other [PA] | model | 56 | 1 | 0.032 [0.023, 0.043] | 0.025 | -0.028 | 0.032 | 0.82 (45/55) |
+| rx_masks_other [PA] | heur | 56 | 54 | 0.177 [0.165, 0.189] | 0.177 | +0.177 | 0.177 | 0.50 (1/2) |
 
 Maiores erros de ICT: `montgomery/MCUCXR_0213_1` (heur: 0.08 vs GT 0.51); `jsrt_masks/JPCNN009` (heur: 0.15 vs GT 0.55); `jsrt_masks/JPCNN089` (heur: 0.78 vs GT 0.39); `montgomery/MCUCXR_0080_0` (heur: 0.08 vs GT 0.45); `jsrt_masks/JPCLN130` (heur: 0.82 vs GT 0.46); `jsrt_masks/JPCNN036` (heur: 0.79 vs GT 0.43); `jsrt_masks/JPCNN022` (heur: 0.83 vs GT 0.48); `jsrt_masks/JPCLN139` (heur: 0.83 vs GT 0.48)
 
@@ -171,6 +185,14 @@ Maiores erros de ICT: `montgomery/MCUCXR_0213_1` (heur: 0.08 vs GT 0.51); `jsrt_
 | recon3d.reconstruct | model | 78 | 2.27 | 1.97 | 4.21 |
 | IU analyze_image | heur | 579 | 0.47 | 0.15 | 1.73 |
 | recon3d.reconstruct | heur | 28 | 2.37 | 2.37 | 4.22 |
+
+## Modos de falha observados (ver tabelas e ids acima)
+
+- **Sem tags DICOM, o tórax frequentemente não é reconhecido** (região estimada como abdome/outra em imagens PNG/JPG de tórax): sem a região correta não há segmentação nem achados. Ver 'Detecção de região sem tags'.
+- **Caminho heurístico**: não encontra o par de campos pulmonares na maioria das imagens reais (sem máscara em > 70% mesmo com região informada); quando segmenta, ICT com erro grande. Está ajustado a fantomas sintéticos.
+- **Caminho com modelo (PSPNet ChestX-Det)**: pulmões/coração bons (Dice ~0,86/0,9 em JSRT/Montgomery); clavículas fracas (~0,6); pulmão esquerdo menor que o direito (retrocardíaco); casos de zero em imagens atípicas (ex.: `MCUCXR_0060_0`).
+- **Perfil**: heurística de perfil segmenta pouco (coração/coluna/traqueia ausentes em ~metade); impacta a reconstrução 3D (falha 'Incidência lateral sem máscaras').
+- **Achados**: regra de ICT>0,5 tem alta especificidade mas baixa sensibilidade em IU; modelos DenseNet com escore >= 0,65 quase nunca disparam (sensibilidade baixa) embora a AUC seja alta (>0,89); regras de seio costofrênico não detectaram derrames.
 
 ## Ressalvas
 
