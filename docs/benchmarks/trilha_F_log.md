@@ -35,3 +35,28 @@ Dice jsrt (N=15) inalterado: lungs 0.855, heart 0.933.
 - Spike R3 (cxas em venv separado): não feito (instalação de pacotes bloqueada; tempo).
 - Reexecutar latência com máquina ociosa; reexecutar bench masks completo quando manifests montgomery/shenzhen/paxray existirem.
 - "Estruturas não segmentadas" no output da API: só são emitidas as segmentadas (sem mudança necessária).
+
+## Atualização (após merge do main; bench masks --limit 100, workers 2, jsrt + PAX-Ray++ test, 2 trilhas ECG em paralelo)
+Comando: `PYTHONPATH=. python -m bench.rx_bench --source masks --limit 100 --workers 2 --models both --out <tmp>` (NÃO regenerou rx.md).
+Antes = docs/benchmarks/rx.md publicado (N=120 jsrt; PAX-Ray N=56 PA); depois = código atual (N=100 jsrt; PA N=49).
+
+| métrica | antes | depois |
+|---|---|---|
+| jsrt pulmões, heurística (Dice) | 0.205 | 0.636 |
+| jsrt coração, heurística | 0.153 | 0.444 |
+| PAX-Ray PA pulmões, heurística | 0.025 | 0.336 |
+| PAX-Ray PA coração, heurística | 0.021 | 0.372 |
+| jsrt pulmões/coração, modelo | 0.863 / 0.926 | 0.864 / 0.928 (inalterado) |
+| ICT MAE jsrt, heurística | n/d | 0.168 (modelo 0.027) |
+| latência modelo p50 / p95 | 6.26 / 7.32 s | 3.44 / 9.17 s (inclui aquecimento MPS por worker, máquina compartilhada) |
+| latência heurística p50 / p95 | 0.16 / 0.91 s | 1.20 / 24.9 s  (REGRESSÃO de cauda) |
+
+Montgomery/Shenzhen indisponíveis: correção de lado do Shenzhen só com teste unitário.
+Latência: meta <2 s NÃO confirmada (p50 3.4 s com 2 workers + 2 trilhas ECG; PSP isolada = 0.6 s). Heurística ficou mais lenta
+porque `find_lung_pair` agora tenta até 9 estratégias nas imagens em que a primeira falha: PENDENTE otimizar (limitar tentativas/reduzir resolução).
+
+## ICT heurístico (commit separado)
+`analyze.HEUR_CTR_RANGE=(0.30,0.70)`: ICT heurístico fora da janela some das medidas e vira quality["ICT"]="não confiável...".
+Limite: phantoms verídicos chegam a 0.64, então a janela não pega valores inflados 0.56-0.70; nos 5 tóraces de exemplo,
+2 de 3 COVID-19-AR deixam de mostrar ICT; RICORD 4/5 e COVID 3 ainda mostram 0.56-0.65 (modelo: 0.46-0.52). Solução melhor =
+validar a máscara cardíaca (não só o valor) — pendente.
