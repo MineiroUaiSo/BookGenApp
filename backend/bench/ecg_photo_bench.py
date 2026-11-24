@@ -449,6 +449,9 @@ def main(argv=None) -> int:
     if not recs:
         print("no PTB-XL manifest at $MEDLENS_DATASETS/ptbxl/manifest.jsonl; nothing to do")
         return 2
+    from bench.ecg_bench import resolve
+    recs = [r for r in recs if resolve("ptbxl", r["path"]).exists()
+            and resolve("ptbxl", r["path"]).with_suffix(".dat").exists()]  # download may still be running
     sel = select_records(recs, a.limit, a.seed)
     print(f"selected {len(sel)}: {dict(Counter(r['_stratum'] for r in sel))}")
     jobs = build_jobs(sel, out_dir, a.seed)
