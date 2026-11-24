@@ -17,7 +17,7 @@ TANGENT_T = True
 P50_K = 2.5
 G_THR = 0.02
 LEAD_THR = 0.05
-T_SIG = 0.6
+T_SIG = 0.15
 T_Q = 1.0
 
 
@@ -58,6 +58,7 @@ class BeatDel:
     p_on: Optional[int] = None
     p_off: Optional[int] = None
     t_off: Optional[int] = None
+    t_end: Optional[int] = None      # global T end for QT (tangent method)
     early_slope_ratio: Optional[float] = None
     vmax: float = 0.0
 
@@ -396,8 +397,13 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
         mx = max(abs(t.amp) for _, t in tl)
         sig = [t for _, t in tl if abs(t.amp) >= T_SIG * mx]
         offs = sorted(t.offset for t in sig)
-        bd.t_off = int(round(float(np.quantile(offs, T_Q)))) if T_Q < 1 else offs[-1]
-    t_ref = max(t.extra.get("off_thr", t.offset) for t in sig) if tl else None
+        # global T end (QT): latest tangent-method end over the leads with a T wave (LUDB/clinical convention)
+        bd.t_end = int(round(float(np.quantile(offs, T_Q)))) if T_Q < 1 else offs[-1]
+        # t_off keeps the conservative threshold-based end of the dominant T waves (used by the rhythm
+        # code to keep P-wave searches out of the T wave)
+        dom = [t for _, t in tl if abs(t.amp) >= 0.6 * mx]
+        bd.t_off = max(t.extra.get("off_thr", t.offset) for t in dom)
+    t_ref = bd.t_off
     t_ref = t_ref if t_ref is not None else off + int(0.3 * rr_loc * fs / 1000)
     for li, lead in enumerate(leads):
         ld = bd.leads[lead]

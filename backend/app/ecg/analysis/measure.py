@@ -120,9 +120,10 @@ def measure_median(bd, med_amp, med_dlt, fs, leads, rr_mean_ms, rr_sd_ms):
         # P axis only meaningful if P amplitude is relevant
         g.p_axis_deg = pa
     g.qrs_axis_deg = axis_from_areas(areas_q)
-    if bd.t_off is not None:
+    t_end = bd.t_end if bd.t_end is not None else bd.t_off
+    if t_end is not None:
         g.t_axis_deg = axis_from_areas(areas_t)
-        g.qt_ms = float((bd.t_off - on) * ms)
+        g.qt_ms = float((t_end - on) * ms)
         if rr_mean_ms:
             c = qt_corrections(g.qt_ms, rr_mean_ms, g.heart_rate_bpm)
             g.qtc_bazett_ms, g.qtc_fridericia_ms = c["bazett"], c["fridericia"]

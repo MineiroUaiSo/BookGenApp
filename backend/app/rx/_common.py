@@ -120,8 +120,8 @@ def autocrop(img_u8: np.ndarray, min_trim: float = 0.06):
     if H < 32 or W < 32:
         return img_u8, (0, 0)
     # a row/column is 'flat' if it carries (almost) no signal: constant padding, text-free frame
-    rflat = (a.max(axis=1) - a.min(axis=1)) < 14
-    cflat = (a.max(axis=0) - a.min(axis=0)) < 14
+    rflat = (a.max(axis=1) - a.min(axis=1)) <= 3
+    cflat = (a.max(axis=0) - a.min(axis=0)) <= 3
 
     def span(flat):
         n = len(flat)
@@ -134,7 +134,7 @@ def autocrop(img_u8: np.ndarray, min_trim: float = 0.06):
     x0, x1 = span(cflat)
     # re-evaluate columns inside the row span (a padded band can hide behind a bright label)
     sub = a[y0:y1]
-    x0b, x1b = span((sub.max(axis=0) - sub.min(axis=0)) < 14)
+    x0b, x1b = span((sub.max(axis=0) - sub.min(axis=0)) <= 3)
     x0, x1 = max(x0, x0b), min(x1, x1b)
     if (y1 - y0) < 0.4 * H or (x1 - x0) < 0.4 * W or x1 <= x0 or y1 <= y0:
         return img_u8, (0, 0)

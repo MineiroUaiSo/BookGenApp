@@ -66,7 +66,7 @@ def posterior_side_from_tags(ds: Any) -> Optional[str]:
     return None
 
 
-def detect_view_region(s, ds: Any = None) -> dict:
+def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False) -> dict:
     """s: smoothed float image at working res. Returns dict(view, region, kind, source, notes, lungs)."""
     notes: list[str] = []
     region = region_from_tags(ds)
