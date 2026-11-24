@@ -253,7 +253,8 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     ctx = dict(gm=gm, lm=L, bd=mbd, fs=fs, hr=gm.heart_rate_bpm, cv=cv, rmssd=rmssd, p_present=p_present,
                sinus_p=sinus_p, frac_p=frac_p, av=av, age=age, sex=sex, pr_beats=pr_beats,
                irr=irr, ectopy=ectopy_pattern(pk_ms), n_ectopic=int(ectopic.sum()),
-               flutter=flutter_features(dlt[li2], fs, beat_info), paced=None)
+               flutter=flutter_features(dlt[li2], fs, beat_info), paced=None,
+               source=getattr(signal.source, "value", signal.source), quality=dict(signal.quality or {}))
     if pace_info is not None:
         ptype = classify_pacing(pace_info["timing"], gm.qrs_ms, pace_info["spikes"], peaks, fs)
         if ptype and (not pace_info["relaxed"] or (gm.qrs_ms or 0) >= 120.0):

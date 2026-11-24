@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from ...schemas import Finding, Reference
+from . import rules_lvh
 
 R_AHA = Reference(id="aha_2009_part_iii", source="Surawicz B et al. AHA/ACCF/HRS Recommendations for the "
                   "Standardization and Interpretation of the ECG, Part III: Intraventricular Conduction "
@@ -307,13 +308,17 @@ def build_findings(c):
             # Pre-excitation (AHA 2009 Part II/III): short PR + slurred QRS upstroke (delta wave) + wide QRS. The
             # global PR is biased long by early P onsets, so PR < 140 ms is accepted when the delta wave is
             # clear (initial slope < 45% of the maximum slope) and QRS >= 100 ms.
+            blk = rules_lvh.preexc_block_reason(c, pr, qrs_pre)   # image quality / PR confidence / implausible
             if (pr < 120 or (pr < 140 and _classify_bbb(bd, qrs, fs_ms, L)[0] is None)) and qrs_pre >= 100 \
-                    and esr is not None and esr < 0.45:
+                    and esr is not None and esr < 0.45 and not blk:
                 out.append(_f("ecg.preexcitation", "Padrão de pré-excitação ventricular (onda delta)", "abnormal",
                               [f"PR {pr:.0f} ms", f"QRS {qrs:.0f} ms (>=100)",
                                f"início do QRS lentificado (razão de velocidade inicial {esr:.2f})"],
                               [R_SBC, R_GOLD], 0.5))
-            elif pr < 120:
+            elif blk and (pr < 140 or qrs_pre > rules_lvh.QRS_IMPLAUSIBLE_MS):
+                out.append(_f("ecg.implausible_measurement", "Medida de PR/QRS implausível ou não confiável (achados dependentes não emitidos)",
+                      "borderline", [blk], [R_AHA, R_SBC], 0.4))
+            elif pr < 120 and not blk:
                 out.append(_f("ecg.short_pr", "Intervalo PR curto", "borderline", [f"PR {pr:.0f} ms (<120)"],
                               [R_SBC, R_GOLD], 0.6))
 
@@ -374,6 +379,11 @@ def build_findings(c):
     elif cbbb == "ilbbb":
         out.append(_f("ecg.ilbbb", "Bloqueio incompleto de ramo esquerdo", "borderline", ev + [bbb_note],
                       [R_AHA, R_SBC], 0.45))
+    elif dur > rules_lvh.QRS_IMPLAUSIBLE_MS and not c.get("paced"):
+        if not any(f.code == "ecg.implausible_measurement" for f in out):
+            blk = f"QRS {dur:.0f} ms (>200) sem bloqueio de ramo/marcapasso"
+            out.append(_f("ecg.implausible_measurement", "Medida de PR/QRS implausível ou não confiável (achados dependentes não emitidos)",
+                      "borderline", [blk], [R_AHA, R_SBC], 0.4))
     elif dur >= IVCD_MS and not any(f.code == "ecg.preexcitation" for f in out):
         out.append(_f("ecg.ivcd", "Distúrbio inespecífico da condução intraventricular", "abnormal",
                       [f"QRS {dur:.0f} ms (>={IVCD_MS})", "critérios de BRD/BRE não preenchidos"], [R_AHA, R_SBC], 0.5))
@@ -388,13 +398,14 @@ def build_findings(c):
         ev_l, ev_r = [], []
         pII = L.get("II")
         pd = bd.leads["II"].p if "II" in bd.leads else None
-        p_long = bool(pII and pII.p_duration_ms and pII.p_duration_ms > 120)
+        p_long = bool(pII and pII.p_duration_ms and pII.p_duration_ms >= rules_lvh.LAE_P_MS)
         bifid = pd is not None and pd.morph == "bífida" and pd.extra.get("interpeak_ms", 0) >= 40
         p1 = bd.leads["V1"].p if "V1" in bd.leads else None
         morris = p1 is not None and p1.extra.get("neg_depth") is not None and p1.extra["neg_depth"] >= 0.1 \
             and p1.extra.get("neg_dur_ms", 0) >= 40
-        # P duration alone (noisy onset) is not enough: needs P-mitrale notch or Morris index (AHA 2009 Part V)
-        if (p_long and bifid) or morris:
+        # P >= 120 ms in D2 is enough on its own (SBC 2022), as is the Morris index (AHA 2009 Part V)
+        lae_ctx = gm.sokolow_lyon_mv is not None and gm.sokolow_lyon_mv > 3.5   # isolated P >= 120 ms counts only with LVH voltage
+        if (p_long and (bifid or lae_ctx)) or morris:
             if p_long:
                 ev_l.append(f"P em D2 com {pII.p_duration_ms:.0f} ms (>120)")
             if bifid:
@@ -442,6 +453,7 @@ def build_findings(c):
     elif weak:
         out.append(_f("ecg.lvh_voltage", "Voltagem elevada isolada (critério único limítrofe para sobrecarga "
                       "ventricular esquerda)", "borderline", weak, [R_SBC, R_GOLD], 0.35))
+    rules_lvh.apply_lvh(c, out)   # Romhilt-Estes/indices, strain, HCM pattern; sets c["lvh_strain"]
     # RVH (AHA 2009 Part V): R in V1 >= 7 mm with R > S, or R/S > 1 with R >= 5 mm plus right axis > 110 deg;
     # with complete RBBB (terminal R' mimics it) the right axis > 110 deg is also required; not scored with
     # pre-excitation (delta wave).
@@ -505,6 +517,8 @@ def build_findings(c):
     for l in suppressed:
         ste.pop(l, None)
         std.pop(l, None)
+    for l in c.get("lvh_strain", ()):   # strain leads: secondary repolarisation, not ischaemia
+        std.pop(l, None)
     if c["bbb"] in ("lbbb", "rbbb"):
         caution.append("interpretar com cautela na presença de bloqueio de ramo")
     if any(f.code == "ecg.lvh" for f in out):
@@ -556,7 +570,8 @@ def build_findings(c):
 
     # ---- T inversion
     tinv = {l: L[l].t_amplitude_mv for l in ("I", "II", "aVL", "aVF", "V2", "V3", "V4", "V5", "V6")
-            if l in L and L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -TINV_MV and l not in sec_leads}
+            if l in L and L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -TINV_MV and l not in sec_leads
+            and l not in c.get("lvh_strain", ())}
     if suppressed or (sec_leads and any(L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -TINV_MV
                                         for l in sec_leads if l in L)):
         out.append(_f("ecg.secondary_repolarization", "Alterações secundárias da repolarização ventricular "

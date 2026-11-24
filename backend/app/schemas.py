@@ -180,6 +180,7 @@ class GlobalMeasurements(BaseModel):
     cornell_mv: Optional[float] = None
     precordial_transition: Optional[str] = None
     rhythm: Optional[str] = None             # e.g. "sinusal regular"
+    indices: dict[str, dict] = {}            # voltage/hypertrophy indices: {v, unidade, limiar, preenche, componentes}
 
 
 class ConductionPhase(BaseModel):
