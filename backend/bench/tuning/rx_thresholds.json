@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "status": "untuned",
+  "default": 0.65,
+  "specificity_target": 0.9,
+  "note": "Per-pathology TorchXRayVision score thresholds, fixed on DEV (IU X-ray) for 90% specificity by bench/tune_rx_thresholds.py. Empty = use default.",
+  "thresholds": {},
+  "costophrenic_rule": {
+    "demoted": false
+  }
+}

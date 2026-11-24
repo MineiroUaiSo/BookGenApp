@@ -1,6 +1,9 @@
 """Rules-based pt-BR findings from measurements (+ auxiliary model scores)."""
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
 from typing import Optional
 
 from ..schemas import BodyRegion, Finding, Reference, RXImageAnalysis, RXMeasurement, RXView
@@ -22,7 +25,33 @@ PATHO_PT = {
     "Mass": "massa", "Hernia": "hérnia (hiatal/diafragmática)", "Lung Lesion": "lesão pulmonar",
     "Fracture": "fratura", "Lung Opacity": "opacidade pulmonar", "Enlarged Cardiomediastinum": "alargamento cardiomediastinal",
 }
-MODEL_THRESHOLD = 0.65
+MODEL_THRESHOLD = 0.65  # fallback when a pathology has no tuned threshold
+_THRESHOLDS_PATH = Path(os.environ.get("MEDLENS_RX_THRESHOLDS", Path(__file__).resolve().parents[2] / "bench" / "tuning" / "rx_thresholds.json"))
+_TUNING: Optional[dict] = None
+
+
+def _tuning() -> dict:
+    """Versioned per-pathology thresholds (bench/tune_rx_thresholds.py, fixed on dev). Missing/invalid file -> defaults."""
+    global _TUNING
+    if _TUNING is None:
+        try:
+            _TUNING = json.loads(_THRESHOLDS_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            _TUNING = {}
+    return _TUNING
+
+
+def model_threshold(pathology: str) -> float:
+    t = _tuning()
+    try:
+        return float(t.get("thresholds", {}).get(pathology, t.get("default", MODEL_THRESHOLD)))
+    except (TypeError, ValueError):
+        return MODEL_THRESHOLD
+
+
+def costophrenic_demoted() -> bool:
+    """True when the geometric costophrenic-angle rule was validated with low sensitivity (R5): evidence is downgraded."""
+    return bool(_tuning().get("costophrenic_rule", {}).get("demoted", False))
 
 
 def _m(img: RXImageAnalysis, key: str) -> Optional[RXMeasurement]:
@@ -130,7 +159,7 @@ def _frontal_findings(img: RXImageAnalysis, tag: str) -> list[Finding]:
                            severity="borderline", evidence=issues, references=[REF_SQUIRE], confidence=0.4))
 
     # model scores (auxiliary)
-    flagged = sorted(((k, v) for k, v in img.model_scores.items() if v >= MODEL_THRESHOLD and k in PATHO_PT),
+    flagged = sorted(((k, v) for k, v in img.model_scores.items() if k in PATHO_PT and v >= model_threshold(k)),
                      key=lambda kv: -kv[1])[:5]
     for k, v in flagged:
         out.append(Finding(code=f"rx.model.{k.lower().replace(' ', '_')}", label=f"Sugestivo de {PATHO_PT[k]} (escore do modelo)",
