@@ -290,6 +290,7 @@ PRED = {
     "STD": lambda c: any(x.startswith("ecg.st_depression_") for x in c),
     "LOWV": lambda c: bool(c & {"ecg.low_voltage", "ecg.low_voltage_precordial"}),
     "NORM": lambda c: "ecg.within_normal_limits" in c,
+    "PACE": lambda c: "ecg.paced_rhythm" in c,
 }
 _MI = {"IMI", "ASMI", "ILMI", "AMI", "ALMI", "INJAS", "LMI", "INJAL", "IPLMI", "IPMI", "INJIN", "INJLA", "PMI",
        "INJIL", "MI"}
@@ -305,7 +306,7 @@ GOLD_SCP = {
     "MI_anterior": {"ASMI", "AMI", "ALMI", "INJAS", "INJAL"}, "MI_lateral": {"LMI", "ALMI", "ILMI", "IPLMI", "INJLA"},
     "STTC": {"NDT", "NST_", "ISC_", "ISCAL", "ISCIN", "ISCIL", "ISCAS", "ISCLA", "ISCAN", "STD_", "STE_", "TAB_",
              "DIG", "EL", "STTC"},
-    "STE": {"STE_"}, "STD": {"STD_"}, "LOWV": {"LVOLT"}, "NORM": {"NORM"},
+    "STE": {"STE_"}, "STD": {"STD_"}, "LOWV": {"LVOLT"}, "NORM": {"NORM"}, "PACE": {"PACE"},
 }
 # AF_AFL is predicted by the AF rule or the spectral flutter rule
 PRED["AF_AFL"] = lambda c: "ecg.atrial_fibrillation" in c or "ecg.atrial_flutter" in c
@@ -320,6 +321,7 @@ CLASS_DESC = {
     "SR": "sinus rhythm", "MI_any": "any MI (Q waves or ST elevation)", "MI_inferior": "inferior MI (IMI etc.)",
     "MI_anterior": "anterior/anteroseptal MI", "MI_lateral": "lateral MI", "STTC": "ST/T change (any)",
     "STE": "ST elevation (STE_)", "STD": "ST depression (STD_)", "LOWV": "low voltage (LVOLT)", "NORM": "NORM",
+    "PACE": "pacemaker rhythm (PACE)",
 }
 
 
