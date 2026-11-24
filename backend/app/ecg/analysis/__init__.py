@@ -185,12 +185,12 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
         if valid is not None:  # segmented page (e.g. 3x4): keep only leads recorded during this beat
             ok = [l for l in leads if valid[l][p - pre:p + post + 1].all()]
             bw = _waves(bd, ok, fs, p - pre, i)
-            beat_info.append({"qrs_on": p - pre + bd.qrs_on, "qrs_off": p - pre + bd.qrs_off,
+            beat_info.append({"qrs_on": p - pre + bd.pre_on, "qrs_off": p - pre + bd.pre_off,
                               "t_off": (p - pre + bd.t_off) if bd.t_off is not None else None,
                               "p_on": (p - pre + bd.p_on) if bd.p_on is not None else None})
             all_waves += bw
             continue
-        beat_info.append({"qrs_on": p - pre + bd.qrs_on, "qrs_off": p - pre + bd.qrs_off,
+        beat_info.append({"qrs_on": p - pre + bd.pre_on, "qrs_off": p - pre + bd.pre_off,
                           "t_off": (p - pre + bd.t_off) if bd.t_off is not None else None,
                           "p_on": (p - pre + bd.p_on) if bd.p_on is not None else None})
         all_waves += _waves(bd, leads, fs, p - pre, i)

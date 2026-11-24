@@ -16,7 +16,17 @@ from scipy.signal import find_peaks
 TANGENT_T = True
 P50_K = 2.0
 G_THR = 0.02
-LEAD_THR = 0.05
+# E2: per-lead QRS borders from the smoothed velocity (fractions of the lead's peak velocity); the global
+# borders are the k-th earliest onset / k-th latest offset over leads at a lower (more sensitive) fraction.
+LEAD_THR_ON = 0.03
+LEAD_THR_OFF = 0.06
+GLOBAL_THR = 0.03
+VEL_SMOOTH_MS = 20      # smoothing of the lead before differentiating (slow q septal / delta starts)
+BORDER_EXT_MS = 20      # how far before the preliminary global QRS onset the lead scan may reach
+BORDER_EXT_OFF_MS = 14  # ... and after the offset (kept short: ST elevation must not be absorbed into the QRS)
+LEAD_CLAMP_MS = 5       # a lead border may not stray from the median lead border by more than this
+T_END_SHIFT_MS = 10
+GLOBAL_RANK = 1         # 0 = extreme lead, 1 = second most extreme (robust to one outlier lead)
 P_SIG = 0.8
 P_PROM = 0.015
 P_NK = 3.0
@@ -69,6 +79,8 @@ class BeatDel:
     t_end: Optional[int] = None      # global T end for QT (tangent method)
     early_slope_ratio: Optional[float] = None
     vmax: float = 0.0
+    pre_on: int = 0                  # preliminary (core+skirt) global QRS borders: rhythm code is tuned on these
+    pre_off: int = 0
 
 
 def _scan(v, im, thr, gap, lo, hi):
@@ -402,24 +414,33 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
     n = seg_amp.shape[1]
     on, off, v, vmax = global_qrs(seg_amp, fs, a)
     rr_loc = rr_next_ms or rr_prev_ms or 1000.0
-    bd = BeatDel(a=a, qrs_on=on, qrs_off=off, leads={}, vmax=vmax)
+    bd = BeatDel(a=a, qrs_on=on, qrs_off=off, leads={}, vmax=vmax, pre_on=on, pre_off=off)
     e = min(off, on + int(0.03 * fs))
     bd.early_slope_ratio = float(v[on:e + 1].max() / vmax) if vmax > 0 else None
     b0, b1 = max(0, on - int(0.024 * fs)), max(1, on - int(0.004 * fs))
     gap = max(3, int(0.012 * fs))
     t_hi = on + int(min(0.72 * rr_loc, 620) * fs / 1000)
+    lead_on, lead_off, g_ons, g_offs = [], [], [], []
     for li, lead in enumerate(leads):
         x = seg_amp[li]
         base = float(np.median(x[b0:b1])) if b1 > b0 else float(x[max(0, on - 2)])
         y = x[on:off + 1] - base
         ma = float(np.max(np.abs(y))) if len(y) else 0.0
-        d = np.gradient(x) * fs
+        d = np.gradient(uniform_filter1d(x, max(1, int(VEL_SMOOTH_MS * fs / 1000)))) * fs
         d = uniform_filter1d(np.abs(d), max(1, int(0.004 * fs)))
         lon, loff = on, off
         if ma >= 0.04:
             w = d[on:off + 1]
             im = on + int(np.argmax(w))
-            lon, loff = _scan(d, im, LEAD_THR * d[im], gap, on, off)
+            wlo = max(1, on - int(BORDER_EXT_MS * fs / 1000))
+            whi = min(n - 2, off + int(BORDER_EXT_OFF_MS * fs / 1000))
+            lon = _scan(d, im, LEAD_THR_ON * d[im], gap, wlo, whi)[0]
+            loff = _scan(d, im, LEAD_THR_OFF * d[im], gap, wlo, whi)[1]
+            g_on, g_off = _scan(d, im, GLOBAL_THR * d[im], gap, wlo, whi)
+            lead_on.append(lon)
+            lead_off.append(loff)
+            g_ons.append(g_on)
+            g_offs.append(g_off)
         waves, morph = qrs_components(y, on, off, fs) if ma >= 0.03 else ([], None)
         if waves:
             waves[0].onset = max(on, lon) if waves[0].onset <= lon + 2 else waves[0].onset
@@ -433,6 +454,19 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
         yd = seg_del[li] - base
         ld.t = detect_t(yd, fs, off, t_hi, noise[li], a)
         bd.leads[lead] = ld
+    ref_on = int(np.median(lead_on)) if lead_on else bd.qrs_on
+    ref_off = int(np.median(lead_off)) if lead_off else bd.qrs_off
+    if g_ons:
+        so, sf = sorted(g_ons), sorted(g_offs, reverse=True)
+        bd.qrs_on = so[min(GLOBAL_RANK, len(so) - 1)]
+        bd.qrs_off = sf[min(GLOBAL_RANK, len(sf) - 1)]
+    cl = int(LEAD_CLAMP_MS * fs / 1000)
+    for ld_ in bd.leads.values():
+        ld_.qrs_on = min(max(ld_.qrs_on, ref_on - cl), ref_on + cl)
+        ld_.qrs_off = min(max(ld_.qrs_off, ref_off - cl), ref_off + cl)
+        # a lead cannot start before / end after the (rank-robust) global borders
+        ld_.qrs_on = max(ld_.qrs_on, bd.qrs_on)
+        ld_.qrs_off = min(ld_.qrs_off, bd.qrs_off)
     # global T end (from leads with substantial T)
     tl = [(l, d_.t) for l, d_ in bd.leads.items() if d_.t is not None]
     if tl:
@@ -444,6 +478,7 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
             offs = [o for o in offs if o <= med + T_OUT_MS * fs / 1000] or offs
         # global T end (QT): latest tangent-method end over the leads with a T wave (LUDB/clinical convention)
         bd.t_end = int(round(float(np.quantile(offs, T_Q)))) if T_Q < 1 else offs[-1]
+        bd.t_end += int(round(T_END_SHIFT_MS * fs / 1000))   # tangent end is ~14 ms earlier than the cardiologist QT end (LUDB dev)
         # t_off keeps the conservative threshold-based end of the dominant T waves (used by the rhythm
         # code to keep P-wave searches out of the T wave)
         dom = [t for _, t in tl if abs(t.amp) >= 0.6 * mx]
