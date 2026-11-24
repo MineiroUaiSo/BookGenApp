@@ -5,7 +5,7 @@ import numpy as np
 
 from app.schemas import ECGSignal, SourceKind
 
-from . import geometry, grid, perspective, trace
+from . import geometry, grid, header_ocr, layout as layout_mod, perspective, trace
 
 OUT_FS = 500.0
 
@@ -29,7 +29,7 @@ def _unused(y_cols: np.ndarray, cols_per_s: float, n_out: int) -> np.ndarray:
 
 
 def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: float | None = None,
-                   gain_mm_mv: float | None = None, return_debug: bool = False):
+                   gain_mm_mv: float | None = None, return_debug: bool = False, strict_layout: bool = False):
     """Digitize a 12-lead ECG paper photo/scan. See module docs; leads of a 3x4(+1) page are 2.5 s long,
     except `II` which is the 10 s rhythm strip when present. Per-lead start offsets are reported in
     calibration["offset_s.<lead>"]."""
@@ -75,6 +75,13 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     rhythm_only = grid_cv is not None and grid_cv >= perspective.GRID_CV_ABSTAIN
     if rhythm_only:
         warnings.append(f"grade impressa irregular após retificação (CV do espaçamento {grid_cv:.3f}): saída reduzida a FC/ritmo")
+    try:  # K2: values printed by the machine (cross-check only)
+        printed = header_ocr.read_header(norm, ppx, ppy)
+    except Exception:  # noqa: BLE001 - header reading must never break digitisation
+        printed = None
+    printed_cal = printed.as_calibration() if printed else {}
+    if printed_cal:
+        warnings.append("valores impressos no traçado: " + printed.text())
     ink = trace.remove_grid_lines(ink0, ppx, ppy)
     ink = trace.clean_ink(ink, ppx, ppy)
 
@@ -140,6 +147,18 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     meas = (x_end_data - xs) / cps
     wide = meas >= 7.0
     layout_given = layout != "auto"
+    plan = None
+    if not layout_given:  # K1: layout confirmed by the printed lead labels (grid + rhythm strips, column-cropped traces)
+        plan = layout_mod.detect_layout(ink0, ink, rows, ppx, ppy, xs + skip_cols, x_end_data)
+        if plan.ok:
+            warnings.append(f"layout {plan.name} confirmado por {plan.n_labels} rótulos de derivação")
+            gain = gain_mm_mv or plan.gain_mm_mv or gain
+            speed = paper_speed_mm_s or plan.speed_mm_s or speed
+            cps = ppx * speed
+        else:
+            warnings.append("layout não confirmado por rótulos: " + plan.reason)
+            if strict_layout:
+                raise ValueError("layout desconhecido: " + plan.reason)
     if layout == "auto":
         if n_rows <= 2:
             layout = "strips"
@@ -179,6 +198,22 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     quality: dict[str, float] = {}
     calib_extra: dict[str, float] = {}
     dbg = {"rows": rows, "ink": ink, "rgb": rgb, "traces": {}}
+
+    if plan is not None and plan.ok:
+        leads, quality, offs = layout_mod.extract_slices(plan, ink, ppx, ppy, mm_y, mm_x, px_of_mm_x, xs_mm, speed, gain, OUT_FS)
+        calib_extra = {f"offset_s.{k}": v for k, v in offs.items()}
+        sig = ECGSignal(
+            fs=OUT_FS, leads=leads, duration_s=max((len(v) for v in leads.values()), default=0) / OUT_FS,
+            source=SourceKind.IMAGE, quality=quality,
+            calibration={"paper_speed_mm_s": float(speed), "gain_mm_mv": float(gain),
+                         "px_per_mm": float(0.5 * (ppx + ppy) / proc_scale),
+                         "px_per_mm_x": float(ppx / proc_scale), "px_per_mm_y": float(ppy / proc_scale),
+                         "grid_confidence": float(gr["confidence"]), "skew_deg": float(ginfo["skew_deg"]),
+                         "layout_confirmed": 1.0, "rhythm_strips": float(len(plan.rhythm)), **printed_cal, **calib_extra})
+        if return_debug:
+            dbg.update(layout=plan.name, warnings=warnings, plan=plan)
+            return sig, dbg
+        return sig
 
     row_cache = {}
     for ri, ry in enumerate(rows):
@@ -247,7 +282,7 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
         calibration={"paper_speed_mm_s": float(speed), "gain_mm_mv": float(gain),
                      "px_per_mm": float(0.5 * (ppx + ppy) / proc_scale),
                      "px_per_mm_x": float(ppx / proc_scale), "px_per_mm_y": float(ppy / proc_scale), "grid_confidence": float(gr["confidence"]),
-                     "skew_deg": float(ginfo["skew_deg"]), **calib_extra,
+                     "skew_deg": float(ginfo["skew_deg"]), **printed_cal, **calib_extra,
                      **({"rhythm_only": 1.0} if rhythm_only else {}),
                      **({"grid_spacing_cv": float(grid_cv)} if grid_cv is not None else {})})
     if return_debug:

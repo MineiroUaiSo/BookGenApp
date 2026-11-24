@@ -225,6 +225,11 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
         all_waves += _waves(bd, leads, fs, p - pre, i)
 
     lms, gm, extras = measure_median(mbd, med_amp, med_dlt, fs, leads, rr_mean, rr_sd)
+    if valid is not None:  # segmented pages: the union of per-lead borders is widened by the inter-lead timing jitter
+        q_ = [m.qrs_ms for m in lms if m.qrs_ms]
+        if len(q_) >= 6 and gm.qrs_ms and gm.qrs_ms > 1.25 * float(np.median(q_)):
+            gm.qrs_ms = float(np.median(q_))
+            warnings.append("QRS global estimado pela mediana das derivações (bordas combinadas alargadas pela digitalização por segmentos).")
     start = a_idx - int(round(MEDIAN_PRE_MS * fs / 1000))
     median_beats = {l: [round(float(v), 5) for v in med_amp[i, start:]] for i, l in enumerate(leads)}
     median_waves = _waves(mbd, leads, fs, -start, -1)
@@ -259,6 +264,8 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     if ctx["rhythm_kind"] in ("af", "flutter"):
         gm.p_duration_ms = gm.pr_ms = gm.p_axis_deg = None
     findings = build_findings(ctx)
+    from .. import plausibility
+    findings = plausibility.apply(signal, gm, lms, findings, warnings)  # K2/K3: withhold findings of suspect digitisations
     conduction = conduction_timeline(gm, median_waves, findings)
     if valid is not None:  # return leads on the common timeline so viewers can draw each segment in place
         signal = signal.model_copy(update={
