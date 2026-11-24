@@ -20,8 +20,8 @@ from ..sieve_rx import Candidate, SieveStats, figure_caption_sieve, finalize_ded
 
 SOURCE = "wikimedia_rx"
 API = "https://commons.wikimedia.org/w/api.php"
-SEEDS = ["X-rays", "Chest X-rays", "Abdominal X-rays", "Projectional radiography", "Radiographs of fractures",
-         "X-rays of fractures", "Radiography", "X-rays of the thorax", "Radiographs of the chest", "Plain radiography",
+SEEDS = ["X-rays of the chest", "Chest radiographs", "X-rays", "Projectional radiography", "Radiographs of fractures",
+         "X-rays of fractures", "Radiography", "X-rays of the abdomen", "Abdominal radiographs", "X-rays of the thorax", "Plain radiography",
          "Medical X-rays", "X-ray images of the chest", "Skeletal radiographs", "Radiographs of the hand",
          "Radiographs of the pelvis", "Radiographs of the spine"]
 MAX_DEPTH = 3
