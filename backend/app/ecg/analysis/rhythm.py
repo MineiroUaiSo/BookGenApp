@@ -129,7 +129,7 @@ def av_analysis(p_ms, beats_ms, fs):
     res = dict(p_regular=p_reg, atrial_rate=atr_rate, vent_rate=vent_rate, type=None, prs=prs, base=base,
                n_p=len(p), n_q=len(q), **cons)
     # a spurious P-like bump (T/U wave, noise) easily fakes one blocked P in a 10 s strip: require regular atrial
-    # activity at a physiological rate (<=160/min; faster P series are noise or flutter) and >=2 blocked P.
+    # activity at a physiological rate (<=160/min; faster P series are noise or flutter) and >=3 blocked P (or a 2:1 pattern); two spurious P bumps in 10 s are common on real tracings.
     if p_reg < 0.85 or atr_rate > 160 or atr_rate < 35:
         return res
     valid = prs[~np.isnan(prs)]
@@ -140,7 +140,7 @@ def av_analysis(p_ms, beats_ms, fs):
     # drops: consecutive assigned indices jumping >= 2
     jumps = [k for k in range(1, len(assigned)) if assigned[k] >= 0 and assigned[k - 1] >= 0
              and assigned[k] - assigned[k - 1] >= 2]
-    if len(jumps) >= 2 or (jumps and len(q) >= 5 and len(jumps) >= 0.6 * (len(q) - 1)):
+    if len(jumps) >= 3 or (jumps and len(q) >= 5 and len(jumps) >= 0.6 * (len(q) - 1)):
         res["n_drops"] = len(jumps)
         if len(jumps) >= 0.6 * (len(q) - 1):
             res["type"] = "av2_21"
@@ -158,3 +158,36 @@ def av_analysis(p_ms, beats_ms, fs):
             else:
                 res["type"] = "av2_m1" if mob1 else "av2_unspec"
     return res
+
+
+def flutter_features(x, fs, beats):
+    """Atrial flutter descriptors from one lead (II preferred): QRS blanked by interpolation, baseline removed,
+    then the spectrum of the remaining atrial/ST-T activity is searched for a narrow peak at 3.5-6.7 Hz
+    (210-400/min; typical flutter ~300/min, AHA/ACC/ESC SVT guideline 2015). Returns dict(freq_hz, peak_ratio,
+    harmonic): peak_ratio = peak power over total 1-15 Hz power, `harmonic` True when the peak sits at an
+    integer multiple (2-3x) of the ventricular rate (2:1 / 3:1 conduction) within 10%."""
+    x = np.asarray(x, float)
+    n = len(x)
+    if n < 3 * fs or len(beats) < 4:
+        return dict(freq_hz=None, peak_ratio=0.0, harmonic=False)
+    y = x.copy()
+    for b in beats:
+        lo, hi = max(0, b["qrs_on"] - int(0.01 * fs)), min(n - 1, b["qrs_off"] + int(0.02 * fs))
+        if hi > lo:
+            y[lo:hi + 1] = np.linspace(y[lo], y[hi], hi - lo + 1)
+    y = y - uniform_filter1d(y, int(0.5 * fs))
+    y = y * np.hanning(n)
+    nfft = int(2 ** np.ceil(np.log2(n * 4)))
+    sp = np.abs(np.fft.rfft(y, nfft)) ** 2
+    fr = np.fft.rfftfreq(nfft, 1.0 / fs)
+    tot = sp[(fr >= 1.0) & (fr <= 15.0)].sum()
+    band = (fr >= 3.5) & (fr <= 6.7)
+    if tot <= 0 or not band.any():
+        return dict(freq_hz=None, peak_ratio=0.0, harmonic=False)
+    k = np.argmax(np.where(band, sp, 0))
+    # power within +-0.5 Hz of the peak
+    near = (fr >= fr[k] - 0.5) & (fr <= fr[k] + 0.5)
+    q = [b["qrs_on"] for b in beats]
+    hr_hz = 1000.0 / (np.mean(np.diff(q)) * 1000.0 / fs) if len(q) > 1 else 0.0
+    harm = bool(hr_hz > 0 and any(abs(fr[k] / hr_hz - m) < 0.1 * m for m in (2, 3, 4)))
+    return dict(freq_hz=float(fr[k]), peak_ratio=float(sp[near].sum() / tot), harmonic=harm)

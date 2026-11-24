@@ -83,7 +83,7 @@ def _lead_ctx(bd, l):
     return dict(r=ld.r_max, s=ld.s_min, last=last, q=q)
 
 
-def _classify_bbb(bd, dur, fs_ms):
+def _classify_bbb(bd, dur, fs_ms, L=None):
     """Returns (kind|None, evidence). kind in rbbb|lbbb|irbbb|ilbbb."""
     if dur < 100:
         return None, ""
@@ -119,8 +119,11 @@ def _classify_bbb(bd, dur, fs_ms):
         note = f"V1 predominantemente negativo ({v1['s']*10:.0f} mm), R sem q em {pl(lat_ok)}"
         if dur >= 120:
             return "lbbb", note
-        if dur >= 110:
-            return "ilbbb", note
+        # incomplete LBBB (AHA 2009): QRS 110-119 ms, no q in I/V5/V6 and R peak time > 60 ms in V5-V6
+        idt = [L[l].intrinsicoid_deflection_ms for l in ("V5", "V6") if L and l in L and
+               L[l].intrinsicoid_deflection_ms is not None]
+        if dur >= 110 and idt and max(idt) > 60:
+            return "ilbbb", note + f"; tempo de pico da R {max(idt):.0f} ms (>60)"
     return None, ""
 
 
@@ -134,6 +137,7 @@ STACH_HR = 100.0
 # wave locked to the QRS (Goldberger 10th ed. ch. 'atrial fibrillation'; AHA/ACC/HRS AF guideline 2023)
 AF_CV, AF_RMSSD, AF_DFRAC = 0.09, 0.10, 0.30
 AF_PFRAC, AF_PR_SD = 0.5, 20.0
+FLUTTER_RATIO = 0.35     # share of 1-15 Hz power within +-0.5 Hz of the 3.5-6.7 Hz peak (see rhythm.flutter_features)
 
 
 def classify_rhythm(c):
@@ -150,6 +154,10 @@ def classify_rhythm(c):
         return "Ritmo sinusal com bloqueio atrioventricular de 2º grau", "av2"
     if irregular and not ectopy and not p_locked:
         return "Fibrilação atrial", "af"
+    # atrial flutter: narrow spectral peak at 3.5-6.7 Hz in the QRS-blanked trace and no P locked to the QRS
+    fl = c.get("flutter") or {}
+    if fl.get("peak_ratio", 0.0) >= FLUTTER_RATIO and not p_locked and not ectopy:
+        return "Flutter atrial", "flutter"
     # P polarity: non-sinus only with clear evidence (negative P in D2 or positive P in aVR)
     p_ii = c["lm"]["II"].p_amplitude_mv if "II" in c["lm"] else None
     p_avr = c["lm"]["aVR"].p_amplitude_mv if "aVR" in c["lm"] else None
@@ -185,6 +193,13 @@ def build_findings(c):
         out.append(_f("ecg.atrial_fibrillation", "Fibrilação atrial", "abnormal",
                       [f"RR irregularmente irregular (CV {c['cv']:.2f}, RMSSD/RR {c['rmssd']:.2f})",
                        "ondas P não identificadas", f"FC média {hr:.0f} bpm"], [R_SBC, R_GOLD], 0.6))
+    elif kind == "flutter":
+        fl = c.get("flutter") or {}
+        out.append(_f("ecg.atrial_flutter", "Flutter atrial (provável)", "abnormal",
+                      [f"atividade atrial regular a ~{(fl.get('freq_hz') or 0) * 60:.0f}/min na derivação D2 "
+                       f"(pico espectral {fl.get('peak_ratio', 0):.2f} da potência 1-15 Hz)",
+                       "sem onda P ligada ao QRS", f"FC ventricular {hr:.0f} bpm"],
+                      [R_SBC, R_GOLD], 0.4))
     elif kind == "sinus":
         if hr < SBRAD_HR:
             sev = "critical" if hr < 40 else "abnormal"
@@ -245,7 +260,8 @@ def build_findings(c):
             # Pre-excitation (AHA 2009 Part II/III): short PR + slurred QRS upstroke (delta wave) + wide QRS. The
             # global PR is biased long by early P onsets, so PR < 140 ms is accepted when the delta wave is
             # clear (initial slope < 45% of the maximum slope) and QRS >= 100 ms.
-            if pr < 140 and qrs >= 100 and esr is not None and esr < 0.45:
+            if (pr < 120 or (pr < 140 and _classify_bbb(bd, qrs, fs_ms, L)[0] is None)) and qrs >= 100 \
+                    and esr is not None and esr < 0.45:
                 out.append(_f("ecg.preexcitation", "Padrão de pré-excitação ventricular (onda delta)", "abnormal",
                               [f"PR {pr:.0f} ms", f"QRS {qrs:.0f} ms (>=100)",
                                f"início do QRS lentificado (razão de velocidade inicial {esr:.2f})"],
@@ -288,7 +304,7 @@ def build_findings(c):
     #  LBBB: QRS >=120 ms, V1-V2 predominantly negative (rS/QS), monophasic R without q in I/V5/V6.
     v1, v6, d1 = morph.get("V1", ""), morph.get("V6", ""), morph.get("I", "")
     dur = qrs
-    cbbb, bbb_note = _classify_bbb(bd, dur, fs_ms)
+    cbbb, bbb_note = _classify_bbb(bd, dur, fs_ms, L)
     if cbbb in ("lbbb", "rbbb", "ilbbb", "irbbb") and any(f.code == "ecg.preexcitation" for f in out):
         cbbb = None  # delta wave widens the QRS and mimics a bundle branch block (AHA 2009 Part III, exclusions)
     ev = [f"QRS {dur:.0f} ms", f"V1 {v1 or '-'}", f"V6 {v6 or '-'}", f"D1 {d1 or '-'}"]
@@ -423,7 +439,7 @@ def build_findings(c):
     caution = []
     # Secondary repolarisation changes of bundle branch block are expected (AHA 2009 Part III/IV): with LBBB the
     # ST-T of every lead is discordant to the QRS; with RBBB it is V1-V3. They are not reported as ischaemia.
-    sec_leads = set(L) if c["bbb"] in ("lbbb", "ilbbb") else ({"V1", "V2", "V3"} if c["bbb"] in ("rbbb", "irbbb") else set())
+    sec_leads = set(L) if c["bbb"] == "lbbb" else ({"V1", "V2", "V3"} if c["bbb"] in ("rbbb", "irbbb") else set())
     suppressed = [l for l in set(ste) | set(std) if l in sec_leads]
     for l in suppressed:
         ste.pop(l, None)
@@ -446,7 +462,7 @@ def build_findings(c):
     # ---- pathological Q
     qpos = {}
     for l in ["I", "II", "aVL", "aVF", "V2", "V3", "V4", "V5", "V6"]:
-        if l not in L or (c["bbb"] in ("lbbb", "ilbbb") and l in ("V2", "V3")):  # QS in V1-V3 is part of LBBB
+        if l not in L or (c["bbb"] == "lbbb" and l in ("V2", "V3")):  # QS in V1-V3 is part of LBBB
             continue
         m = L[l]
         if m.q_amplitude_mv is None:

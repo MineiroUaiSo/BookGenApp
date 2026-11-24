@@ -40,6 +40,22 @@ def _tag_polarity(ds: Any) -> bool:
     return ds is not None and getattr(ds, "PhotometricInterpretation", None) in ("MONOCHROME1", "MONOCHROME2")
 
 
+def _heart_side_check(masks) -> Optional[str]:
+    """Patient side convention: image-left = patient right (standard PA/AP display). The cardiac mass normally lies
+    towards image-right of the mediastinal midline; if it lies clearly towards image-left, the film may be mirrored
+    or dextrocardia/situs inversus, and the D/E labels of lungs/clavicles are NOT confirmed."""
+    heart, rl, ll = masks.get("heart"), masks.get("right_lung"), masks.get("left_lung")
+    if heart is None or rl is None or ll is None or not (heart.any() and rl.any() and ll.any()):
+        return None
+    hx = float(np.nonzero(heart)[1].mean())
+    mid = 0.5 * (float(np.nonzero(rl)[1].mean()) + float(np.nonzero(ll)[1].mean()))
+    span = abs(float(np.nonzero(rl)[1].mean()) - float(np.nonzero(ll)[1].mean()))
+    if hx < mid - 0.12 * max(span, 1.0):
+        return ("coração projetado à esquerda da imagem: possível imagem espelhada ou dextrocardia — "
+                "lateralidade (D/E) não confirmada")
+    return None
+
+
 def _spacing(ds: Any, H_: int, W_: int) -> Optional[tuple[float, float]]:
     if ds is None:
         return None
@@ -157,6 +173,9 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
             structures = _structures(masks, full, scale, spacing, origin, _ORDER)
             measurements, ex = measure.measure_frontal(masks, conv, view.value)
             quality.update(measure.quality_frontal(s_full, masks, ex))
+            side = _heart_side_check(masks)
+            if side:
+                quality["lateralidade"] = side
             if origin == "heuristic":
                 quality["confiabilidade"] = HEUR_WARN
                 if not allow_model:

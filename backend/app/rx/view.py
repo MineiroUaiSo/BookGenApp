@@ -68,10 +68,11 @@ def posterior_side_from_tags(ds: Any) -> Optional[str]:
 
 # ---------------------------------------------------------------------------------------------- model-based
 # Thresholds tuned on JSRT + Montgomery + PAX-Ray++ (dev); Shenzhen + manually labelled IU images = test.
-FRONTAL_HEART_MIN = 0.015      # heart mask fraction of the (cropped) image
+FRONTAL_HEART_MIN = 0.02       # heart mask fraction of the (cropped) image
 FRONTAL_LUNGS_MIN = 0.08       # left+right lung mask fraction
-LATERAL_LUNG_MIN = 0.05
-LATERAL_MAXPROB_MIN = 0.90
+LATERAL_LUNG_MIN = 0.04
+LATERAL_MAXPROB_MIN = 0.85
+LATERAL_GAP_MAX = 0.40        # left/right 'lung' centroids further apart than this = two lungs side by side (abdomen)
 LATERAL_SPINE_MAX = 0.01
 
 
@@ -104,7 +105,8 @@ def classify_from_features(f: dict) -> tuple[str, str]:
     # PSPNet never draws a spine on a lateral film but does on frontal/abdomen films: that separates a lateral
     # chest from an abdomen on which it hallucinates lung bases
     if (f["lungs"] >= LATERAL_LUNG_MIN and f["maxprob"] >= LATERAL_MAXPROB_MIN and f["heart"] < FRONTAL_HEART_MIN
-            and f["spine"] < LATERAL_SPINE_MAX):
+            and f["spine"] < LATERAL_SPINE_MAX
+            and not (f["lung_cx_gap"] == f["lung_cx_gap"] and f["lung_cx_gap"] >= LATERAL_GAP_MAX)):
         return "chest_lateral", "PSPNet: campo pulmonar único sem silhueta cardíaca frontal (perfil)"
     return "nochest", "PSPNet: sem estrutura torácica plausível"
 
@@ -115,18 +117,15 @@ def _upright(f: dict) -> bool:
     return cy is not None and cy == cy and cy >= 0.30
 
 
-def estimate_rotation(work, f: dict, kind: str, prob_fn) -> tuple[int, Optional[dict], Optional[object]]:
-    """Try np.rot90 k in {1,3} for landscape non-chest images and k=2 for upside-down frontals.
-    Returns (k, features, prob) of the best orientation (k=0 = leave as is). Costs extra PSP passes only for
-    images that look wrong."""
+def estimate_rotation(work, s, f: dict, kind: str, prob_fn) -> tuple[int, Optional[dict], Optional[object]]:
+    """Find np.rot90 k that makes a chest frontal and upright (extra PSP passes only for images that look wrong:
+    non-chest results -> k=1,3; frontal with the heart in the upper half -> k=2).
+    Returns (k, features, prob) of the best orientation (k=0 = leave as is)."""
     import numpy as np
-    h, w = work.shape
-    cands: list[int] = []
     if kind == "chest_frontal" and not _upright(f):
-        cands = [2]
-    elif kind == "nochest" and w > 1.15 * h:
-        cands = [1, 3]
-    best = (0, None, None)
+        cands = [2]                                  # frontal but heart in the upper half: upside down
+    else:
+        cands = [1, 3] if kind == "nochest" else []   # on its side (extra PSP passes only for non-chest results)
     for k in cands:
         pr = prob_fn(np.ascontiguousarray(np.rot90(work, k)))
         if pr is None:
@@ -134,9 +133,8 @@ def estimate_rotation(work, f: dict, kind: str, prob_fn) -> tuple[int, Optional[
         fk = model_features(pr)
         kk, _ = classify_from_features(fk)
         if kk == "chest_frontal" and _upright(fk) and fk["lungs"] >= f["lungs"] - 0.02:
-            best = (k, fk, pr)
-            break
-    return best
+            return k, fk, pr
+    return 0, None, None
 
 
 def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False, allow_rotate: bool = True) -> dict:
@@ -160,8 +158,9 @@ def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False, al
         if prob is not None:
             feats = model_features(prob)
             model_kind, why = classify_from_features(feats)
-            if allow_rotate and region is None and (model_kind == "nochest" or (model_kind == "chest_frontal" and not _upright(feats))):
-                k, f2, p2 = estimate_rotation(work, feats, model_kind, M.psp_probs)
+            if allow_rotate and region is None and (
+                    model_kind == "nochest" or (model_kind == "chest_frontal" and not _upright(feats))):
+                k, f2, p2 = estimate_rotation(work, s, feats, model_kind, M.psp_probs)
                 if k:
                     rot, feats, prob = k, f2, p2
                     model_kind, why = classify_from_features(feats)

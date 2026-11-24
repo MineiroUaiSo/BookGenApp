@@ -199,7 +199,7 @@ items:
     Sokolow-Lyon: S de V1 mais R de V5 ou V6 acima de 35 mm. R em aVL acima de 11 mm. Cornell: R de aVL mais S de V3
     acima de 28 mm no homem ou 20 mm na mulher (voltagem em mm, 10 mm = 1 mV). Romhilt-Estes: 5 pontos ou mais indicam
     HVE definida, 4 pontos provável (voltagem 3, ST-T em strain 3, SAE 3, desvio do eixo para esquerda 2, QRS acima de 90 ms 1,
-    deflexão intrinsecoide acima de 50 ms 1). Os critérios de voltagem têm alta especificidade e baixa sensibilidade.
+    deflexão intrinsecoide acima de 50 ms 1). Os critérios de voltagem têm alta especificidade e baixa sensibilidade. Implementação do MedLens: Sokolow-Lyon acima de 35 mm (acima de 45 mm abaixo dos 40 anos, onde a especificidade cai), R de V5/V6 acima de 26 mm, ou Cornell por sexo acompanhado de alteração ST-T lateral; Cornell ou R de aVL isolados ficam como achado limítrofe.
   measurements_used: [sokolow_lyon_mv, cornell_mv, qrs_axis_deg, qrs_ms]
   differentials: [atleta, jovem magro, BRE, WPW, cardiomiopatia hipertrófica, estenose aórtica, hipertensão]
   pitfalls: [Voltagens altas em jovens e atletas são frequentes sem HVE.; Obesidade e DPOC reduzem voltagem e o critério perde sensibilidade.]

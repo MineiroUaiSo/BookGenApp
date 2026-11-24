@@ -24,7 +24,7 @@ from .delineate import delineate_beat
 from .leads import ALL_LEADS, derive_missing, normalize
 from .measure import MEDIAN_PRE_MS, build_median, measure_median
 from .preprocess import noise_sigma, preprocess
-from .rhythm import av_analysis, detect_p_series, ectopy_pattern, rr_irregularity, rr_stats
+from .rhythm import av_analysis, detect_p_series, ectopy_pattern, flutter_features, rr_irregularity, rr_stats
 from .rpeaks import detect_r_peaks
 from .rules import build_findings, classify_rhythm
 
@@ -198,9 +198,10 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     av = av_analysis(p_series, [b["qrs_on"] * 1000.0 / fs for b in beat_info], fs)
     ctx = dict(gm=gm, lm=L, bd=mbd, fs=fs, hr=gm.heart_rate_bpm, cv=cv, rmssd=rmssd, p_present=p_present,
                sinus_p=sinus_p, frac_p=frac_p, av=av, age=age, sex=sex,
-               irr=rr_irregularity(pk_ms), ectopy=ectopy_pattern(pk_ms))
+               irr=rr_irregularity(pk_ms), ectopy=ectopy_pattern(pk_ms),
+               flutter=flutter_features(dlt[li2], fs, beat_info))
     gm.rhythm, ctx["rhythm_kind"] = classify_rhythm(ctx)
-    if ctx["rhythm_kind"] == "af":
+    if ctx["rhythm_kind"] in ("af", "flutter"):
         gm.p_duration_ms = gm.pr_ms = gm.p_axis_deg = None
     findings = build_findings(ctx)
     conduction = conduction_timeline(gm, median_waves, findings)

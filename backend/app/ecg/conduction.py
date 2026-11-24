@@ -39,7 +39,7 @@ def conduction_timeline(gm: GlobalMeasurements, waves: list[Wave],
     codes = {f.code for f in (findings or [])}
     beat = _pick_beat(waves)
     rhythm = (gm.rhythm or "")
-    af = "ecg.atrial_fibrillation" in codes or rhythm.startswith("Fibrilação")
+    af = bool(codes & {"ecg.atrial_fibrillation", "ecg.atrial_flutter"}) or rhythm.startswith(("Fibrilação", "Flutter"))
     qrs = _span([w for w in beat if w.kind == WaveKind.QRS], rel=0.0)
     p = _span([w for w in beat if w.kind == WaveKind.P])
     t = _span([w for w in beat if w.kind == WaveKind.T])

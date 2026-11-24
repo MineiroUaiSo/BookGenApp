@@ -306,8 +306,8 @@ GOLD_SCP = {
              "DIG", "EL", "STTC"},
     "STE": {"STE_"}, "STD": {"STD_"}, "LOWV": {"LVOLT"}, "NORM": {"NORM"},
 }
-# AF_AFL is predicted by the AF rule (we have no separate flutter detector)
-PRED["AF_AFL"] = PRED["AF"]
+# AF_AFL is predicted by the AF rule or the spectral flutter rule
+PRED["AF_AFL"] = lambda c: "ecg.atrial_fibrillation" in c or "ecg.atrial_flutter" in c
 CLASS_DESC = {
     "AF": "atrial fibrillation (AFIB)", "AF_AFL": "AF or flutter (AFIB+AFLT)", "AV1": "1st-degree AV block (1AVB)",
     "AV2": "2nd-degree AV block (2AVB)", "AV3": "3rd-degree AV block (3AVB)",
