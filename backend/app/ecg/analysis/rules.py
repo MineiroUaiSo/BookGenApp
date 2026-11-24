@@ -287,6 +287,10 @@ def build_findings(c):
                 out.append(_f("ecg.lafb", "Bloqueio divisional anterossuperior esquerdo (BDAS)", "abnormal",
                               [f"eixo {ax:.0f}°", f"rS em {pl(rs_inf)}", f"aVL {morph.get('aVL')}", f"QRS {qrs:.0f} ms"],
                               [R_AHA, R_SBC], 0.55))
+        elif ax < -15:
+            # not a deviation by AHA/SBC (LAD <= -30 deg is kept); reported as a mild leftward axis for the reader
+            out.append(_f("ecg.left_axis_mild", "Eixo do QRS desviado levemente para a esquerda", "borderline",
+                          [f"eixo do QRS {ax:.0f}° (-15° a -30°, ainda dentro do normal)"], [R_AHA, R_SBC], 0.5))
         elif ax > 90:
             out.append(_f("ecg.right_axis_deviation", "Desvio do eixo elétrico do QRS para a direita", "abnormal",
                           [f"eixo do QRS {ax:.0f}° (normal -30° a +90°)"], [R_AHA, R_SBC], 0.7))
