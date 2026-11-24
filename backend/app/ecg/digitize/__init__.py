@@ -5,7 +5,7 @@ import numpy as np
 
 from app.schemas import ECGSignal, SourceKind
 
-from . import geometry, grid, layout as layout_mod, trace
+from . import geometry, grid, header_ocr, layout as layout_mod, trace
 
 OUT_FS = 500.0
 
@@ -71,6 +71,13 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
         grid_conf = 0.1
         warnings.append("no grid found; scale assumed from beat period / page width")
     gr["confidence"] = grid_conf
+    try:  # K2: values printed by the machine (cross-check only)
+        printed = header_ocr.read_header(norm, ppx, ppy)
+    except Exception:  # noqa: BLE001 - header reading must never break digitisation
+        printed = None
+    printed_cal = printed.as_calibration() if printed else {}
+    if printed_cal:
+        warnings.append("valores impressos no traçado: " + printed.text())
     ink = trace.remove_grid_lines(ink0, ppx, ppy)
     ink = trace.clean_ink(ink, ppx, ppy)
 
@@ -198,7 +205,7 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
                          "px_per_mm": float(0.5 * (ppx + ppy) / proc_scale),
                          "px_per_mm_x": float(ppx / proc_scale), "px_per_mm_y": float(ppy / proc_scale),
                          "grid_confidence": float(gr["confidence"]), "skew_deg": float(ginfo["skew_deg"]),
-                         "layout_confirmed": 1.0, "rhythm_strips": float(len(plan.rhythm)), **calib_extra})
+                         "layout_confirmed": 1.0, "rhythm_strips": float(len(plan.rhythm)), **printed_cal, **calib_extra})
         if return_debug:
             dbg.update(layout=plan.name, warnings=warnings, plan=plan)
             return sig, dbg
@@ -271,7 +278,7 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
         calibration={"paper_speed_mm_s": float(speed), "gain_mm_mv": float(gain),
                      "px_per_mm": float(0.5 * (ppx + ppy) / proc_scale),
                      "px_per_mm_x": float(ppx / proc_scale), "px_per_mm_y": float(ppy / proc_scale), "grid_confidence": float(gr["confidence"]),
-                     "skew_deg": float(ginfo["skew_deg"]), **calib_extra})
+                     "skew_deg": float(ginfo["skew_deg"]), **printed_cal, **calib_extra})
     if return_debug:
         dbg.update(layout=layout, warnings=warnings)
         return sig, dbg
