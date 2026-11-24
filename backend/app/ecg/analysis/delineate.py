@@ -17,7 +17,7 @@ TANGENT_T = True
 P50_K = 2.5
 G_THR = 0.02
 LEAD_THR = 0.05
-T_SIG = 0.15
+T_SIG = 0.6
 T_Q = 1.0
 
 
