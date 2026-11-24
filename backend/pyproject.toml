@@ -31,7 +31,7 @@ heic = ["pillow-heif"]
 dev = ["pytest", "httpx"]
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "medlens_data*", "bench*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
