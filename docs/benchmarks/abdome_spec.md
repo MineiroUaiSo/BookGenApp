@@ -10,12 +10,15 @@ Este documento define como medir. Implementacao: `backend/bench/abdomen_bench.py
 - Registra por arquivo: Modality, ViewPosition, BodyPartExamined, PhotometricInterpretation (MONOCHROME1 = polaridade invertida
   tratada pelo loader), regiao/incidencia detectadas por `analyze_image`, e se uma inversao extra foi aplicada (nota de polaridade).
 - Metrica: acuracia de regiao (k/n com IC de Wilson). Amostra de 10 arquivos: indicativo, nao estatistica.
+- Resultado R2 (decoder com pylibjpeg, 2026-11-24): regiao 10/10 (100%), 0 sem decodificar; KUB sem ViewPosition -> OTHER;
+  nenhuma inversao extra de polaridade. Tabela em `docs/benchmarks/trilha_r2_e7abd_log.md`.
 
 ## (b) Segmentacao (modo `drr`)
 - Verdade sintetica: TC abdominal + mascaras do TotalSegmentator (coluna, pelve, femures, rins, figado, gas intestinal).
 - DRR AP: soma de atenuacao ao longo do eixo antero-posterior (HU -> mu linear, soma, Beer-Lambert normalizado);
   mascaras 3D projetadas com `any` no mesmo eixo.
 - Metrica: Dice por estrutura entre a mascara da heuristica/modelo no DRR e a projecao da verdade.
+- Estado (R2): NAO executado; nibabel nao instalado e nenhuma TC baixada. Meta do plano: Dice coluna/pelve >= 0,7 e regiao >= 98% nos DRRs. Nada entra na API.
 - Limites: DRR nao tem a textura/ruido de RX real (gap de dominio); gas e femures podem sair do campo. Viabilidade: so TC
   real < 1 GB e sem credencial; nibabel e opcional (`requirements-optional`). Sem TC disponivel, so o teste unitario sintetico roda.
 
