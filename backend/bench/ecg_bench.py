@@ -387,6 +387,7 @@ def ptbxl_task(rec: dict) -> dict:
             "t_analyze_s": round(t2 - t1, 3), "scp": parse_scp(rec),
             "axis": (rec.get("extra") or {}).get("heart_axis"),
             "stadium1": (rec.get("extra") or {}).get("infarction_stadium1"),
+            "stj_mv": {m.lead: _num(m.st_j_mv) for m in an.lead_measurements},   # ST at the J point per lead, mV (R2: vs PTB-XL+ 12SL)
             "age": (rec.get("extra") or {}).get("age"), "sex": (rec.get("extra") or {}).get("sex")}
 
 
