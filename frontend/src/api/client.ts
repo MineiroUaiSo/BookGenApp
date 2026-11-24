@@ -1,5 +1,5 @@
 import type {
-  ECGAnalysis, IngestResponse, RXAnalysis, Recon3DResult, StudyInfo,
+  BodyRegion, ECGAnalysis, IngestResponse, RXAnalysis, Recon3DResult, StudyInfo,
 } from "../types/api";
 
 export const API_BASE: string =
@@ -72,7 +72,7 @@ export const analyzeECG = (
 ) => fetch(`${base}/ecg/${studyId}/analyze?ai=${ai}`, json(body)).then(parse<ECGAnalysis>);
 
 export const analyzeRX = (
-  studyId: string, ai: boolean, body: { instance_ids?: string[] } = {}, base = API_BASE,
+  studyId: string, ai: boolean, body: { instance_ids?: string[]; region_overrides?: Record<string, BodyRegion> } = {}, base = API_BASE,
 ) => fetch(`${base}/rx/${studyId}/analyze?ai=${ai}`, json(body)).then(parse<RXAnalysis>);
 
 export const recon3d = (

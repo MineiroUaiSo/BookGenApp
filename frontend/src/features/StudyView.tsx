@@ -1,6 +1,6 @@
 import { Suspense, useState } from "react";
-import { API_BASE, recon3d } from "../api/client";
-import type { Recon3DResult } from "../types/api";
+import { analyzeRX, API_BASE, recon3d } from "../api/client";
+import type { BodyRegion, RXAnalysis, Recon3DResult } from "../types/api";
 import ReportPanel from "./report/ReportPanel";
 import RXViewer from "./rx/RXViewer";
 import { ECGWorkspace, Recon3DViewer } from "./registry";
@@ -10,6 +10,18 @@ export default function StudyView({ result, ai, onBack }: { result: AnalysisResu
   const [recon, setRecon] = useState<Recon3DResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rxOverride, setRxOverride] = useState<RXAnalysis | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, BodyRegion>>({});
+
+  const confirmRegion = async (instanceId: string, region: BodyRegion) => {
+    const next = { ...overrides, [instanceId]: region };
+    setBusy(true); setError(null);
+    try {
+      setRxOverride(await analyzeRX(result.study.study_id, ai, { region_overrides: next }));
+      setOverrides(next);
+    } catch (e) { setError(`Falha ao reanalisar: ${(e as Error).message}`); }
+    finally { setBusy(false); }
+  };
 
   const run3d = async () => {
     setBusy(true); setError(null);
@@ -18,6 +30,7 @@ export default function StudyView({ result, ai, onBack }: { result: AnalysisResu
     finally { setBusy(false); }
   };
 
+  const rx = result.kind === "RX" ? (rxOverride ?? result.rx) : null;
   const fallback = <p className="hint" role="status">Carregando…</p>;
 
   return (
@@ -31,9 +44,9 @@ export default function StudyView({ result, ai, onBack }: { result: AnalysisResu
       ) : (
         <>
           <div className="study-layout">
-            <RXViewer analysis={result.rx} apiBase={API_BASE}
+            <RXViewer analysis={rx ?? result.rx} apiBase={API_BASE} onRegionConfirm={confirmRegion}
               dicom={result.study.series.some((s) => !!s.dicom_modality)} />
-            <ReportPanel title="Laudo de RX" findings={result.rx.findings} ai={result.rx.ai} aiRequested={ai} />
+            <ReportPanel title="Laudo de RX" findings={(rx ?? result.rx).findings} ai={(rx ?? result.rx).ai} aiRequested={ai} />
           </div>
           {result.rx.recon3d_available && (
             <section className="card no-print" aria-label="Reconstrução 3D">

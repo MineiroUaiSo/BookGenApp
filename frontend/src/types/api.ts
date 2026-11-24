@@ -196,6 +196,9 @@ export interface RXImageAnalysis {
   measurements: RXMeasurement[];
   model_scores: Record<string, number>;
   quality: Record<string, string>;
+  region_uncertain?: boolean;
+  region_conflict?: boolean;
+  tag_region?: BodyRegion | null;
 }
 
 export interface RXAnalysis {
