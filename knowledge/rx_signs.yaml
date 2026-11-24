@@ -1,0 +1,228 @@
+# Sinais radiológicos reescritos em português. Mesmos campos de ecg_criteria.yaml.
+domain: rx
+items:
+- id: rx.systematic_approach
+  domain: rx
+  label_pt: Abordagem sistemática do tórax (ABCDE)
+  criteria: >-
+    Ordem sugerida: identificação e qualidade técnica; vias aéreas (traqueia, carina, brônquios principais); ossos e partes moles (arcos costais,
+    clavículas, escápulas, coluna, mamas, enfisema subcutâneo); cardiomediastino (silhueta cardíaca, contornos mediastinais, hilos); diafragma e pleura
+    (cúpulas, seios costofrênicos, espaço pleural); pulmões comparados por zonas (superior, média, inferior; direita contra esquerda); áreas de revisão
+    (ápices, retrocardíaca, subdiafragmática, atrás do esterno, hilos); dispositivos e abdome superior (ar livre, bolha gástrica).
+  measurements_used: []
+  differentials: []
+  pitfalls: [Satisfação de busca - parar no primeiro achado.; Olhar o local do sintoma e esquecer áreas de revisão.]
+  references: [squire, brant_helms, felson_2025]
+- id: rx.technical_quality
+  domain: rx
+  label_pt: Qualidade técnica (RIP - rotação, inspiração, penetração)
+  criteria: >-
+    Rotação: extremidades mediais das clavículas equidistantes do processo espinhoso. Inspiração: 8 a 10 arcos posteriores (5 a 6 anteriores)
+    projetados acima do diafragma. Penetração: corpos vertebrais mal visíveis atrás do coração. Incidência AP (deitado ou sentado) amplia a silhueta
+    cardíaca e achata o mediastino; ângulo (lordótico) projeta as clavículas acima dos ápices.
+  measurements_used: [quality]
+  differentials: []
+  pitfalls: [Inspiração fraca simula cardiomegalia e opacidades basais.; Rotação simula desvio mediastinal e hilo aumentado.; Sobreexposição apaga lesões pequenas.]
+  references: [squire, brant_helms, felson_2025]
+- id: rx.silhouette_sign
+  domain: rx
+  label_pt: Sinal da silhueta
+  criteria: >-
+    Perda do contorno de uma estrutura mediastinal ou diafragmática quando uma opacidade de mesma densidade está em contato direto com ela.
+    Borda cardíaca direita (lobo médio), borda esquerda e língula, hemidiafragma (lobo inferior), aorta descendente (lobo inferior esquerdo posterior).
+    Sinal do hilo sobreposto: o hilo permanece visível, a lesão está à frente ou atrás, e não em contato.
+  measurements_used: []
+  differentials: [pneumonia, atelectasia, massa, derrame pleural]
+  pitfalls: [Pectus excavatum apaga a borda direita do coração sem doença pulmonar.]
+  references: [felson_2025, squire, brant_helms]
+- id: rx.air_bronchogram
+  domain: rx
+  label_pt: Broncograma aéreo
+  criteria: >-
+    Brônquios cheios de ar visíveis como linhas ou tubos radiolucentes em meio a opacidade do parênquima, indicando acometimento alveolar
+    com via aérea pérvia (consolidação). Ausência sugere obstrução brônquica, derrame ou massa.
+  measurements_used: []
+  differentials: [pneumonia, edema alveolar, hemorragia, atelectasia passiva, linfoma, adenocarcinoma lepídico]
+  pitfalls: [Pode estar presente em atelectasia de compressão sem obstrução.]
+  references: [fleischner_glossary, felson_2025, webb_higgins]
+- id: rx.cardiomegaly_ctr
+  domain: rx
+  label_pt: Cardiomegalia (índice cardiotorácico)
+  criteria: >-
+    Em PA em inspiração adequada, índice cardiotorácico (maior diâmetro cardíaco dividido pelo maior diâmetro torácico interno) acima de 0,50 em adulto
+    indica cardiomegalia provável. Em AP, recém-nascidos e crianças pequenas o limite é maior (até 0,60 em lactentes). Considerar aumento de câmaras,
+    derrame pericárdico (silhueta em moringa), padrão globoso.
+  measurements_used: [cardiothoracic_ratio]
+  differentials: [cardiomiopatia, valvopatia, derrame pericárdico, incidência AP, inspiração rasa, gordura epicárdica, pectus excavatum]
+  pitfalls: [Incidência AP deitado aumenta falsamente o ICT.; Medida em exame mal inspirado superestima.]
+  references: [felson_2025, squire, brant_helms]
+- id: rx.consolidation
+  domain: rx
+  label_pt: Consolidação do espaço aéreo
+  criteria: >-
+    Opacidade homogênea que oblitera vasos, com broncogramas aéreos, margens mal definidas ou limitadas por fissura, geralmente segmentar ou lobar,
+    sem perda importante de volume. Distribuição lobar sugere pneumonia bacteriana; bilateral perihilar em asa de borboleta, edema.
+  measurements_used: []
+  differentials: [pneumonia, edema pulmonar, hemorragia alveolar, aspiração, infarto pulmonar, neoplasia]
+  pitfalls: [Resolução radiológica lenta frente à clínica.; Em imunossuprimidos pode ser atípica ou ausente.]
+  references: [fleischner_glossary, felson_2025, fraser_pare]
+- id: rx.atelectasis
+  domain: rx
+  label_pt: Atelectasia (sinais diretos e indiretos)
+  criteria: >-
+    Sinais diretos: deslocamento de fissuras, aglomeração de vasos e broncogramas. Sinais indiretos: elevação do hemidiafragma, desvio da traqueia e do
+    mediastino para o lado doente, aproximação das costelas, elevação do hilo, hiperinsuflação compensatória do pulmão adjacente. Lobo superior direito:
+    sinal de S de Golden com massa hilar. Colapso lobar completo pode formar opacidade triangular.
+  measurements_used: [tracheal_deviation_mm]
+  differentials: [obstrução endobrônquica, tampão mucoso, neoplasia, derrame compressivo, pneumonia redonda, fibrose]
+  pitfalls: [Atelectasia laminar basal é comum e inespecífica em pós-operatório.]
+  references: [felson_2025, webb_higgins, brant_helms]
+- id: rx.pleural_effusion
+  domain: rx
+  label_pt: Derrame pleural
+  criteria: >-
+    Obliteração do seio costofrênico, menisco côncavo ascendente lateral, opacidade com borda superior curva e obliteração da cúpula (em PA, 200 mL ou mais
+    para velar seio; em perfil o seio posterior vela com 50 a 75 mL). Em decúbito, véu homogêneo em hemitórax. Loculado: forma lenticular. Desvio contralateral
+    do mediastino em derrame volumoso; ipsilateral sugere obstrução brônquica.
+  measurements_used: [costophrenic_angle]
+  differentials: [empiema, hemotórax, quilotórax, espessamento pleural, atelectasia, elevação diafragmática, massa pleural]
+  pitfalls: [Em decúbito dorsal pode haver apenas hipotransparência difusa do hemitórax.; Subpulmonar simula elevação da cúpula.]
+  references: [felson_2025, squire, webb_higgins]
+- id: rx.pneumothorax
+  domain: rx
+  label_pt: Pneumotórax
+  criteria: >-
+    Linha pleural visceral fina com ausência de trama vascular periférica à linha. Em ortostatismo, ar apical; em decúbito, sinal do sulco profundo,
+    hipertransparência subpulmonar e borda cardíaca nítida. Hipertensivo: desvio do mediastino contralateral, depressão do diafragma, alargamento de espaços
+    intercostais - diagnóstico clínico e urgência.
+  measurements_used: []
+  differentials: [bolha de enfisema, prega cutânea, borda da escápula, cateter, dobras de roupa]
+  pitfalls: [Pneumotórax anterior pode passar despercebido em decúbito.; Ausência da trama é decisiva; margem de escápula não é linha pleural.]
+  references: [felson_2025, squire, brant_helms]
+- id: rx.pneumoperitoneum
+  domain: rx
+  label_pt: Pneumoperitônio
+  criteria: >-
+    Ar livre sob as cúpulas diafragmáticas em ortostatismo ou semi-sentado (crescente subfrênico), em decúbito lateral esquerdo sobre o fígado, ou em decúbito
+    dorsal: sinal de Rigler (dupla parede), sinal do ligamento falciforme, sinal da cúpula, ar em fossa de Morrison.
+  measurements_used: []
+  differentials: [perfuração de víscera oca, pós-operatório, diálise peritoneal, interposição de cólon (Chilaiditi), pneumomediastino com dissecção]
+  pitfalls: [Chilaiditi mostra haustrações sob a cúpula; Ar após laparotomia pode persistir por dias.]
+  references: [abdominal_xray_made_easy, brant_helms, felson_2025]
+- id: rx.mediastinal_widening
+  domain: rx
+  label_pt: Alargamento do mediastino
+  criteria: >-
+    Largura do mediastino superior acima de 8 cm em PA (acima de 6 cm acima do arco aórtico) ou aumento relativo; avaliar contornos
+    (linhas paratraqueal, justaposição, janela aortopulmonar) e deslocamento da traqueia. Causas por compartimento: anterior (timo, tireoide, teratoma,
+    linfoma), médio (linfonodos, cisto), posterior (neurogênico, aorta).
+  measurements_used: [mediastinal_width]
+  differentials: [dissecção ou aneurisma aórtico, hemorragia mediastinal, linfonodomegalia, bócio mergulhante, massa tímica, gordura mediastinal, incidência AP]
+  pitfalls: [Radiografia AP em decúbito alarga o mediastino fisiologicamente.]
+  references: [felson_2025, webb_higgins, squire]
+- id: rx.hilar_enlargement
+  domain: rx
+  label_pt: Aumento hilar
+  criteria: >-
+    Hilos normalmente em concavidade, o esquerdo mais alto que o direito (até 2,5 cm). Aumento unilateral lobulado sugere linfonodomegalia ou massa;
+    bilateral simétrico sugere sarcoidose (1-2-3), linfoma, hipertensão pulmonar (artérias pulmonares dilatadas com poda periférica).
+  measurements_used: []
+  differentials: [sarcoidose, linfoma, tuberculose, câncer, hipertensão arterial pulmonar, embolia]
+  pitfalls: [Rotação do paciente assimetriza os hilos.]
+  references: [felson_2025, webb_higgins, fraser_pare]
+- id: rx.nodule_mass
+  domain: rx
+  label_pt: Nódulos e massas
+  criteria: >-
+    Nódulo até 3 cm e massa acima de 3 cm (Fleischner). Avaliar bordas (lisas, lobuladas, espiculadas), calcificação (benigna se central, laminada, em pipoca),
+    cavitação (parede espessa e irregular suspeita), crescimento (estabilidade de 2 anos clássica para sólidos) e multiplicidade (metástases em balão de canhão).
+  measurements_used: []
+  differentials: [neoplasia primária, metástases, granuloma, hamartoma, infecção, mamilos ou lesões cutâneas sobrepostas, osteófitos]
+  pitfalls: [Sombras de mamilos, botões e lesões costais simulam nódulos.; Nódulos menores de 1 cm são mal vistos no RX.]
+  references: [fleischner_glossary, felson_2025, fraser_pare]
+- id: rx.interstitial_pattern
+  domain: rx
+  label_pt: Padrões intersticiais
+  criteria: >-
+    Reticular (linhas finas entrelaçadas), nodular (nódulos pequenos, miliar quando 1-3 mm) e reticulonodular. Espessamento septal e peribrônquico, vidro fosco
+    sutil. Distribuição (apical, basal, perihilar, periférica) orienta o diagnóstico: fibrose pulmonar basal subpleural, sarcoidose perihilar e apical, edema
+    com Kerley e cuffing peribrônquico.
+  measurements_used: []
+  differentials: [edema pulmonar intersticial, fibrose pulmonar, sarcoidose, pneumonite, linfangite carcinomatosa, tuberculose miliar]
+  pitfalls: [Baixa inspiração acentua trama broncovascular e simula padrão intersticial.]
+  references: [fleischner_glossary, webb_higgins, fraser_pare]
+- id: rx.kerley_lines
+  domain: rx
+  label_pt: Linhas de Kerley
+  criteria: >-
+    Linhas B: finas, horizontais, de 1-2 cm, perpendiculares à pleura nos seios costofrênicos, do espessamento de septos interlobulares. Linhas A: oblíquas, longas,
+    nos campos superiores. Linhas C: reticulação difusa. Mais associadas a congestão por edema intersticial, também a linfangite e fibrose.
+  measurements_used: []
+  differentials: [edema cardiogênico, linfangite carcinomatosa, sarcoidose, pneumoconiose]
+  pitfalls: [Visibilidade só em bom exame com técnica adequada.]
+  references: [felson_2025, webb_higgins, squire]
+- id: rx.hyperinflation
+  domain: rx
+  label_pt: Hiperinsuflação
+  criteria: >-
+    Diafragmas retificados ou rebaixados (cúpula direita abaixo do 7º arco anterior ou 11º posterior), aumento do espaço retroesternal (acima de 2,5 cm em perfil),
+    coração em gota, campos hipertransparentes com rarefação vascular. Hipertransparência unilateral, considerar Swyer-James ou pneumotórax.
+  measurements_used: [diaphragm_height]
+  differentials: [DPOC/enfisema, asma, bronquiolite, obstrução em válvula, inspiração profunda]
+  pitfalls: [Paciente com inspiração forçada simula hiperinsuflação.]
+  references: [felson_2025, brant_helms, fraser_pare]
+- id: rx.bowel_obstruction
+  domain: rx
+  label_pt: Obstrução intestinal (delgado e cólon)
+  criteria: >-
+    Regra 3-6-9: delgado dilatado acima de 3 cm, cólon acima de 6 cm, ceco acima de 9 cm. Delgado: alças centrais, válvulas coniventes cruzando todo o lúmen, níveis
+    hidroaéreos em degraus, pouco gás no cólon. Cólon: distensão periférica com haustrações que não cruzam todo o diâmetro, ceco dilatado, válvula ileocecal
+    competente ou não. Alça fechada e volvo (sinal do grão de café) são emergências.
+  measurements_used: []
+  differentials: [íleo adinâmico, pseudo-obstrução (Ogilvie), obstrução mecânica, volvo de sigmoide, megacólon tóxico]
+  pitfalls: [Gás gástrico e cólon normais variam.; Radiografia isolada tem sensibilidade limitada, TC se suspeita.]
+  references: [abdominal_xray_made_easy, squire, brant_helms]
+- id: rx.lateral_landmarks
+  domain: rx
+  label_pt: Perfil - espaços e marcos
+  criteria: >-
+    Espaço claro retroesternal (retrocardíaco anterior) deve ser hipertransparente e sem preenchimento (massas mediastinais anteriores, linfonodos); espaço
+    retrocardíaco claro (entre coração e coluna) sem opacidade. Sinal da coluna: a transparência dos corpos vertebrais deve aumentar de cima para baixo;
+    perda (vértebras mais opacas inferiormente) indica derrame pleural ou consolidação de lobo inferior (sinal da coluna positivo). Fissura oblíqua e
+    cúpulas diafragmáticas (a direita visível até o fim do gradil costal).
+  measurements_used: []
+  differentials: [consolidação de lobo inferior, derrame pleural, massa mediastinal anterior, atelectasia]
+  pitfalls: [Rotação e braços mal posicionados sobrepõem estruturas ao esterno.]
+  references: [felson_2025, squire, webb_higgins]
+- id: rx.normal_variants
+  domain: rx
+  label_pt: Variantes normais e armadilhas
+  criteria: >-
+    Veia ázigos em sinal de lágrima na traqueia direita, costelas cervicais, fissura da ázigos, pectus excavatum, gordura epicárdica ou pericárdica,
+    mamilos e sombras mamárias, ossificação de cartilagens costais, bandas de pele, dobras de pele de lactentes, ilha óssea, timo da criança (sinal da vela).
+    Costelas bífidas e hipoplasia da clavícula são variantes.
+  measurements_used: []
+  differentials: [nódulo, pneumotórax, massa mediastinal]
+  pitfalls: [Comparar com exame anterior; considerar TC se dúvida.]
+  references: [keats_variants, felson_2025, squire]
+- id: rx.devices
+  domain: rx
+  label_pt: Dispositivos e posicionamento
+  criteria: >-
+    Tubo endotraqueal: ponta 3-5 cm acima da carina (cabeça em posição neutra). Cateter venoso central: ponta na veia cava superior distal ou junção cavoatrial,
+    sem alça. Sonda nasogástrica: abaixo do diafragma, sem alça torácica. Dreno torácico: orifícios laterais dentro da cavidade. Marca-passo: eletrodos
+    no VD (ápice) e AD. Pesquisar pneumotórax pós-inserção.
+  measurements_used: []
+  differentials: [intubação seletiva, mau posicionamento, pneumotórax iatrogênico]
+  pitfalls: [Flexão e extensão da cabeça movem o tubo até 2 cm.]
+  references: [felson_2025, brant_helms, squire]
+- id: rx.extremity_bone
+  domain: rx
+  label_pt: Radiografia de extremidades e coluna
+  criteria: >-
+    Pelo menos duas incidências ortogonais; avaliar alinhamento, cortical, trabeculado, linhas de fratura, articulação (espaço, erosões), partes moles
+    (derrame articular, gás). Descrever a fratura segundo traço, localização, desvio, angulação e envolvimento articular.
+  measurements_used: []
+  differentials: [fratura, luxação, osteoartrite, lesão lítica, osteomielite]
+  pitfalls: [Placa fisária e ossos acessórios simulam fraturas.]
+  references: [greenspan, brant_helms, weir_abrahams]

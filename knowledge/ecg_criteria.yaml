@@ -1,0 +1,359 @@
+# Critérios de ECG reescritos em português; limiares numéricos conforme as fontes citadas.
+# Campos: id, domain, label_pt, criteria, measurements_used, differentials, pitfalls, references
+domain: ecg
+items:
+- id: ecg.normal_intervals
+  domain: ecg
+  label_pt: Intervalos e durações normais
+  criteria: >-
+    Onda P até 110-120 ms e até 2,5 mm de amplitude; PR entre 120 e 200 ms; QRS abaixo de 120 ms
+    (valores até ~110 ms são habituais); QTc em geral abaixo de 450 ms no homem e 460 ms na mulher;
+    eixo do QRS entre -30 e +90 graus no plano frontal; FC de repouso entre 60 e 100 bpm.
+  measurements_used: [p_duration_ms, pr_ms, qrs_ms, qtc_bazett_ms, qrs_axis_deg, heart_rate_bpm]
+  differentials: [variante normal, atleta, efeito de fármacos]
+  pitfalls: [Intervalos medidos em uma só derivação subestimam o valor real; usar a derivação com o intervalo mais longo ou a mediana multiderivação.]
+  references: [goldberger_2023, aha_2009_part_iv, sbc_laudos_2022]
+- id: ecg.sinus_rhythm
+  domain: ecg
+  label_pt: Ritmo sinusal
+  criteria: >-
+    Onda P positiva em DI, DII e aVF e negativa em aVR, precedendo cada QRS com PR constante,
+    eixo da P entre 0 e +75 graus, frequência 50-100 bpm. Arritmia sinusal respiratória
+    (variação de RR acima de 120 ms entre batimentos) é fisiológica e frequente em jovens.
+  measurements_used: [p_axis_deg, pr_ms, heart_rate_bpm, rr_sd_ms]
+  differentials: [ritmo atrial ectópico, ritmo juncional, troca de eletrodos]
+  pitfalls: [P negativa em DI sugere troca de eletrodos de braços ou dextrocardia., P invisível não é automaticamente fibrilação atrial; checar V1 e DII longo.]
+  references: [goldberger_2023, marriott, sbc_laudos_2022]
+- id: ecg.sinus_bradycardia
+  domain: ecg
+  label_pt: Bradicardia sinusal
+  criteria: >-
+    Ritmo sinusal com FC abaixo de 50 bpm (muitos serviços usam 60 bpm como corte
+    convencional). Comum em atletas e durante o sono; investigar se sintomática, com pausas
+    sinusais acima de 3 s ou associada a bloqueios.
+  measurements_used: [heart_rate_bpm, rr_mean_ms]
+  differentials: [atleta, uso de betabloqueador ou antiarrítmico, hipotireoidismo, doença do nó sinusal, hipertensão intracraniana, hipotermia]
+  pitfalls: [BAV 2:1 com P bloqueada oculta na T pode simular bradicardia sinusal.]
+  references: [goldberger_2023, esc_brady_2021]
+- id: ecg.sinus_tachycardia
+  domain: ecg
+  label_pt: Taquicardia sinusal
+  criteria: >-
+    Ritmo sinusal com FC acima de 100 bpm, início e término gradativos, P de morfologia sinusal.
+    Raramente ultrapassa 220 menos a idade. Se FC fixa em torno de 150 bpm, suspeitar de flutter 2:1.
+  measurements_used: [heart_rate_bpm, p_axis_deg]
+  differentials: [febre, dor, hipovolemia, anemia, tireotoxicose, embolia pulmonar, taquicardia atrial, flutter 2:1, TSVP]
+  pitfalls: [Em FC alta a P se funde à T precedente; reconhecer a P exige comparar derivações.]
+  references: [goldberger_2023, marriott]
+- id: ecg.atrial_fibrillation
+  domain: ecg
+  label_pt: Fibrilação atrial
+  criteria: >-
+    Intervalos RR irregularmente irregulares, ausência de ondas P definidas, atividade atrial
+    fibrilatória (ondulações finas ou grosseiras, mais visíveis em V1 e DII). QRS geralmente estreito.
+    Resposta ventricular lenta pode sugerir doença do sistema de condução ou fármacos.
+  measurements_used: [rr_sd_ms, rr_mean_ms, heart_rate_bpm, p_duration_ms]
+  differentials: [flutter atrial com condução variável, taquicardia atrial multifocal, ritmo sinusal com extrassístoles frequentes, artefato por tremor]
+  pitfalls: [Tremor parkinsoniano ou interferência simulam ondas f.; Regularização do RR com QRS largo sugere BAV total com ritmo de escape (intoxicação digitálica).]
+  references: [goldberger_2023, marriott, sbc_laudos_2022]
+- id: ecg.atrial_flutter
+  domain: ecg
+  label_pt: Flutter atrial
+  criteria: >-
+    Atividade atrial regular em dentes de serra (ondas F) a 250-350 bpm, mais evidente em DII, DIII,
+    aVF e V1; condução AV 2:1 gera FC ventricular ~150 bpm, 4:1 ~75 bpm. Típico anti-horário: F negativa
+    nas inferiores e positiva em V1.
+  measurements_used: [heart_rate_bpm, rr_mean_ms, rr_sd_ms]
+  differentials: [taquicardia atrial, taquicardia sinusal com P sobre T, fibrilação atrial]
+  pitfalls: [FC próxima de 150 bpm fixa deve levantar flutter 2:1., Manobra vagal ou adenosina pode revelar as ondas F.]
+  references: [goldberger_2023, marriott]
+- id: ecg.av_block_1
+  domain: ecg
+  label_pt: Bloqueio atrioventricular de 1º grau
+  criteria: >-
+    Todas as P conduzidas, com PR constante acima de 200 ms. PR acima de 300 ms pode causar sobreposição
+    de P à T anterior (pseudo-síndrome do marca-passo).
+  measurements_used: [pr_ms, p_duration_ms]
+  differentials: [tônus vagal aumentado, betabloqueador, bloqueador de canal de cálcio, digital, doença de Lyme, endocardite, cardiopatia isquêmica inferior]
+  pitfalls: [PR é medido do início da P ao início do QRS, incluindo a repolarização atrial; Início impreciso da P em ruído leva a PR superestimado.]
+  references: [goldberger_2023, aha_2009_part_iii, esc_brady_2021]
+- id: ecg.av_block_mobitz1
+  domain: ecg
+  label_pt: BAV 2º grau Mobitz I (Wenckebach)
+  criteria: >-
+    Alargamento progressivo do PR até uma P bloqueada, com encurtamento do RR antes da pausa e pausa menor
+    que dois ciclos. Geralmente QRS estreito, bloqueio no nó AV. Primeiro PR após a pausa é o mais curto.
+  measurements_used: [pr_ms, rr_mean_ms, rr_sd_ms]
+  differentials: [Mobitz II, extrassístole atrial bloqueada, BAV 2:1]
+  pitfalls: [Em grupos longos o incremento do PR é pequeno e pode passar despercebido; usar compasso.]
+  references: [goldberger_2023, marriott, esc_brady_2021]
+- id: ecg.av_block_mobitz2
+  domain: ecg
+  label_pt: BAV 2º grau Mobitz II
+  criteria: >-
+    P bloqueadas súbitas com PR constante nos batimentos conduzidos antes e depois do bloqueio. Costuma ter
+    QRS largo (bloqueio infranodal) e maior risco de progressão para BAVT; é indicação potencial de marca-passo.
+  measurements_used: [pr_ms, qrs_ms]
+  differentials: [Mobitz I com QRS largo, extrassístole atrial bloqueada, BAV 2:1, BAV avançado]
+  pitfalls: [Exige pelo menos duas P conduzidas consecutivas para afirmar PR constante.]
+  references: [goldberger_2023, marriott, esc_brady_2021]
+- id: ecg.av_block_2to1
+  domain: ecg
+  label_pt: BAV 2:1
+  criteria: >-
+    Uma P conduzida alternada com uma P bloqueada; não é possível classificar como Mobitz I ou II só pelo
+    traçado. QRS largo e PR conduzido normal favorecem bloqueio infranodal; QRS estreito e PR longo, nodal.
+    Frequência atrial é o dobro da ventricular.
+  measurements_used: [heart_rate_bpm, pr_ms, qrs_ms]
+  differentials: [Mobitz I, Mobitz II, bigeminismo atrial bloqueado, bradicardia sinusal]
+  pitfalls: [P bloqueada escondida na T gera falsa impressão de bradicardia sinusal.]
+  references: [goldberger_2023, esc_brady_2021]
+- id: ecg.av_block_3
+  domain: ecg
+  label_pt: BAV total (3º grau)
+  criteria: >-
+    Dissociação AV completa: ondas P regulares (frequência maior) sem relação com QRS e escape ventricular
+    regular lento (juncional 40-60 bpm com QRS estreito; ventricular 20-40 bpm com QRS largo). PR variável.
+  measurements_used: [heart_rate_bpm, qrs_ms, rr_sd_ms]
+  differentials: [dissociação AV isoritmica, BAV avançado, fibrilação atrial com bloqueio completo]
+  pitfalls: [Na dissociação isoritmica as P e QRS têm frequências próximas e há conduções ocasionais; não é bloqueio.]
+  references: [goldberger_2023, marriott, esc_brady_2021]
+- id: ecg.rbbb
+  domain: ecg
+  label_pt: Bloqueio de ramo direito (completo e incompleto)
+  criteria: >-
+    Completo: QRS de 120 ms ou mais, padrão rsR' (ou rSR') em V1-V2 com R' ampla, onda S larga e empastada
+    em DI e V6, deflexão intrinsecoide em V1 acima de 50 ms. Incompleto: QRS de 110 a 119 ms com mesma morfologia.
+    Alterações secundárias de ST-T em V1-V3 (T invertida) são esperadas.
+  measurements_used: [qrs_ms, intrinsicoid_deflection_ms]
+  differentials: [variante normal rSr' sem alargamento, sobrecarga de VD, Brugada tipo 2, dextrocardia, pectus excavatum, embolia pulmonar, CIA]
+  pitfalls: [BRD isolado não permite diagnosticar IAM por ST-T; Q patológica ainda é interpretável em outras paredes.]
+  references: [aha_2009_part_iii, goldberger_2023, sbc_laudos_2022]
+- id: ecg.lbbb
+  domain: ecg
+  label_pt: Bloqueio de ramo esquerdo
+  criteria: >-
+    QRS de 120 ms ou mais, onda R larga, com entalhe ou empastamento, em DI, aVL, V5 e V6, sem onda Q
+    septal em DI, V5 e V6; rS ou QS em V1-V2; atraso da deflexão intrinsecoide em V5-V6 acima de 60 ms. Critérios
+    estritos (Strauss): QRS de 140 ms ou mais no homem e 130 ms ou mais na mulher, com entalhe no meio do QRS
+    em duas derivações contíguas. ST-T discordantes ao QRS são esperados. Incompleto: 110-119 ms.
+  measurements_used: [qrs_ms, intrinsicoid_deflection_ms, qrs_axis_deg]
+  differentials: [estimulação ventricular direita, hipertrofia VE com atraso, hipercalemia, WPW, IAM prévio]
+  pitfalls: [Diagnóstico de isquemia aguda no BRE usa critérios de Sgarbossa (concordância de ST).]
+  references: [aha_2009_part_iii, goldberger_2023, marriott]
+- id: ecg.lafb
+  domain: ecg
+  label_pt: Bloqueio divisional anterossuperior esquerdo (BDAS)
+  criteria: >-
+    Desvio do eixo para esquerda entre -45 e -90 graus, padrão qR em DI e aVL, rS em DII, DIII e aVF (S3 maior
+    que S2), QRS abaixo de 120 ms, tempo de pico da R em aVL de 45 ms ou mais.
+  measurements_used: [qrs_axis_deg, qrs_ms]
+  differentials: [infarto inferior (Q em inferiores), hipertrofia VE, DPOC, hipercalemia]
+  pitfalls: [Pode simular ou mascarar Q septal em V1-V3 com perda de progressão da R.]
+  references: [aha_2009_part_iii, goldberger_2023, marriott]
+- id: ecg.lpfb
+  domain: ecg
+  label_pt: Bloqueio divisional posteroinferior esquerdo (BDPI)
+  criteria: >-
+    Desvio do eixo para direita de +90 a +180 graus, padrão rS em DI e aVL, qR em DII, DIII e aVF,
+    QRS abaixo de 120 ms, após excluir hipertrofia de VD, enfisema, infarto lateral e dextrocardia. Muito raro isolado.
+  measurements_used: [qrs_axis_deg, qrs_ms]
+  differentials: [sobrecarga de VD, infarto lateral alto, DPOC, biótipo longilíneo, dextrocardia, troca de eletrodos]
+  pitfalls: [Troca de eletrodos de braços simula desvio de eixo à direita.]
+  references: [aha_2009_part_iii, goldberger_2023]
+- id: ecg.wpw
+  domain: ecg
+  label_pt: Pré-excitação ventricular (padrão Wolff-Parkinson-White)
+  criteria: >-
+    PR curto (abaixo de 120 ms), onda delta (empastamento inicial do QRS), QRS alargado (acima de 110 ms)
+    com alterações secundárias de ST-T. Localização da via acessória pela polaridade da delta. Com
+    fibrilação atrial, resposta rápida irregular com QRS largo e variável é emergência.
+  measurements_used: [pr_ms, qrs_ms, p_duration_ms]
+  differentials: [pseudo-infarto (Q delta), BRE/BRD, ritmo de escape, hipercalemia, síndrome de Lown-Ganong-Levine (obsoleta)]
+  pitfalls: [Pré-excitação intermitente ou latente pode ocultar a delta.; Pode simular IAM, hipertrofia e bloqueios.]
+  references: [goldberger_2023, marriott, chou]
+- id: ecg.rae
+  domain: ecg
+  label_pt: Sobrecarga atrial direita
+  criteria: >-
+    Onda P alta e apiculada (acima de 2,5 mm) em DII, DIII e aVF (P pulmonale), componente inicial da P em V1
+    positivo acima de 1,5 mm. Duração normal da P.
+  measurements_used: [p_amplitude_mv, p_duration_ms]
+  differentials: [DPOC, hipertensão pulmonar, estenose pulmonar, cardiopatia congênita, taquicardia sinusal]
+  pitfalls: [Calibração errada (ganho 20 mm/mV) superestima amplitudes.]
+  references: [aha_2009_part_v, goldberger_2023]
+- id: ecg.lae
+  domain: ecg
+  label_pt: Sobrecarga atrial esquerda
+  criteria: >-
+    P com duração acima de 120 ms em DII, frequentemente bífida (P mitrale, intervalo entre picos acima de 40 ms),
+    e componente terminal negativo em V1 (índice de Morris) com profundidade de 1 mm ou mais e duração de 40 ms ou mais.
+  measurements_used: [p_duration_ms]
+  differentials: [estenose ou insuficiência mitral, hipertensão, cardiomiopatia, bloqueio interatrial]
+  pitfalls: [Filtros de baixa frequência distorcem a P.]
+  references: [aha_2009_part_v, goldberger_2023]
+- id: ecg.lvh
+  domain: ecg
+  label_pt: Sobrecarga ventricular esquerda
+  criteria: >-
+    Sokolow-Lyon: S de V1 mais R de V5 ou V6 acima de 35 mm. R em aVL acima de 11 mm. Cornell: R de aVL mais S de V3
+    acima de 28 mm no homem ou 20 mm na mulher (voltagem em mm, 10 mm = 1 mV). Romhilt-Estes: 5 pontos ou mais indicam
+    HVE definida, 4 pontos provável (voltagem 3, ST-T em strain 3, SAE 3, desvio do eixo para esquerda 2, QRS acima de 90 ms 1,
+    deflexão intrinsecoide acima de 50 ms 1). Os critérios de voltagem têm alta especificidade e baixa sensibilidade.
+  measurements_used: [sokolow_lyon_mv, cornell_mv, qrs_axis_deg, qrs_ms]
+  differentials: [atleta, jovem magro, BRE, WPW, cardiomiopatia hipertrófica, estenose aórtica, hipertensão]
+  pitfalls: [Voltagens altas em jovens e atletas são frequentes sem HVE.; Obesidade e DPOC reduzem voltagem e o critério perde sensibilidade.]
+  references: [aha_2009_part_v, goldberger_2023, sbc_laudos_2022]
+- id: ecg.rvh
+  domain: ecg
+  label_pt: Sobrecarga ventricular direita
+  criteria: >-
+    R dominante em V1 (R/S acima de 1), R em V1 acima de 7 mm, S profunda em V5-V6, eixo do QRS desviado para a direita
+    (acima de +110 graus), padrão qR em V1, ST-T em strain em V1-V3 e SAD associada.
+  measurements_used: [qrs_axis_deg, r_amplitude_mv, s_amplitude_mv, precordial_transition]
+  differentials: [BRD, infarto posterior, WPW tipo A, dextrocardia, miocardiopatia hipertrófica, variante em crianças, DPOC]
+  pitfalls: [R alta em V1 também ocorre em infarto posterior.; Critérios têm baixa sensibilidade.]
+  references: [aha_2009_part_v, goldberger_2023, marriott]
+- id: ecg.st_elevation_stemi
+  domain: ecg
+  label_pt: Supradesnivelamento de ST (critérios para IAMCSST)
+  criteria: >-
+    Elevação do ponto J em duas derivações contíguas: 1 mm ou mais em todas as derivações exceto V2-V3. Em V2-V3:
+    2 mm ou mais em homens com 40 anos ou mais, 2,5 mm ou mais em homens com menos de 40 anos, 1,5 mm ou mais em mulheres
+    de qualquer idade. Em V3R-V4R e V7-V9: 0,5 mm (0,25 mm em homem abaixo de 30 em V3R-V4R). Territórios: anterior V1-V4,
+    lateral DI, aVL, V5-V6, inferior DII, DIII, aVF, posterior V7-V9 (infra de V1-V3 com R alta), VD V3R-V4R.
+    Imagem em espelho (infra de ST recíproco) reforça a causa isquêmica.
+  measurements_used: [st_j_mv, st_j60_mv, st_j80_mv]
+  differentials: [pericardite, repolarização precoce, aneurisma de VE, BRE, Brugada, hipercalemia, miocardite, síndrome de Takotsubo, embolia pulmonar]
+  pitfalls: [Calibração e linha de base alteram o ST.; Elevação difusa sem recíproca sugere pericardite.; Oclusão coronariana pode ocorrer sem critérios de IAMCSST (OMI).]
+  references: [udmi4_2018, aha_2009_part_vi, goldberger_2023]
+- id: ecg.st_depression
+  domain: ecg
+  label_pt: Infradesnivelamento de ST
+  criteria: >-
+    Depressão do ponto J de 0,5 mm ou mais em duas derivações contíguas (UDMI4: 0,5 mm; V2-V3 0,5 mm), horizontal ou
+    descendente, sugere isquemia subendocárdica; infra de V1-V3 com R alta e T positiva sugere infarto posterior.
+    Infra difusa com elevação em aVR sugere isquemia de tronco ou multiarterial.
+  measurements_used: [st_j_mv, st_j60_mv, st_j80_mv]
+  differentials: [efeito digitálico, sobrecarga ventricular com strain, hipocalemia, taquicardia, isquemia subendocárdica, infarto posterior]
+  pitfalls: [Infra ascendente rápido em taquicardia é frequentemente fisiológico.]
+  references: [udmi4_2018, aha_2009_part_vi, goldberger_2023]
+- id: ecg.q_waves
+  domain: ecg
+  label_pt: Ondas Q patológicas
+  criteria: >-
+    UDMI4: onda Q de 30 ms ou mais e 1 mm ou mais de profundidade em duas derivações contíguas (exceto aVR), qualquer Q de
+    20 ms ou mais ou QS em V2-V3. Critério clássico adicional: Q com 40 ms ou mais ou com profundidade acima de 25 por cento
+    da R seguinte. Q em DIII, aVR e V1 isolada pode ser normal. Indica necrose prévia ou perda de forças elétricas.
+  measurements_used: [q_amplitude_mv, q_duration_ms, r_amplitude_mv]
+  differentials: [infarto prévio, cardiomiopatia hipertrófica, pré-excitação, BRE, hipertrofia, DPOC, posição do coração, cardiomiopatia infiltrativa]
+  pitfalls: [Q septais normais em DI, aVL, V5-V6 são pequenas (abaixo de 30 ms).]
+  references: [udmi4_2018, aha_2009_part_vi, goldberger_2023]
+- id: ecg.long_qt
+  domain: ecg
+  label_pt: QT longo
+  criteria: >-
+    QTc acima de 450 ms no homem e 460 ms na mulher é prolongado; acima de 500 ms indica alto risco de torsades.
+    Preferir fórmulas de Fridericia ou Framingham quando FC fora de 60-90 (Bazett superestima em taquicardia).
+    Medir do início do QRS ao final da T (interseção da tangente), na derivação mais longa (DII ou V5), excluindo U distinta.
+    Em QRS largo, subtrair o excesso de alargamento.
+  measurements_used: [qt_ms, qtc_bazett_ms, qtc_fridericia_ms, qtc_framingham_ms, qtc_hodges_ms, heart_rate_bpm]
+  differentials: [síndrome do QT longo congênito, fármacos, hipocalemia, hipomagnesemia, hipocalcemia, bradicardia, isquemia, AVC]
+  pitfalls: [Onda U fusionada à T aumenta o QT falsamente.; Em fibrilação atrial usar média de vários batimentos.]
+  references: [aha_2009_part_iv, goldberger_2023, chou]
+- id: ecg.short_qt
+  domain: ecg
+  label_pt: QT curto
+  criteria: >-
+    QTc abaixo de 340-360 ms (limiar usado em diretrizes varia; 340 ms aceito para diagnóstico em muitos serviços), com
+    T apiculada e simétrica. Relacionado a síndrome do QT curto, hipercalcemia, hipercalemia, digital, acidose e febre.
+  measurements_used: [qt_ms, qtc_bazett_ms, qtc_fridericia_ms, heart_rate_bpm]
+  differentials: [síndrome do QT curto, hipercalcemia, efeito digitálico, hipercalemia]
+  pitfalls: [Taquicardia faz o Bazett superestimar; já em bradicardia subestima.]
+  references: [aha_2009_part_iv, goldberger_2023]
+- id: ecg.hyperkalemia
+  domain: ecg
+  label_pt: Padrão de hipercalemia
+  criteria: >-
+    Sequência com a elevação do potássio: T alta, estreita e simétrica (tenda) nas precordiais; PR prolongado e P achatada ou ausente;
+    alargamento do QRS; fusão QRS-ST-T (padrão sinusoidal), bradicardia, FV ou assistolia. Os achados não se correlacionam perfeitamente
+    com o nível sérico.
+  measurements_used: [t_amplitude_mv, qrs_ms, pr_ms, p_amplitude_mv]
+  differentials: [repolarização precoce, isquemia hiperaguda, HVE, BRE, pericardite]
+  pitfalls: [ECG normal não exclui hipercalemia.; T alta isolada também ocorre na fase hiperaguda do IAM.]
+  references: [goldberger_2023, chou, marriott]
+- id: ecg.hypokalemia
+  domain: ecg
+  label_pt: Padrão de hipocalemia
+  criteria: >-
+    Infra de ST, T achatada ou invertida, onda U proeminente (maior que a T em V2-V3), QT-U longo aparente, extrassístoles e
+    risco de taquicardias polimórficas. Hipomagnesemia e hipocalcemia contribuem.
+  measurements_used: [st_j_mv, t_amplitude_mv, qt_ms]
+  differentials: [efeito digitálico, isquemia, HVE, fármacos, bulimia]
+  pitfalls: [QT longo aparente é na verdade QU; medir QT pode ser enganoso.]
+  references: [goldberger_2023, chou, aha_2009_part_iv]
+- id: ecg.brugada
+  domain: ecg
+  label_pt: Padrão de Brugada
+  criteria: >-
+    Tipo 1: elevação do ponto J de 2 mm ou mais em V1-V2 (às vezes V3), ST descendente em abóbada (coved) com T invertida.
+    Tipo 2: ST em sela (J acima de 2 mm, ST acima de 1 mm) com T positiva ou bifásica. Ocorre com variação espontânea ou provocada por
+    bloqueador de sódio; colocar V1-V2 em 2º e 3º espaços altera. Diagnóstico exige contexto clínico.
+  measurements_used: [st_j_mv, qrs_ms]
+  differentials: [BRD incompleto, repolarização precoce, pectus excavatum, HVE, embolia pulmonar, hipercalemia, febre, DAVD]
+  pitfalls: [Padrão induzido por febre ou fármacos.; Eletrodos de V1-V2 posicionados no espaço errado mudam a morfologia.]
+  references: [goldberger_2023, bayes_de_luna, chou]
+- id: ecg.pericarditis
+  domain: ecg
+  label_pt: Pericardite aguda
+  criteria: >-
+    Supra de ST côncavo e difuso (DI, DII, aVL, aVF, V2-V6) sem alterações recíprocas, exceto aVR e às vezes V1 com infra de ST;
+    infra de PR (supra em aVR). Evolução em estágios: ST elevado, normalização, T invertida, normalização. Sem Q patológica.
+  measurements_used: [st_j_mv, pr_ms, t_amplitude_mv]
+  differentials: [IAMCSST, repolarização precoce, miocardite, Takotsubo, hipercalemia, BRE]
+  pitfalls: [Razão ST/T em V6 acima de 0,25 favorece pericardite sobre repolarização precoce.]
+  references: [goldberger_2023, marriott, chou]
+- id: ecg.early_repolarization
+  domain: ecg
+  label_pt: Repolarização precoce
+  criteria: >-
+    Elevação do ponto J de 1 mm ou mais em duas derivações contíguas inferiores ou laterais, com entalhe ou empastamento
+    no final do QRS, ST côncavo e T alta, frequente em jovens, homens e atletas. Padrão com ST horizontal ou descendente nas
+    inferiores é associado a maior risco arrítmico.
+  measurements_used: [st_j_mv, st_j60_mv, t_amplitude_mv]
+  differentials: [pericardite, IAMCSST, Brugada, hipercalemia]
+  pitfalls: [Sem recíprocas e sem evolução seriada reforça variante normal.]
+  references: [goldberger_2023, chou, aha_2009_part_iv]
+- id: ecg.low_voltage
+  domain: ecg
+  label_pt: Baixa voltagem
+  criteria: >-
+    Amplitude pico a pico do QRS abaixo de 5 mm em todas as derivações do plano frontal ou abaixo de 10 mm em todas as
+    precordiais. Associa-se a derrame pericárdico (com alternância elétrica), DPOC, obesidade, anasarca, cardiomiopatias infiltrativas,
+    hipotireoidismo.
+  measurements_used: [r_amplitude_mv, s_amplitude_mv, sokolow_lyon_mv]
+  differentials: [derrame pericárdico, DPOC, obesidade, amiloidose, mixedema, derrame pleural esquerdo]
+  pitfalls: [Calibração a 5 mm/mV simula baixa voltagem.]
+  references: [goldberger_2023, marriott]
+- id: ecg.axis_deviation
+  domain: ecg
+  label_pt: Desvios do eixo elétrico do QRS
+  criteria: >-
+    Normal de -30 a +90 graus. Desvio à esquerda: de -30 a -90 (QRS predominantemente negativo em DII; positivo em DI). Desvio à direita:
+    acima de +90 a +180 (QRS negativo em DI). Eixo indeterminado ("noroeste"): de -90 a 180 (negativo em DI e aVF).
+    Interpretação com derivações DI e aVF: ambos positivos, eixo normal.
+  measurements_used: [qrs_axis_deg]
+  differentials: [BDAS, BDPI, HVE, infarto inferior, sobrecarga de VD, troca de eletrodos, dextrocardia, variante normal]
+  pitfalls: [P e QRS negativos em DI sugerem troca de eletrodos de braços.]
+  references: [goldberger_2023, marriott, aha_2009_part_iii]
+- id: ecg.t_wave_abnormal
+  domain: ecg
+  label_pt: Alterações da onda T
+  criteria: >-
+    T normalmente positiva em DI, DII, V3-V6 e negativa em aVR; invertida em V1 e às vezes V2 (V3 em mulheres). T invertida simétrica
+    profunda em derivações contíguas sugere isquemia (Wellens: inversão profunda ou bifásica em V2-V3 com ST normal); T alta com base larga
+    sugere fase hiperaguda. T invertida com strain (assimétrica) em HVE.
+  measurements_used: [t_amplitude_mv, t_axis_deg]
+  differentials: [isquemia, Wellens, HVE com strain, embolia pulmonar, hemorragia subaracnóidea, pós-marca-passo, padrão juvenil]
+  pitfalls: [T negativa isolada em DIII ou aVL é frequentemente inespecífica.]
+  references: [aha_2009_part_iv, goldberger_2023, marriott]

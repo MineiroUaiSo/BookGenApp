@@ -1,0 +1,17 @@
+# ecg
+neurokit2
+wfdb
+opencv-python-headless
+# rx
+torch
+torchvision
+torchxrayvision
+# recon
+trimesh
+# ai
+anthropic
+# compressed DICOM / HEIC
+pylibjpeg
+pylibjpeg-libjpeg
+pylibjpeg-openjpeg
+pillow-heif

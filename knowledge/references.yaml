@@ -1,0 +1,129 @@
+# Mapa id -> citação completa. Apenas citações; nenhum texto protegido é copiado.
+# "edition: verificar" = edição/ano a confirmar antes de uso formal.
+goldberger_2023:
+  title: "Goldberger's Clinical Electrocardiography: A Simplified Approach"
+  authors: "Goldberger AL, Goldberger ZD, Shvilkin A"
+  edition: "10ª ed."
+  year: 2023
+  publisher: Elsevier
+marriott:
+  title: "Wagner & Strauss Marriott's Practical Electrocardiography"
+  authors: "Wagner GS, Strauss DG"
+  edition: "13ª ed."
+  year: 2014
+  publisher: Wolters Kluwer
+chou:
+  title: "Chou's Electrocardiography in Clinical Practice (Surawicz & Knilans)"
+  authors: "Surawicz B, Knilans TK"
+  edition: "6ª ed."
+  year: 2008
+  publisher: Saunders
+bayes_de_luna:
+  title: "Clinical Electrocardiography: A Textbook"
+  authors: "Bayés de Luna A"
+  edition: "4ª ed."
+  year: 2012
+  publisher: Wiley-Blackwell
+aha_2007_part_i:
+  title: "AHA/ACCF/HRS Recommendations for the Standardization and Interpretation of the ECG. Part I: The ECG and Its Technology"
+  authors: "Kligfield P, et al."
+  year: 2007
+  journal: "Circulation 115:1306-1324"
+aha_2009_part_ii:
+  title: "AHA/ACCF/HRS Recommendations ... Part II: Electrocardiography Diagnostic Statement List"
+  authors: "Mason JW, et al."
+  year: 2007
+  journal: "Circulation 115:1325-1332"
+aha_2009_part_iii:
+  title: "AHA/ACCF/HRS Recommendations ... Part III: Intraventricular Conduction Disturbances"
+  authors: "Surawicz B, et al."
+  year: 2009
+  journal: "Circulation 119:e235-e240"
+aha_2009_part_iv:
+  title: "AHA/ACCF/HRS Recommendations ... Part IV: The ST Segment, T and U Waves, and the QT Interval"
+  authors: "Rautaharju PM, et al."
+  year: 2009
+  journal: "Circulation 119:e241-e250"
+aha_2009_part_v:
+  title: "AHA/ACCF/HRS Recommendations ... Part V: Electrocardiogram Changes Associated With Cardiac Chamber Hypertrophy"
+  authors: "Hancock EW, et al."
+  year: 2009
+  journal: "Circulation 119:e251-e261"
+aha_2009_part_vi:
+  title: "AHA/ACCF/HRS Recommendations ... Part VI: Acute Ischemia/Infarction"
+  authors: "Wagner GS, et al."
+  year: 2009
+  journal: "Circulation 119:e262-e270"
+sbc_laudos_2022:
+  title: "Diretriz da Sociedade Brasileira de Cardiologia sobre Análise e Emissão de Laudos Eletrocardiográficos"
+  authors: "Sociedade Brasileira de Cardiologia"
+  year: 2022
+  journal: "Arq Bras Cardiol"
+udmi4_2018:
+  title: "Fourth Universal Definition of Myocardial Infarction"
+  authors: "Thygesen K, et al."
+  year: 2018
+  journal: "Circulation 138:e618-e651; Eur Heart J 40:237-269 (2019)"
+esc_brady_2021:
+  title: "2021 ESC Guidelines on cardiac pacing and cardiac resynchronization therapy (bradicardia e distúrbios de condução)"
+  authors: "Glikson M, et al."
+  year: 2021
+  journal: "Eur Heart J 42:3427-3520"
+felson_2025:
+  title: "Felson's Principles of Chest Roentgenology"
+  authors: "Goodman LR"
+  edition: "verificar"
+  year: 2025
+  note: "Edição a verificar (a 5ª ed. é de 2019)."
+fraser_pare:
+  title: "Fraser and Paré's Diagnosis of Diseases of the Chest"
+  authors: "Müller NL, Fraser RS, et al."
+  edition: "4ª ed."
+  year: 1999
+  publisher: Saunders
+fleischner_glossary:
+  title: "Fleischner Society: Glossary of Terms for Thoracic Imaging"
+  authors: "Hansell DM, Bankier AA, MacMahon H, McLoud TC, Müller NL, Remy J"
+  year: 2008
+  journal: "Radiology 246:697-722"
+webb_higgins:
+  title: "Thoracic Imaging: Pulmonary and Cardiovascular Radiology"
+  authors: "Webb WR, Higgins CB"
+  edition: "3ª ed."
+  year: 2016
+  publisher: Wolters Kluwer
+squire:
+  title: "Squire's Fundamentals of Radiology"
+  authors: "Novelline RA"
+  edition: "6ª ed."
+  year: 2004
+  publisher: Harvard University Press
+brant_helms:
+  title: "Brant and Helms' Fundamentals of Diagnostic Radiology"
+  authors: "Brant WE, Helms CA"
+  edition: "5ª ed."
+  year: 2019
+  publisher: Wolters Kluwer
+keats_variants:
+  title: "Atlas of Normal Roentgen Variants That May Simulate Disease"
+  authors: "Keats TE, Anderson MW"
+  edition: "9ª ed."
+  year: 2012
+  publisher: Elsevier
+weir_abrahams:
+  title: "Imaging Atlas of Human Anatomy"
+  authors: "Weir J, Abrahams PH"
+  edition: "verificar"
+  year: 2011
+  publisher: Elsevier
+abdominal_xray_made_easy:
+  title: "Abdominal X-Rays Made Easy"
+  authors: "Gupta H, et al."
+  edition: "verificar"
+  year: 2014
+greenspan:
+  title: "Greenspan's Basic Radiology / Orthopedic Imaging"
+  authors: "Greenspan A, Beltran J"
+  edition: "verificar"
+  year: 2020
+  publisher: Wolters Kluwer
