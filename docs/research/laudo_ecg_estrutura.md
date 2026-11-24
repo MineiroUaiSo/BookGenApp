@@ -17,7 +17,8 @@ Esta ferramenta é apoio a laudo, não dispositivo certificado.
   algoritmos diferentes dão valores diferentes, então o laudo deve declarar de onde vem a medida.
 - Goldberger AL, et al. Goldberger's Clinical Electrocardiography (abordagem sistemática por etapas).
 - Peguero JG, et al. J Am Coll Cardiol 2017;69(13):1694-1703 (critério de Peguero-Lo Presti para HVE:
-  maior S em qualquer derivação + S de V3; corte de referência 23 mm homens / 28 mm mulheres [conferir]).
+  maior S em qualquer derivação + S de V4; corte >= 28 mm (2,8 mV) homens / >= 23 mm (2,3 mV) mulheres;
+  confirmado em busca web 2026-11-24 (resumo ACC e JACC). Correção: versão anterior deste doc trazia V3 e cortes invertidos).
 - Romhilt DW, Estes EH. Am Heart J 1968;75:752-8 (escore de pontos para HVE: voltagem 3, strain ST-T 3 [1 com digital],
   aumento de AE 3, desvio de eixo para a esquerda 2, QRS >= 90 ms 1, deflexão intrinsecoide >50 ms 1;
   >= 5 pontos HVE, 4 provável [conferir]).

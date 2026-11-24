@@ -97,6 +97,23 @@ def test_laudo_short_version_is_single_paragraph():
     assert "\n" not in short and "Impressão:" in short and short.endswith("Rascunho para revisão médica.")
 
 
+def test_laudo_peguero_uses_v4_and_sex_specific_cutoffs():
+    s = {"medidas_por_derivacao": [{"lead": "V2", "s_amplitude_mv": -2.0}, {"lead": "V4", "s_amplitude_mv": -0.8},
+                                   {"lead": "V3", "s_amplitude_mv": -3.0}]}
+    m, f = L.compute_indices(s, "M"), L.compute_indices(s, "F")
+    assert m["peguero_lo_presti_mm"] == 38.0 and m["peguero_limite_mm"] == 28 and m["peguero_preenchido"] is True
+    assert f["peguero_limite_mm"] == 23
+    s2 = {"medidas_por_derivacao": [{"lead": "V2", "s_amplitude_mv": -2.0}, {"lead": "V4", "s_amplitude_mv": -0.8}]}
+    assert L.compute_indices(s2, "M")["peguero_lo_presti_mm"] == 28.0
+    assert L.compute_indices(s2, "M")["peguero_preenchido"] is True     # >= 28 (limite inclusivo)
+    assert L.compute_indices(s2, "F")["peguero_preenchido"] is True
+
+
+def test_laudo_precomputed_indices_take_precedence():
+    s = dict(F.NORMAL, indices_calculados={"cornell_mm": 99.0})
+    assert L.prepare_summary(s)["indices_calculados"]["cornell_mm"] == 99.0
+
+
 def test_laudo_compute_indices_needs_sex_for_limits():
     idx = L.compute_indices(F.CASO1_OK)
     assert "cornell_mm" in idx and "cornell_limite_mm" not in idx and "peguero_preenchido" not in idx

@@ -62,7 +62,10 @@ def _lead_vals(summary: dict) -> dict[str, dict]:
 
 
 def compute_indices(summary: dict, sexo: Optional[str] = None) -> dict[str, Any]:
-    """Cornell, Sokolow-Lyon e Peguero-Lo Presti em mm (1 mV = 10 mm), a partir de R/S por derivação."""
+    """Cornell, Sokolow-Lyon e Peguero-Lo Presti em mm (1 mV = 10 mm), a partir de R/S por derivação.
+
+    Fallback local: índices prontos vindos de fora (summary["indices_calculados"], ex.: futuro analysis/indices.py)
+    têm precedência em prepare_summary."""
     leads = _lead_vals(summary)
 
     def amp(lead: str, key: str) -> Optional[float]:
@@ -75,20 +78,20 @@ def compute_indices(summary: dict, sexo: Optional[str] = None) -> dict[str, Any]
     if s_v1 is not None and (r5 is not None or r6 is not None):
         out["sokolow_lyon_mm"] = round(s_v1 + max(x for x in (r5, r6) if x is not None), 1)
         out["sokolow_lyon_limite_mm"] = 35
-    r_avl, s_v3 = amp("aVL", "r_amplitude_mv"), amp("V3", "s_amplitude_mv")
+    r_avl, s_v3, s_v4 = amp("aVL", "r_amplitude_mv"), amp("V3", "s_amplitude_mv"), amp("V4", "s_amplitude_mv")
     if r_avl is not None and s_v3 is not None:
         out["cornell_mm"] = round(r_avl + s_v3, 1)
         if male is not None:
             out["cornell_limite_mm"] = 28 if male else 20
     s_all = [amp(k, "s_amplitude_mv") for k in leads]
     s_all = [x for x in s_all if x is not None]
-    if s_all and s_v3 is not None:
-        pg = round(max(s_all) + s_v3, 1)
+    if s_all and s_v4 is not None:   # Peguero 2017: S mais profunda em qualquer derivação + S de V4
+        pg = round(max(s_all) + s_v4, 1)
         out["peguero_lo_presti_mm"] = pg
         if male is not None:
-            lim = 23 if male else 28
+            lim = 28 if male else 23      # >= 28 mm homens / >= 23 mm mulheres (JACC 2017;69:1694)
             out["peguero_limite_mm"] = lim
-            out["peguero_preenchido"] = pg > lim
+            out["peguero_preenchido"] = pg >= lim
     return out
 
 
@@ -178,10 +181,16 @@ def _all_numbers(o: Any, acc: Optional[set] = None) -> set:
 
 def unverified_numbers(text: str, summary: dict) -> list[str]:
     """Números do texto sem correspondente na entrada (x1, x10 mV->mm, x1000 mV->uV) nem limite de referência."""
+    return number_stats(text, summary)[1]
+
+
+def number_stats(text: str, summary: dict) -> tuple[int, list[str]]:
+    """(total de números checados, lista dos que não constam nas medidas)."""
     known = _all_numbers({k: v for k, v in summary.items() if k != "contexto"})
     known |= {k * 10 for k in known} | {k / 10 for k in known}
     known |= {float(x) for x in _REF_LIMITS}
     bad: list[str] = []
+    total = 0
     clean = _LEAD_RE.sub(" ", text or "")
     for m in _NUMTOK.finditer(clean):
         v = float(m.group(1).replace(",", "."))
@@ -190,10 +199,11 @@ def unverified_numbers(text: str, summary: dict) -> list[str]:
             continue
         if not unit and v <= 12 and float(v).is_integer():
             continue
+        total += 1
         tol = max(0.51, 0.02 * v)
         if not any(abs(v - k) <= tol for k in known):
             bad.append(m.group(0).strip())
-    return bad
+    return total, bad
 
 
 # ------------------------------------------------------------ validação

@@ -116,7 +116,7 @@ CASO1_OK_RESP = _resp(
     onda_p="Duração da onda P de 120 ms em D2, sugestiva de aumento atrial esquerdo.",
     complexo_qrs=("Voltagens aumentadas: R de 24 mm em D1 e de 50 mm em aVL; R de 32 a 55 mm de V3 a V6. "
                   "Cornell 58 mm (limite 28 mm em homens) e Sokolow-Lyon 60 mm (limite 35 mm) preenchidos; "
-                  "Romhilt-Estes 6 pontos. Critério de Peguero-Lo Presti não preenchido (18 mm), com ondas S baixas nas "
+                  "Romhilt-Estes 6 pontos. Critério de Peguero-Lo Presti não preenchido (14 mm), com ondas S baixas nas "
                   "precordiais, o que sugere hipertrofia de distribuição focal."),
     st_t="Infra de ST discreto com onda T invertida assimétrica em D1, aVL e V3 a V6, em padrão de repolarização secundária à sobrecarga (strain), sem regra de isquemia disparada.",
     impressao=["Sobrecarga de câmaras esquerdas (hipertrofia ventricular esquerda com strain e aumento atrial esquerdo).",

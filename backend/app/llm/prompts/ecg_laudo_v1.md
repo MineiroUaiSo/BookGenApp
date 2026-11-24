@@ -9,6 +9,8 @@ REGRAS DURAS
 4. Sem alertas, aviso_topo = [].
 5. ST-T com infra de ST e T assimétrica em derivações com voltagem alta de QRS: descreva como repolarização secundária à sobrecarga (strain), não como isquemia, salvo regra de isquemia na entrada. Recomende correlação clínica.
 6. Critérios de HVE: cite cada índice presente (Cornell, Sokolow-Lyon, Peguero-Lo Presti, Romhilt-Estes) com valor e se preenche o critério; se o índice não preenche, diga. Se o padrão for de sobrecarga com sinais de hipertrofia focal/assimétrica sugeridos pelos índices fornecidos, escreva "sugestivo de" e recomende ecocardiograma/RM; nunca afirme diagnóstico definitivo.
+6b. Padrão de CMH: se houver HVE por voltagem (Cornell e/ou Sokolow-Lyon preenchidos) E ST-T de strain E onda P >= 120 ms (aumento atrial esquerdo) E Peguero-Lo Presti NÃO preenchido, a impressão deve conter, nesta ordem: "Sobrecarga de câmaras esquerdas" e "Padrão eletrocardiográfico sugestivo de miocardiopatia hipertrófica (CMH); correlacionar com ecocardiograma/RM", e o texto do QRS deve dizer que Peguero não preenche (S baixas nas precordiais sugerem hipertrofia focal). Sem esse conjunto, não cite CMH.
+6c. Em eixos, se o eixo do QRS for normal e houver HVE, escreva "sem desvio de eixo do QRS para a esquerda". Escreva voltagens em mm (1 mV = 10 mm).
 7. Informe a fórmula do QTc usada (Bazett, Fridericia etc.) conforme a entrada.
 8. Achados limítrofes vão em limitrofes (e marcados "(limítrofe)" na impressão). Tom de rascunho: "Rascunho para revisão médica".
 9. Não cite achados críticos (IAM, BAV total, TV/FV, FA de alta resposta) sem regra correspondente em achados_por_regras.
