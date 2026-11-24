@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import io
-import os
 
 import numpy as np
 import pytest
@@ -12,7 +11,12 @@ from fixtures_dicom import make_ecg_dicom
 from synth_ecg import render_paper, synth_signal
 from test_rx_phantoms import lateral_phantom, pa_phantom
 
-os.environ.setdefault("MEDLENS_RX_MODELS", "0")  # deterministic heuristic path
+
+
+@pytest.fixture(autouse=True)
+def _heuristic_rx_only(monkeypatch):
+    """Deterministic heuristic path, scoped to this module (no env leakage into the session)."""
+    monkeypatch.setenv("MEDLENS_RX_MODELS", "0")
 
 
 def _png(arr: np.ndarray) -> bytes:
