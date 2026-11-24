@@ -40,9 +40,19 @@ def _g(t, mu, sd):
     return np.exp(-0.5 * ((t - mu) / sd) ** 2)
 
 
+def _ag(t, mu, sd_left, sd_right):
+    """Asymmetric Gaussian (different widths each side of mu)."""
+    return np.exp(-0.5 * ((t - mu) / np.where(t < mu, sd_left, sd_right)) ** 2)
+
+
 def synth_signal(hr=70.0, fs=500, seconds=10.0, pr_ms=160.0, qrs_ms=90.0, qt_ms=400.0, p_ms=100.0,
-                 st_shift_mv=0.0, rr_jitter=0.0, noise_mv=0.0, wander_mv=0.0, seed=0):
-    """Return (leads: dict[str, np.ndarray mV], fiducials: dict)."""
+                 st_shift_mv=0.0, rr_jitter=0.0, noise_mv=0.0, wander_mv=0.0, seed=0,
+                 amp=None, st_by_lead=None, t_asym=None):
+    """Return (leads: dict[str, np.ndarray mV], fiducials: dict).
+
+    amp: lead -> (P,Q,R,S,T) mV overriding the defaults (also III/aVR/aVL/aVF, otherwise derived from I and II);
+    st_by_lead: lead -> ST plateau shift (mV); t_asym: leads with a skewed T (slow descent, abrupt return)."""
+    amps, st_by_lead, t_asym = {**_AMP, **(amp or {})}, st_by_lead or {}, set(t_asym or ())
     rng = np.random.default_rng(seed)
     n = int(round(seconds * fs))
     t = np.arange(n) / fs
@@ -54,7 +64,7 @@ def synth_signal(hr=70.0, fs=500, seconds=10.0, pr_ms=160.0, qrs_ms=90.0, qt_ms=
         cur += rr0 * (1 + rr_jitter * rng.uniform(-1, 1))
     pr, qrs, qt, pd = pr_ms / 1e3, qrs_ms / 1e3, qt_ms / 1e3, p_ms / 1e3
     s = qrs / 0.09  # QRS widening factor
-    base = {k: np.zeros(n) for k in ("I", "II", "V1", "V2", "V3", "V4", "V5", "V6")}
+    base = {k: np.zeros(n) for k in amps}
     fid = dict(r_peaks_s=[], p_on_s=[], p_off_s=[], qrs_on_s=[], qrs_off_s=[], t_end_s=[], hr=hr,
                pr_ms=pr_ms, qrs_ms=qrs_ms, qt_ms=qt_ms, fs=fs)
     for rt in r_times:
@@ -65,17 +75,21 @@ def synth_signal(hr=70.0, fs=500, seconds=10.0, pr_ms=160.0, qrs_ms=90.0, qt_ms=
         tc, tsd = tend - 0.085, 0.04
         fid["r_peaks_s"].append(rt); fid["p_on_s"].append(pon); fid["p_off_s"].append(pon + pd)
         fid["qrs_on_s"].append(qon); fid["qrs_off_s"].append(qoff); fid["t_end_s"].append(tend)
-        for k, (aP, aQ, aR, aS, aT) in _AMP.items():
+        for k, (aP, aQ, aR, aS, aT) in amps.items():
             w = (aP * _g(t, pon + pd / 2, pd / 6) + aQ * _g(t, rt - 0.020 * s, 0.008 * s)
                  + aR * _g(t, rt, 0.010 * s) + aS * _g(t, rt + 0.022 * s, 0.010 * s)
-                 + aT * _g(t, tc, tsd))
-            if st_shift_mv:  # smooth ST plateau between QRS end and T centre
-                w += st_shift_mv * (1 / (1 + np.exp(-(t - qoff) / 0.008))) * (1 / (1 + np.exp((t - (tc + 0.03)) / 0.02)))
+                 + aT * (_ag(t, tc, 0.065, 0.028) if k in t_asym else _g(t, tc, tsd)))
+            st_k = st_by_lead.get(k, st_shift_mv)
+            if st_k:  # smooth ST plateau between QRS end and T centre
+                w += st_k * (1 / (1 + np.exp(-(t - qoff) / 0.008))) * (1 / (1 + np.exp((t - (tc + 0.03)) / 0.02)))
             base[k] += w
     I, II = base["I"], base["II"]
     leads = {"I": I, "II": II, "III": II - I, "aVR": -(I + II) / 2, "aVL": I - II / 2, "aVF": II - I / 2}
     for k in ("V1", "V2", "V3", "V4", "V5", "V6"):
         leads[k] = base[k]
+    for k in ("III", "aVR", "aVL", "aVF"):   # explicit override replaces the Einthoven/Goldberger derivation
+        if k in amps:
+            leads[k] = base[k]
     for k in leads:
         if wander_mv:
             leads[k] = leads[k] + wander_mv * np.sin(2 * np.pi * 0.25 * t + rng.uniform(0, 6))
