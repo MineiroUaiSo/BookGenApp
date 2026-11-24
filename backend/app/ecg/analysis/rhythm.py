@@ -163,7 +163,7 @@ def av_analysis(p_ms, beats_ms, fs, p_alt=None):
     res = _av_core(p_ms, beats_ms, fs)
     if p_alt is not None and res.get("type") is None:
         r2 = _av_core(p_alt, beats_ms, fs)
-        if r2.get("type"):
+        if r2.get("type") == "av3":   # the noisier residual series is trusted for dissociation only, not for drop patterns
             r2.update({k: res[k] for k in ("p_frac", "pr_sd", "pr_med")})
             r2["alt"] = True
             return r2
