@@ -111,18 +111,20 @@ def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str,
     model = c.model_name()
     try:
         # Etapa 1: descrição minuciosa (visão), sem saída estruturada.
-        desc, _ = c.run(client, system,
-                        [{"role": "user", "content": content + [{"type": "text", "text": _prompt(f"{domain}_describe")}]}],
-                        c.MAX_TOKENS_DESCRIBE)
+        desc, _, prov1 = c.run_resilient(
+            client, system,
+            [{"role": "user", "content": content + [{"type": "text", "text": _prompt(f"{domain}_describe")}]}],
+            c.MAX_TOKENS_DESCRIBE)
         # Etapa 2: análise crítica com saída estruturada.
         refs = sorted(known_reference_ids())
         msgs = [{"role": "user", "content": content + [
             {"type": "text", "text": f"DESCRIÇÃO DA ETAPA 1\n{desc}"},
             {"type": "text", "text": _prompt("analyze")},
         ]}]
-        text, final = c.run(client, system, msgs, c.MAX_TOKENS_ANALYZE, schema=output_schema(refs))
+        text, final, prov2 = c.run_resilient(client, system, msgs, c.MAX_TOKENS_ANALYZE, schema=output_schema(refs))
         data = c.parse_json(text)
         rep = to_report(data, getattr(final, "model", None) or model, description_fallback=desc)
+        rep = rep.model_copy(update={"provider": prov2 if prov1 == prov2 else f"{prov1}+{prov2}"})
         if summary is not None:
             try:
                 rep = validate_report(rep, summary, rule_findings)
