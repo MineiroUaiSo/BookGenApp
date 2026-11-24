@@ -34,7 +34,9 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     except `II` which is the 10 s rhythm strip when present. Per-lead start offsets are reported in
     calibration["offset_s.<lead>"]."""
     warnings: list[str] = []
-    rgb = geometry.limit_size(geometry.to_rgb_uint8(img))
+    rgb0 = geometry.to_rgb_uint8(img)
+    rgb = geometry.limit_size(rgb0)
+    proc_scale = rgb.shape[1] / rgb0.shape[1]
     rgb, ginfo = geometry.rectify(rgb)
     norm = grid.normalise(rgb)
     ink0 = grid.trace_mask(norm)
@@ -96,6 +98,7 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     speed = speed or 25.0
     if xs is None:
         xs = xs_left + 9 * ppx
+    skip_cols = int(np.ceil(float(np.median([p["thick"] for p in pulses])) / 2)) + 2 if pulses else 3  # skip the pulse's falling stroke
     xs_mm = float(mm_x(xs))
     cps = ppx * speed  # columns per second
     total_s = 10.0
@@ -119,7 +122,7 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
 
     row_cache = {}
     for ri, ry in enumerate(rows):
-        xa = int(round(xs))
+        xa = int(round(xs)) + skip_cols
         xb = min(int(round(xs + total_s * cps)), ink.shape[1])
         cen, top, bot, valid = trace.extract_row(ink, xa, xb, ry, half_band, ppy)
         thick = float(np.nanmedian(bot - top + 1)) if np.isfinite(bot - top).any() else 3.0
@@ -168,8 +171,8 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
         fs=OUT_FS, leads=leads, duration_s=max((len(v) for v in leads.values()), default=0) / OUT_FS,
         source=SourceKind.IMAGE, quality=quality,
         calibration={"paper_speed_mm_s": float(speed), "gain_mm_mv": float(gain),
-                     "px_per_mm": float(0.5 * (ppx + ppy)), "px_per_mm_x": float(ppx),
-                     "px_per_mm_y": float(ppy), "grid_confidence": float(gr["confidence"]),
+                     "px_per_mm": float(0.5 * (ppx + ppy) / proc_scale),
+                     "px_per_mm_x": float(ppx / proc_scale), "px_per_mm_y": float(ppy / proc_scale), "grid_confidence": float(gr["confidence"]),
                      "skew_deg": float(ginfo["skew_deg"]), **calib_extra})
     if return_debug:
         dbg.update(layout=layout, warnings=warnings)

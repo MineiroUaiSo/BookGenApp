@@ -13,6 +13,7 @@ router = APIRouter()
 async def ingest(
     files: List[UploadFile] = File(...),
     relative_paths: Optional[List[str]] = Form(None),
+    group_images: bool = Form(True),
 ):
     items = []
     for i, f in enumerate(files):
@@ -20,4 +21,4 @@ async def ingest(
         if relative_paths and i < len(relative_paths) and relative_paths[i]:
             name = relative_paths[i]
         items.append((name, await f.read()))
-    return ingest_files(items, store)
+    return ingest_files(items, store, group_images=group_images)

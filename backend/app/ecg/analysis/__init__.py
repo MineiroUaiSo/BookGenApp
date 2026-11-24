@@ -57,6 +57,46 @@ def _waves(bd, leads, fs, offset, beat_index, t0=0.0):
     return out
 
 
+def _align_segments(d, signal, fs, warnings):
+    """Digitized pages (3x4, 6x2) give leads of unequal length with start offsets in
+    calibration['offset_s.<lead>']. Place them on a common timeline (zeros outside the recorded
+    window) and return a per-lead validity mask; None when all leads already share one timeline."""
+    lens = {k: len(v) for k, v in d.items()}
+    if len(set(lens.values())) <= 1:
+        return None
+    cal = signal.calibration or {}
+    n = max(int(round(cal.get(f"offset_s.{k}", 0.0) * fs)) + ln for k, ln in lens.items())
+    valid = {}
+    for k, v in list(d.items()):
+        o = int(round(cal.get(f"offset_s.{k}", 0.0) * fs))
+        full = np.zeros(n)
+        m = np.zeros(n, dtype=bool)
+        full[o:o + len(v)] = v
+        m[o:o + len(v)] = True
+        d[k], valid[k] = full, m
+        valid[("seg", k)] = (o, len(v))
+    warnings.append("Traçado digitalizado em segmentos (ex.: 3x4): cada derivação foi medida apenas "
+                    "nos batimentos registrados no seu trecho; ritmo avaliado pela tira longa.")
+    return valid
+
+
+def _segmented_median(amp, dlt, peaks, fs, rr_med, leads, valid, warnings):
+    """Median beat per lead using only beats inside that lead's recorded window."""
+    outs = []
+    for i, l in enumerate(leads):
+        m = valid[l]
+        pk = np.array([p for p in peaks if m[max(0, p - int(0.65 * fs)):p + int(0.7 * fs)].all()], dtype=int)
+        r = build_median(amp[i:i + 1], dlt[i:i + 1], pk if len(pk) else peaks, fs, rr_med) if len(pk) else None
+        if r is None:
+            r = build_median(amp[i:i + 1], dlt[i:i + 1], peaks, fs, rr_med)
+            warnings.append(f"Derivação {l}: nenhum batimento completo no trecho registrado.")
+        if r is None:
+            return None
+        outs.append(r)
+    return (np.vstack([o[0] for o in outs]), np.vstack([o[1] for o in outs]), outs[0][2],
+            min(o[3] for o in outs))
+
+
 def _minimal(signal, study_id, warnings):
     return ECGAnalysis(study_id=study_id, signal=signal, global_measurements=GlobalMeasurements(),
                        warnings=warnings)
@@ -66,7 +106,8 @@ def analyze_signal(signal: ECGSignal, study_id: str) -> ECGAnalysis:
     warnings: list[str] = []
     fs = float(signal.fs)
     d = normalize(signal.leads)
-    derived = derive_missing(d)
+    valid = _align_segments(d, signal, fs, warnings)
+    derived = derive_missing(d) if valid is None else []
     if derived:
         warnings.append("Derivações calculadas a partir de D1 e D2: " + ", ".join(derived))
     leads = [l for l in ALL_LEADS if l in d]
@@ -117,13 +158,22 @@ def analyze_signal(signal: ECGSignal, study_id: str) -> ECGAnalysis:
             beat_info.append({"qrs_on": p, "qrs_off": p, "t_off": None})
             continue
         bds[i] = (bd, p - pre)
+        if valid is not None:  # segmented page (e.g. 3x4): keep only leads recorded during this beat
+            ok = [l for l in leads if valid[l][p - pre:p + post + 1].all()]
+            bw = _waves(bd, ok, fs, p - pre, i)
+            beat_info.append({"qrs_on": p - pre + bd.qrs_on, "qrs_off": p - pre + bd.qrs_off,
+                              "t_off": (p - pre + bd.t_off) if bd.t_off is not None else None,
+                              "p_on": (p - pre + bd.p_on) if bd.p_on is not None else None})
+            all_waves += bw
+            continue
         beat_info.append({"qrs_on": p - pre + bd.qrs_on, "qrs_off": p - pre + bd.qrs_off,
                           "t_off": (p - pre + bd.t_off) if bd.t_off is not None else None,
                           "p_on": (p - pre + bd.p_on) if bd.p_on is not None else None})
         all_waves += _waves(bd, leads, fs, p - pre, i)
 
     # ---- median beat
-    med = build_median(amp, dlt, peaks, fs, rr_med)
+    med = build_median(amp, dlt, peaks, fs, rr_med) if valid is None else \
+        _segmented_median(amp, dlt, peaks, fs, rr_med, leads, valid, warnings)
     if med is None:
         return _minimal(signal, study_id, warnings + ["Não foi possível construir o batimento mediano."])
     med_amp, med_dlt, a_idx, n_used = med
@@ -151,6 +201,10 @@ def analyze_signal(signal: ECGSignal, study_id: str) -> ECGAnalysis:
         gm.p_duration_ms = gm.pr_ms = gm.p_axis_deg = None
     findings = build_findings(ctx)
     conduction = conduction_timeline(gm, median_waves, findings)
+    if valid is not None:  # return leads on the common timeline so viewers can draw each segment in place
+        signal = signal.model_copy(update={
+            "leads": {k: [round(float(v), 5) for v in d[k]] for k in leads},
+            "duration_s": round(n / fs, 3)})
     return ECGAnalysis(study_id=study_id, signal=signal, r_peaks_ms=[round(float(x), 2) for x in pk_ms],
                        waves=all_waves, median_beats=median_beats, lead_measurements=lms, global_measurements=gm,
                        conduction=conduction, findings=findings, warnings=warnings,

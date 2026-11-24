@@ -169,7 +169,12 @@ def reconstruct(frontal: RXImageAnalysis, lateral: RXImageAnalysis):
         if Fg is None:
             # só no perfil: largura prior (fração da profundidade) centrada
             Fg = np.zeros((NY, NX), bool)
-            half = int(max(2, 0.12 * depth_mm / vox / 2 + 1)) if k == "spine" else int(0.15 * depth_mm / vox)
+            if k == "spine":
+                half = int(max(2, 0.12 * depth_mm / vox / 2 + 1))
+            elif k == "sternum":  # adult sternal body ~25-35 mm wide
+                half = int(max(2, 15.0 / vox))
+            else:
+                half = int(0.15 * depth_mm / vox)
             Fg[:, NX // 2 - half: NX // 2 + half + 1] = Lg.any(1)[:, None]
         if Fg is not None and not Fg.any():
             continue

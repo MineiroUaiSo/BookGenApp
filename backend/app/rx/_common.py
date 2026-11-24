@@ -29,7 +29,7 @@ PALETTE: dict[str, tuple[str, str, str]] = {
     "right_scapula": ("escápula direita", "bone", "#a3e635"),
     "left_scapula": ("escápula esquerda", "bone", "#65a30d"),
     "ribs": ("arcos costais (aproximado)", "bone", "#d6d3d1"),
-    "sternum": ("esterno", "bone", "#fbbf24"),
+    "sternum": ("esterno", "bone", "#e7e5e4"),
     "diaphragm": ("diafragma", "diaphragm", "#14b8a6"),
     "right_diaphragm": ("hemidiafragma direito", "diaphragm", "#14b8a6"),
     "left_diaphragm": ("hemidiafragma esquerdo", "diaphragm", "#2dd4bf"),

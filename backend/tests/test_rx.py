@@ -221,3 +221,19 @@ def test_model_path_runs_or_falls_back(monkeypatch):
     if a.model_scores:
         assert "Cardiomegaly" in a.model_scores and all(0 <= v <= 1 for v in a.model_scores.values())
     json.loads(a.model_dump_json())
+
+
+def test_model_branch_with_stubbed_segmentation(monkeypatch):
+    """Exercises the 'model' origin path (key mapping, measurements) without needing weights."""
+    from app.rx import analyze as an, seg_heuristic as H
+    from app.rx._common import to_work
+    img, truth = pa_phantom()
+    w, _ = to_work(img)
+    masks = {k: v for k, v in H.segment_chest_frontal(H.smooth(w)).items() if not k.startswith("_")}
+    masks["left_scapula"] = np.zeros_like(masks["heart"])
+    monkeypatch.setattr(an.seg_model, "segment_chest_model", lambda work: masks)
+    a = analyze_image(img, "m", SimpleNamespace(ViewPosition="PA", BodyPartExamined="CHEST"), use_model=True)
+    assert {s.origin for s in a.structures} == {"model"}
+    assert "PSPNet" in a.quality["segmentação"]
+    assert abs(meas(a, "cardiothoracic_ratio").value - truth["ctr"]) < 0.05
+    assert all(s.confidence >= 0.7 for s in a.structures)

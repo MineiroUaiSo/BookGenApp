@@ -28,7 +28,7 @@ export default function ConductionHeart({ active, onPick }: Props) {
   const col = STRUCTURE_COLORS;
   const wall = "var(--ecg-line)";
   return (
-    <svg viewBox="0 0 360 420" role="img" aria-label="Diagrama anatômico do sistema de condução cardíaco" className="ecg-heart" style={{ width: "100%", maxWidth: 420 }} data-testid="heart">
+    <svg viewBox="0 0 380 420" role="img" aria-label="Diagrama anatômico do sistema de condução cardíaco" className="ecg-heart" style={{ width: "100%", maxWidth: 420 }} data-testid="heart">
       <defs>
         <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="4" result="b" />
@@ -63,7 +63,7 @@ export default function ConductionHeart({ active, onPick }: Props) {
       <g {...g("AV_node")}><ellipse cx={155} cy={190} rx={12} ry={7} fill={col.AV_node} stroke={wall} /></g>
       <g {...g("SA")}><ellipse cx={100} cy={80} rx={13} ry={7} fill={col.SA} stroke={wall} transform="rotate(-20 100 80)" /></g>
       {([
-        ["SA", 70, 62], ["AV_node", 100, 212], ["His", 196, 228], ["RBB", 100, 330], ["LBB", 290, 300],
+        ["SA", 70, 62], ["AV_node", 100, 212], ["His", 190, 212], ["RBB", 100, 330], ["LBB", 270, 300],
         ["purkinje", 70, 392],
       ] as [ConductionStructure, number, number][]).map(([s, x, y]) => (
         <text key={s} x={x} y={y} fontSize={11} fontWeight={on.has(s) ? 700 : 500} style={{ fill: "var(--ecg-fg)" }} pointerEvents="none">{STRUCTURE_LABELS[s]}</text>
@@ -71,7 +71,7 @@ export default function ConductionHeart({ active, onPick }: Props) {
       <text x={96} y={140} fontSize={11} style={{ fill: "var(--ecg-fg)" }} pointerEvents="none">AD</text>
       <text x={232} y={140} fontSize={11} style={{ fill: "var(--ecg-fg)" }} pointerEvents="none">AE</text>
       <text x={110} y={290} fontSize={11} style={{ fill: "var(--ecg-fg)" }} pointerEvents="none">VD</text>
-      <text x={230} y={230} fontSize={11} style={{ fill: "var(--ecg-fg)" }} pointerEvents="none">VE</text>
+      <text x={250} y={272} fontSize={11} style={{ fill: "var(--ecg-fg)" }} pointerEvents="none">VE</text>
     </svg>
   );
 }

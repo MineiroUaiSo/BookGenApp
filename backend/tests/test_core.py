@@ -112,7 +112,7 @@ def test_ingest_zip_and_images_and_other(client, dicom_folder, tmp_path):
         ("files", ("orphan.dat", b"\x00" * 20)),
         ("files", ("junk.bin", b"hello")),
         ("files", ("broken.png", b"notapng")),
-    ])
+    ], data={"group_images": "false"})
     d = r.json()
     mods = sorted(s["series"][0]["modality"] for s in d["studies"])
     assert mods.count("RX") == 2 and mods.count("UNKNOWN") == 2

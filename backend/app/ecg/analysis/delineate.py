@@ -279,7 +279,16 @@ def detect_p(y, fs, lo, hi, noise):
     for pr_, pk in cands:
         amp = float(ys[pk])
         # local reference (flat part of the window) so that residual offsets do not stretch the borders
-        ref0 = float(np.percentile(ys[lo:hi + 1], 10 if amp > 0 else 90))
+        # robust isoelectric reference: median of the window away from the candidate bump
+        # (a low percentile is biased by noise/pixel quantisation in digitised tracings)
+        w = int(0.06 * fs)
+        mask = np.ones(hi - lo + 1, dtype=bool)
+        mask[max(0, pk - lo - w):pk - lo + w + 1] = False
+        ref0 = float(np.median(ys[lo:hi + 1][mask])) if mask.sum() >= int(0.02 * fs) else \
+            float(np.percentile(ys[lo:hi + 1], 10 if amp > 0 else 90))
+        amp = amp - ref0
+        if abs(amp) < prom:
+            continue
         yl = ys - ref0
         on, off = _extent(yl, pk, lo, hi, 0.04, noise, 0.6 * abs(amp))
         # biphasic continuation (terminal opposite deflection, e.g. V1)

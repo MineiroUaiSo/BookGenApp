@@ -107,11 +107,18 @@ def _expand(items: list[tuple[str, bytes]], warnings: list[str], depth: int = 0)
     return out
 
 
-def ingest_files(items: list[tuple[str, bytes]], store: Store) -> IngestResponse:
-    """items: [(relative_path, bytes)]. Stores originals and returns affected studies."""
+def ingest_files(items: list[tuple[str, bytes]], store: Store, group_images: bool = True) -> IngestResponse:
+    """items: [(relative_path, bytes)]. Stores originals and returns affected studies.
+
+    group_images: images (prints/photos) sent in the same request become ONE study with one
+    series per image, so e.g. a PA + lateral pair can be analysed together (and reconstructed in 3D).
+    """
     warnings: list[str] = []
     skipped: list[str] = []
     items = _expand([(n.replace("\\", "/"), d) for n, d in items], warnings)
+    img_digests = sorted(hashlib.sha1(d).hexdigest() for n, d in items
+                         if posixpath.splitext(n.lower())[1] in IMAGE_EXT)
+    group_sid = _h("imgset", *img_digests) if group_images and len(img_digests) > 1 else None
     now = datetime.now(timezone.utc).isoformat()
 
     studies: dict[str, StudyInfo] = {}
@@ -142,7 +149,7 @@ def ingest_files(items: list[tuple[str, bytes]], store: Store) -> IngestResponse
             warnings.append(f"{name}: DICOMDIR index ignored (files are read directly)")
             continue
         if ext in IMAGE_EXT:
-            if _store_image(name, data, store, get_study, add):
+            if _store_image(name, data, store, get_study, add, group_sid):
                 continue
             skipped.append(name)
             continue
@@ -195,14 +202,14 @@ def ingest_files(items: list[tuple[str, bytes]], store: Store) -> IngestResponse
     return IngestResponse(studies=list(studies.values()), skipped_files=skipped, warnings=warnings)
 
 
-def _store_image(name, data, store, get_study, add) -> bool:
+def _store_image(name, data, store, get_study, add, group_sid=None) -> bool:
     try:
         with Image.open(io.BytesIO(data)) as im:
             im.verify()
     except Exception:
         return False
     digest = hashlib.sha1(data).hexdigest()
-    sid = _h("img", digest)
+    sid = group_sid or _h("img", digest)
     iid = f"{sid}-{_h(name, digest, n=10)}"
     store.save_instance(iid, posixpath.basename(name), data,
                         {"kind": "image", "source_name": name, "modality": "UNKNOWN"})

@@ -7,9 +7,9 @@ from ..schemas import BodyRegion, Finding, Reference, RXImageAnalysis, RXMeasure
 
 REF_FELSON = Reference(id="felson_2025", source="Felson's Principles of Chest Roentgenology — silhueta cardiomediastinal, diafragma e pleura",
                        note="critérios clássicos de tamanho cardíaco (ICT) e contornos")
-REF_FLEISCHNER = Reference(id="fleischner_glossary_2024", source="Fleischner Society — Glossary of Terms for Thoracic Imaging (atualização)",
+REF_FLEISCHNER = Reference(id="fleischner_glossary", source="Fleischner Society — Glossary of Terms for Thoracic Imaging (atualização)",
                            note="terminologia padronizada de sinais torácicos")
-REF_SQUIRE = Reference(id="squire_8ed", source="Squire's Fundamentals of Radiology — radiografia de tórax e abdome",
+REF_SQUIRE = Reference(id="squire", source="Squire's Fundamentals of Radiology — radiografia de tórax e abdome",
                        note="abordagem sistemática e sinais básicos")
 REF_TXRV = Reference(id="xrv_cohen_2022", source="Cohen JP et al. TorchXRayVision: a library of chest X-ray datasets and models (MIDL 2022)",
                      note="escore auxiliar de modelo; não é laudo")

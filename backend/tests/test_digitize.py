@@ -123,7 +123,7 @@ def test_gain_5_and_20_pulse_calibration(case):
     assert sig5.calibration["gain_mm_mv"] == 5
     assert abs(np.max(sig5.leads["II"]) - np.max(leads["II"])) < 0.1  # amplitude still in true mV
     small = {k: v * 0.4 for k, v in leads.items()}
-    sig20 = digitize_image(render_paper(small, FS, gain_mm_mv=20.0, layout="12x1"))
+    sig20 = digitize_image(render_paper(small, FS, gain_mm_mv=20.0))
     assert sig20.calibration["gain_mm_mv"] == 20
     assert abs(np.max(sig20.leads["II"]) - np.max(small["II"])) < 0.08
 
@@ -160,3 +160,23 @@ def test_returns_valid_schema(clean):
     sig = clean[2]
     assert isinstance(sig, ECGSignal) and sig.source == SourceKind.IMAGE
     ECGSignal.model_validate(sig.model_dump())
+
+
+@pytest.mark.parametrize("ppm,hr,seed", [(8, 55, 0), (18, 95, 2)])
+def test_photo_other_resolutions(ppm, hr, seed):
+    leads, fid = synth_signal(hr=hr, fs=FS, seconds=10, seed=seed, rr_jitter=0.05, noise_mv=0.01)
+    img, info = render_paper(leads, FS, px_per_mm=ppm, photo_effects=True, return_info=True, seed=seed)
+    sig = digitize_image(img)
+    assert abs(sig.calibration["px_per_mm"] - info["px_per_mm"]) / info["px_per_mm"] < 0.03
+    assert min(lead_corr(leads, sig, k, max_lag_ms=20) for k in LEAD_ORDER) > 0.75
+    err, n = r_peak_errors_ms(fid, sig)
+    assert n == len(fid["r_peaks_s"]) and err.max() < 20
+
+
+def test_works_without_opencv(case, monkeypatch):
+    from app.ecg.digitize import geometry
+    monkeypatch.setattr(geometry, "cv2", None)
+    leads, _ = case
+    sig = digitize_image(render_paper(leads, FS))
+    assert abs(sig.calibration["px_per_mm"] - 12) / 12 < 0.03
+    assert min(lead_corr(leads, sig, k) for k in LEAD_ORDER) > 0.9
