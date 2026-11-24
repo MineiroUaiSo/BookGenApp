@@ -225,7 +225,7 @@ class Structure(BaseModel):
     bbox: Optional[list[float]] = None       # [x0,y0,x1,y1]
     area_mm2: Optional[float] = None
     confidence: float = 0.5
-    origin: Literal["model", "heuristic", "llm"] = "model"
+    origin: Literal["model", "heuristic", "llm", "cxas"] = "model"
 
 
 class RXMeasurement(BaseModel):
