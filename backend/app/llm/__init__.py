@@ -80,7 +80,8 @@ def rx_data_summary(a: RXAnalysis) -> dict:
             "qualidade": im.quality,
             "medidas": [m.model_dump(include={"key", "label", "value", "unit", "normal_range"}, exclude_none=True)
                         for m in im.measurements],
-            "probabilidades_modelo_auxiliar": im.model_scores,
+            "probabilidades_modelo_auxiliar": im.model_probs or im.model_scores,
+            "zonas_modelo_auxiliar": im.model_zones or None,
             "estruturas_segmentadas": [{"chave": s.key, "rotulo": s.label, "bbox": s.bbox,
                                          "area_mm2": s.area_mm2, "confianca": s.confidence}
                                         for s in im.structures],
