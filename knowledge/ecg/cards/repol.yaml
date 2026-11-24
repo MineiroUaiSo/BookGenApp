@@ -1,0 +1,243 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: repol
+cartoes:
+- id: repol.strain_vs_isquemia
+  versao: 1
+  nome_pt: Strain de HVE versus isquemia
+  criterio: 'Strain: ST descendente com concavidade superior e T assimétrica negativa nas derivações de
+    maior R, com voltagem aumentada; isquemia não depende da voltagem.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.secondary_repolarization
+  - ecg.st_depression_*
+  - ecg.t_inversion_*
+  - ecg.lvh
+  armadilhas:
+  - Dor típica, troponina e evolução dinâmica prevalecem sobre o padrão.
+  - Comparar com ECG prévio.
+  nao_confundir:
+  - hve.romhilt_st_t
+  - isquemia.infra_st_subendocardica
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, alterações secundárias na HVE
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: repol.alteracao_secundaria
+  versao: 1
+  nome_pt: Alteração secundária da repolarização
+  criterio: Alteração ST-T esperada pela despolarização anormal (bloqueio de ramo, HVE, pré-excitação,
+    marca-passo), com ST-T oposto ao QRS.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.secondary_repolarization
+  armadilhas:
+  - Não chamar de isquemia sem concordância de ST com QRS.
+  nao_confundir:
+  - isquemia.sgarbossa
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, alterações primárias e secundárias do ST-T
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: repol.repolarizacao_precoce
+  versao: 1
+  nome_pt: Padrão de repolarização precoce
+  criterio: Elevação do ponto J >=1 mm em duas derivações contíguas inferiores e/ou laterais, com ST côncavo
+    e entalhe/empastamento do QRS.
+  limiares:
+    j_mm: '>=1'
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  armadilhas:
+  - Maioria é benigna.
+  - 'Achados de alto risco: J >=2 mm inferior, ST horizontal ou descendente.'
+  nao_confundir:
+  - pericardite.tipica
+  - iam.stemi_universal
+  fonte:
+    ref: macfarlane_2015
+    local: J Am Coll Cardiol 2015;66:470
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: repol.repolarizacao_precoce_atleta
+  versao: 1
+  nome_pt: Repolarização precoce em atleta
+  criterio: Padrão comum e benigno em atletas, com T positiva alta.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  armadilhas:
+  - Persistência de T negativa em laterais exige investigação.
+  nao_confundir:
+  - repol.repolarizacao_precoce
+  fonte:
+    ref: sbc_laudos_2022
+    local: Arq Bras Cardiol 2022;119(4):638-680, seção sobre ECG do atleta
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: repol.risco_alto_precoce
+  versao: 1
+  nome_pt: Repolarização precoce de risco
+  criterio: Associação a parada cardíaca em ST horizontal/descendente e J elevado em inferiores/laterais.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  armadilhas:
+  - Risco absoluto baixo.
+  nao_confundir:
+  - repol.repolarizacao_precoce
+  fonte:
+    ref: haissaguerre_2008
+    local: N Engl J Med 2008;358:2016
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: repol.hiperpotassemia
+  versao: 1
+  nome_pt: Hiperpotassemia
+  criterio: T apiculada e estreita; depois PR longo, P achatada, QRS largo e padrão sinusoidal.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.ivcd
+  - ecg.left_axis*
+  armadilhas:
+  - ECG pode ser normal com K alto.
+  nao_confundir:
+  - iam.t_hiperaguda
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, distúrbios eletrolíticos
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: faixas de K por alteração a conferir
+- id: repol.hipocalemia
+  versao: 1
+  nome_pt: Hipocalemia
+  criterio: Infra de ST, T achatada e onda U proeminente com QT(U) longo.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.long_qt
+  - ecg.st_depression_*
+  armadilhas:
+  - Confundir U com T aumenta o QT.
+  nao_confundir:
+  - qt.onda_u
+  - repol.hiperpotassemia
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, distúrbios eletrolíticos
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: repol.calcio
+  versao: 1
+  nome_pt: Distúrbios do cálcio
+  criterio: Hipercalcemia encurta ST/QT; hipocalcemia alonga o segmento ST.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.long_qt
+  - ecg.short_qt
+  armadilhas:
+  - Dosar cálcio iônico.
+  nao_confundir:
+  - qt.longo
+  - qt.curto
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, distúrbios eletrolíticos
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: repol.digital
+  versao: 1
+  nome_pt: Efeito digitálico
+  criterio: ST em colher (depressão côncava) e QT curto; intoxicação gera arritmias e BAV.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_depression_*
+  armadilhas:
+  - Efeito não indica intoxicação.
+  nao_confundir:
+  - hve.romhilt_st_t
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, efeito de fármacos
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: repol.hipotermia
+  versao: 1
+  nome_pt: Onda J de Osborn
+  criterio: Entalhe positivo no fim do QRS, bradicardia e tremor na hipotermia.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  armadilhas:
+  - Também em hipercalcemia.
+  nao_confundir:
+  - repol.repolarizacao_precoce
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: repol.t_inversao_inespecifica
+  versao: 1
+  nome_pt: Inversão de T inespecífica
+  criterio: T negativa sem outra alteração; normal em V1 (e V2 em mulheres/negros).
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.t_inversion_*
+  armadilhas:
+  - T negativa nova com sintomas é isquemia até prova contrária.
+  nao_confundir:
+  - isquemia.wellens
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, onda T
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: repol.t_alta
+  versao: 1
+  nome_pt: Onda T alta
+  criterio: Pode ser variante, hiperpotassemia, hiperaguda, HVE.
+  limiares: {}
+  medidas: []
+  gatilhos: []
+  armadilhas:
+  - Avaliar simetria e contexto.
+  nao_confundir:
+  - repol.hiperpotassemia
+  - iam.t_hiperaguda
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, onda T
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: repol.infra_st_inespecifico
+  versao: 1
+  nome_pt: Infradesnível de ST inespecífico
+  criterio: Pequeno infra de ST sem morfologia típica; correlacionar.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_depression_*
+  armadilhas:
+  - Efeito de FC e de fármacos.
+  nao_confundir:
+  - isquemia.infra_st_subendocardica
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, segmento ST
+    tipo: paráfrase
+  revisado_por_medico: false

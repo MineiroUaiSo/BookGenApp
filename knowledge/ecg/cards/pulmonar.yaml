@@ -1,0 +1,41 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: pulmonar
+cartoes:
+- id: pulmonar.tep
+  versao: 1
+  nome_pt: Embolia pulmonar no ECG
+  criterio: Taquicardia sinusal, T negativa em V1-V4, S1Q3T3, BRD novo; ECG normal não exclui.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.sinus_tachycardia
+  - ecg.t_inversion_*
+  armadilhas:
+  - Baixa especificidade.
+  nao_confundir:
+  - hvd.strain_direito
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre TEP
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: pulmonar.dpoc_padrao
+  versao: 1
+  nome_pt: Padrão de DPOC
+  criterio: P pulmonale, baixa voltagem, transição tardia (rotação horária), eixo à direita.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.rae
+  - ecg.low_voltage
+  - ecg.right_axis*
+  armadilhas:
+  - Não prova hipertensão pulmonar.
+  nao_confundir:
+  - hvd.criterios_r_v1
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre doença pulmonar
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir

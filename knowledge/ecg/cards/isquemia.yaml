@@ -1,0 +1,172 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: isquemia
+cartoes:
+- id: isquemia.infra_st_subendocardica
+  versao: 1
+  nome_pt: Isquemia subendocárdica
+  criterio: Infra de ST difuso de maior amplitude em V4-V6 com supra em aVR sugere isquemia extensa (tronco/multivasos)
+    ou demanda.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_depression_*
+  armadilhas:
+  - Não indica local da oclusão; correlacionar clinicamente.
+  nao_confundir:
+  - repol.strain_vs_isquemia
+  fonte:
+    ref: udmi4_2018
+    local: Seção critérios ECG de isquemia
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: achado de aVR descrito em diretrizes ESC/ACC; confirmar texto
+- id: isquemia.sgarbossa
+  versao: 1
+  nome_pt: Critérios de Sgarbossa (BRE)
+  criterio: 'Pontuação: supra concordante >=1 mm = 5; infra concordante em V1-V3 >=1 mm = 3; supra discordante
+    >=5 mm = 2. Soma >=3 sugere IAM.'
+  limiares:
+    concordante_supra: 5
+    infra_v1v3: 3
+    discordante_5mm: 2
+    corte: '>=3'
+  medidas: []
+  gatilhos:
+  - ecg.lbbb
+  - ecg.st_elevation_*
+  armadilhas:
+  - Baixa sensibilidade, alta especificidade.
+  nao_confundir:
+  - isquemia.sgarbossa_modificado
+  fonte:
+    ref: sgarbossa_1996
+    local: N Engl J Med 1996;334:481
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: isquemia.sgarbossa_modificado
+  versao: 1
+  nome_pt: Sgarbossa modificado (Smith)
+  criterio: Troca o critério de 5 mm por razão ST/S <= -0,25 em qualquer derivação com supra discordante.
+  limiares:
+    st_s_ratio: <=-0.25
+  medidas: []
+  gatilhos:
+  - ecg.lbbb
+  armadilhas:
+  - Mantém os critérios concordantes.
+  nao_confundir:
+  - isquemia.sgarbossa
+  fonte:
+    ref: smith_2012
+    local: Ann Emerg Med 2012;60:766
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: isquemia.sgarbossa_marcapasso
+  versao: 1
+  nome_pt: Sgarbossa em ritmo de marca-passo
+  criterio: Os mesmos critérios concordantes valem para ritmo ventricular estimulado.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.paced_rhythm
+  armadilhas:
+  - Comparar com ECG prévio.
+  nao_confundir:
+  - isquemia.sgarbossa
+  fonte:
+    ref: smith_2012
+    local: Ann Emerg Med 2012;60:766
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: extensão ao marca-passo vem de outro trabalho; confirmar
+- id: isquemia.wellens
+  versao: 1
+  nome_pt: Padrão de Wellens
+  criterio: T bifásica ou profundamente negativa em V2-V3 em paciente sem dor, sugestiva de estenose crítica
+    de DA.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.t_inversion_*
+  armadilhas:
+  - Teste de esforço é contraindicado.
+  nao_confundir:
+  - cmh.t_gigante_apical
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre síndromes coronarianas agudas
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: achado descrito por de Zwaan 1982; confirmar na fonte primária
+- id: isquemia.de_winter
+  versao: 1
+  nome_pt: Padrão de De Winter
+  criterio: 'Infra de ST ascendente em V1-V6 com T alta e simétrica: equivalente de oclusão da DA.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_depression_*
+  armadilhas:
+  - Não é infra de ST isquêmico típico.
+  nao_confundir:
+  - iam.stemi_universal
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre síndromes coronarianas agudas
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: fonte primária (de Winter 2008) não confirmada
+- id: isquemia.onda_r_alta_v1
+  versao: 1
+  nome_pt: R dominante em V1
+  criterio: 'R alta em V1 com R/S>1: HVD, BRD, infarto posterior, WPW tipo A, dextrocardia, variante.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.rvh
+  armadilhas:
+  - Diferenciar pelo contexto.
+  nao_confundir:
+  - hvd.criterios_r_v1
+  - iam.posterior
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, R dominante
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: isquemia.aneurisma_ve
+  versao: 1
+  nome_pt: Supra persistente / aneurisma de VE
+  criterio: Supra de ST com Q profundas semanas após infarto, sem evolução.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  - ecg.pathologic_q_*
+  armadilhas:
+  - Comparar com ECG anterior.
+  nao_confundir:
+  - iam.stemi_universal
+  fonte:
+    ref: aha_2009_part_vi
+    local: Parte VI
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: ver evolução
+- id: isquemia.avr_supra
+  versao: 1
+  nome_pt: Supra de ST em aVR
+  criterio: 'Supra em aVR com infra difuso: isquemia extensa; avaliar tronco.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  armadilhas:
+  - Significado depende do contexto.
+  nao_confundir:
+  - isquemia.infra_st_subendocardica
+  fonte:
+    ref: udmi4_2018
+    local: Seção isquemia
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: ainda debatido

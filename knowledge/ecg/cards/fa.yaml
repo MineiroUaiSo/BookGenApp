@@ -1,0 +1,107 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: fa
+cartoes:
+- id: fa.fibrilacao
+  versao: 1
+  nome_pt: Fibrilação atrial
+  criterio: Ritmo irregularmente irregular sem P definidas, com ondas fibrilatórias, QRS em geral estreito.
+  limiares: {}
+  medidas:
+  - rr_sd_ms
+  - heart_rate_bpm
+  gatilhos:
+  - ecg.atrial_fibrillation
+  - ecg.irregular_rhythm
+  - ecg.no_p_wave
+  armadilhas:
+  - Artefato de tremor simula FA.
+  - Regularização sugere BAV ou digital.
+  nao_confundir:
+  - ritmo.sinusal_arritmia
+  - fa.flutter
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, fibrilação atrial
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: fa.resposta_ventricular
+  versao: 1
+  nome_pt: 'FA: resposta ventricular'
+  criterio: 'Descrever FC média: lenta <60, controlada <110, rápida >110 bpm.'
+  limiares:
+    lenta: <60
+    controlada: <110
+    rapida: '>110'
+  medidas:
+  - heart_rate_bpm
+  gatilhos:
+  - ecg.atrial_fibrillation
+  armadilhas:
+  - Resposta lenta pode indicar doença do nó/BAV.
+  nao_confundir:
+  - fa.fibrilacao
+  fonte:
+    ref: esc_af_2024
+    local: ESC 2024, controle de frequência
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: cortes dependem da diretriz
+- id: fa.bloqueio_associado
+  versao: 1
+  nome_pt: FA com QRS largo
+  criterio: Distinguir BR preexistente, aberrância e pré-excitação.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.atrial_fibrillation
+  - ecg.rbbb
+  - ecg.lbbb
+  armadilhas:
+  - 'Largo e irregular muito rápido: pensar em WPW.'
+  nao_confundir:
+  - wpw.fa_preexcitada
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir
+- id: fa.flutter
+  versao: 1
+  nome_pt: Flutter atrial
+  criterio: 'Ondas F regulares em dente de serra (~250-350/min) sem linha isoelétrica; típico anti-horário:
+    negativas em inferiores e positivas em V1.'
+  limiares: {}
+  medidas:
+  - heart_rate_bpm
+  gatilhos:
+  - ecg.atrial_flutter
+  armadilhas:
+  - 2:1 dá FC ~150 e pode ser confundido com taquicardia sinusal.
+  nao_confundir:
+  - fa.fibrilacao
+  - ritmo.taquicardia_sinusal
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, flutter atrial
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: faixa de frequência conferir
+- id: fa.flutter_atipico
+  versao: 1
+  nome_pt: Flutter horário e atípico
+  criterio: Padrão invertido (positivo em inferiores) ou morfologia distinta; localizar circuito exige
+    EEF.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.atrial_flutter
+  armadilhas:
+  - ECG não define o circuito.
+  nao_confundir:
+  - fa.flutter
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir

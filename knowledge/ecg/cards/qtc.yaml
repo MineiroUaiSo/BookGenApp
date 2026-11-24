@@ -1,0 +1,118 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: qtc
+cartoes:
+- id: qtc.bazett
+  versao: 1
+  nome_pt: QTc pela fórmula de Bazett
+  criterio: QTc = QT dividido pela raiz quadrada do RR em segundos; superestima o QT quando a FC está
+    alta e subestima quando está baixa.
+  limiares:
+    formula: QT/sqrt(RR)
+  medidas:
+  - qt_ms
+  - rr_mean_ms
+  - qtc_bazett_ms
+  gatilhos:
+  - ecg.long_qt
+  - ecg.short_qt
+  armadilhas:
+  - Acima de ~90 bpm tende a gerar falso QT longo; preferir Fridericia.
+  nao_confundir:
+  - qtc.fridericia
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, correção do QT pela frequência
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: qtc.fridericia
+  versao: 1
+  nome_pt: QTc pela fórmula de Fridericia
+  criterio: QTc = QT dividido pela raiz cúbica do RR em segundos; corrige melhor em FC elevada ou baixa
+    que Bazett.
+  limiares:
+    formula: QT/cbrt(RR)
+  medidas:
+  - qt_ms
+  - rr_mean_ms
+  - qtc_fridericia_ms
+  gatilhos:
+  - ecg.long_qt
+  - ecg.short_qt
+  armadilhas:
+  - Registrar qual fórmula foi usada ao comparar exames.
+  nao_confundir:
+  - qtc.bazett
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, correção do QT pela frequência
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: qtc.framingham_hodges
+  versao: 1
+  nome_pt: QTc por Framingham e Hodges
+  criterio: 'Framingham: QT + 154 x (1 - RR em s). Hodges: QT + 1,75 x (FC - 60). Ambas lineares, menos
+    dependentes da FC que Bazett.'
+  limiares:
+    framingham: QT+154*(1-RR)
+    hodges: QT+1.75*(FC-60)
+  medidas:
+  - qt_ms
+  - qtc_framingham_ms
+  - qtc_hodges_ms
+  gatilhos:
+  - ecg.long_qt
+  armadilhas:
+  - Validadas em populações específicas; usar como conferência.
+  nao_confundir:
+  - qtc.bazett
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, correção do QT pela frequência
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: coeficientes das fórmulas conferidos de memória; confirmar na fonte
+- id: qtc.valores_limite
+  versao: 1
+  nome_pt: Limites de QTc por sexo
+  criterio: QTc prolongado a partir de cerca de 450 ms em homens e 460 ms em mulheres; acima de 500 ms
+    indica risco proarrítmico relevante.
+  limiares:
+    homem_ms: '>=450'
+    mulher_ms: '>=460'
+    alto_risco_ms: '>500'
+  medidas:
+  - qtc_bazett_ms
+  - qtc_fridericia_ms
+  gatilhos:
+  - ecg.long_qt
+  armadilhas:
+  - Limites de diretrizes variam entre 450/460 e 470/480 ms conforme a fonte.
+  nao_confundir:
+  - qt.longo
+  fonte:
+    ref: sbc_laudos_2022
+    local: Arq Bras Cardiol 2022;119(4):638-680, seção sobre intervalo QT
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: cortes variam entre fontes; confirmar o adotado pela SBC
+- id: qtc.medida_qt
+  versao: 1
+  nome_pt: Como medir o QT
+  criterio: Medir do início do QRS ao fim da onda T, em derivação com T nítida (DII ou V5), pelo método
+    da tangente; com onda U fundida, excluí-la.
+  limiares: {}
+  medidas:
+  - qt_ms
+  gatilhos:
+  - ecg.long_qt
+  - ecg.short_qt
+  armadilhas:
+  - QRS largo alonga o QT por despolarização, não por repolarização.
+  - 'Fibrilação atrial: média de vários batimentos.'
+  nao_confundir:
+  - qt.longo
+  - repol.hipocalemia
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, medida do QT
+    tipo: paráfrase
+  revisado_por_medico: false

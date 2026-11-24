@@ -1,0 +1,81 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: hvd
+cartoes:
+- id: hvd.criterios_r_v1
+  versao: 1
+  nome_pt: 'HVD: R dominante em V1'
+  criterio: R em V1 >=7 mm, R/S em V1 >1, associado a desvio do eixo à direita, sugere sobrecarga ventricular
+    direita.
+  limiares:
+    r_v1_mm: '>=7'
+    rs_v1: '>1'
+  medidas: []
+  gatilhos:
+  - ecg.rvh
+  armadilhas:
+  - Bloqueio de ramo direito, infarto posterior, WPW tipo A e dextrocardia também dão R alta em V1.
+  nao_confundir:
+  - isquemia.onda_r_alta_v1
+  - hvd.s_profunda_lateral
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, HVD
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conjunto exato de critérios conferir
+- id: hvd.s_profunda_lateral
+  versao: 1
+  nome_pt: 'HVD: S persistente em V5-V6'
+  criterio: S de 7 mm ou mais em V5-V6 (persistência de S) com eixo desviado para a direita sugere HVD.
+  limiares:
+    s_v5_mm: '>=7'
+  medidas: []
+  gatilhos:
+  - ecg.rvh
+  armadilhas:
+  - Em DPOC é comum sem hipertrofia verdadeira.
+  nao_confundir:
+  - pulmonar.dpoc_padrao
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, HVD
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir limiar
+- id: hvd.strain_direito
+  versao: 1
+  nome_pt: 'HVD: padrão de sobrecarga sistólica direita'
+  criterio: Inversão de T assimétrica com infradesnível de ST em V1-V3 e inferiores, com R alta em V1.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.rvh
+  - ecg.t_inversion_*
+  armadilhas:
+  - Embolia pulmonar também inverte T em V1-V3.
+  nao_confundir:
+  - pulmonar.tep
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, HVD com repolarização
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: hvd.eixo_direita
+  versao: 1
+  nome_pt: 'HVD: desvio do eixo à direita'
+  criterio: Eixo do QRS acima de +110 graus favorece HVD quando associado a R alta em V1.
+  limiares:
+    eixo_graus: '>110'
+  medidas:
+  - qrs_axis_deg
+  gatilhos:
+  - ecg.right_axis*
+  - ecg.rvh
+  armadilhas:
+  - Excluir troca de eletrodos de braço, dextrocardia e biótipo longilíneo.
+  nao_confundir:
+  - eixo.desvio_direita
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, HVD
+    tipo: paráfrase
+  revisado_por_medico: false

@@ -1,0 +1,85 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: wpw
+cartoes:
+- id: wpw.criterios
+  versao: 1
+  nome_pt: Pré-excitação (WPW)
+  criterio: Onda delta (empastamento inicial do QRS) visível com PR curto (<120 ms) e QRS alargado, com
+    alteração secundária do ST-T.
+  limiares:
+    pr_ms: <120
+    qrs_ms: '>110'
+  medidas:
+  - pr_ms
+  - qrs_ms
+  gatilhos:
+  - ecg.preexcitation
+  armadilhas:
+  - 'Exige delta visível E PR confiável: sem delta, PR curto isolado não é WPW.'
+  - Pode simular Q de infarto ou BRE.
+  nao_confundir:
+  - wpw.pr_curto
+  - conducao.bre_completo
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, pré-excitação ventricular
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: wpw.pr_curto
+  versao: 1
+  nome_pt: PR curto sem delta
+  criterio: 'PR <120 ms sem onda delta: considerar variante (Lown-Ganong-Levine, condução acelerada) ou
+    onda P ectópica baixa.'
+  limiares:
+    pr_ms: <120
+  medidas:
+  - pr_ms
+  gatilhos:
+  - ecg.short_pr
+  armadilhas:
+  - Não laudar WPW sem delta.
+  nao_confundir:
+  - wpw.criterios
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, PR curto
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: wpw.fa_preexcitada
+  versao: 1
+  nome_pt: FA com pré-excitação
+  criterio: 'Ritmo irregular e muito rápido com QRS largos de morfologia variável: risco de fibrilação
+    ventricular; evitar bloqueadores nodais.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.preexcitation
+  - ecg.atrial_fibrillation
+  armadilhas:
+  - Emergência.
+  nao_confundir:
+  - taq.qrs_largo
+  - fa.fibrilacao
+  fonte:
+    ref: esc_va_2022
+    local: Diretriz ESC de arritmias ventriculares 2022, seção sobre pré-excitação
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: confirmar localização na diretriz
+- id: wpw.pseudoinfarto
+  versao: 1
+  nome_pt: Pseudoinfarto por pré-excitação
+  criterio: Ondas Q ou R alta em V1 criadas pela delta, simulando infarto inferior ou posterior.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.preexcitation
+  - ecg.pathologic_q_*
+  armadilhas:
+  - Só laudar infarto se delta ausente.
+  nao_confundir:
+  - iam.q_patologica
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, pré-excitação
+    tipo: paráfrase
+  revisado_por_medico: false

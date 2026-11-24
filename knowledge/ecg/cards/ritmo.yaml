@@ -1,0 +1,79 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: ritmo
+cartoes:
+- id: ritmo.sinusal_arritmia
+  versao: 1
+  nome_pt: Arritmia sinusal respiratória
+  criterio: Variação do ciclo P-P acima de 120 ms entre batimentos, com P e PR constantes, ligada à respiração.
+  limiares: {}
+  medidas:
+  - rr_sd_ms
+  gatilhos:
+  - ecg.irregular_rhythm
+  armadilhas:
+  - Irregularidade com P sinusal estável não é FA.
+  nao_confundir:
+  - fa.fibrilacao
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, arritmia sinusal
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: ritmo.atrial_ectopico
+  versao: 1
+  nome_pt: Ritmo atrial ectópico ou juncional
+  criterio: P com morfologia/eixo diferente do sinusal (negativa em DII = baixo) ou ausente/retrógrada
+    com QRS estreito.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.non_sinus_p
+  - ecg.no_p_wave
+  armadilhas:
+  - P retrógrada vem logo após o QRS.
+  nao_confundir:
+  - ritmo.sinusal_arritmia
+  - fa.fibrilacao
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, ritmos atriais e juncionais
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: ritmo.taquicardia_sinusal
+  versao: 1
+  nome_pt: Taquicardia sinusal
+  criterio: Ritmo sinusal com FC acima de 100 bpm; início e fim graduais.
+  limiares:
+    fc_bpm: '>100'
+  medidas:
+  - heart_rate_bpm
+  gatilhos:
+  - ecg.sinus_tachycardia
+  armadilhas:
+  - FC acima de ~150 em adulto sugere outro ritmo (flutter 2:1, TSV).
+  nao_confundir:
+  - fa.flutter
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, taquicardia sinusal
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: ritmo.bradicardia_sinusal
+  versao: 1
+  nome_pt: Bradicardia sinusal
+  criterio: Ritmo sinusal com FC abaixo de 50-60 bpm (definições variam).
+  limiares:
+    fc_bpm: <60
+  medidas:
+  - heart_rate_bpm
+  gatilhos:
+  - ecg.sinus_bradycardia
+  armadilhas:
+  - Variante fisiológica em atletas.
+  nao_confundir:
+  - conducao.disfuncao_sinusal
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, bradicardia sinusal
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: corte 50 ou 60 varia

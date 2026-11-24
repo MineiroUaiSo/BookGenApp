@@ -1,0 +1,43 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: voltagem
+cartoes:
+- id: voltagem.baixa_voltagem
+  versao: 1
+  nome_pt: Baixa voltagem
+  criterio: QRS com amplitude pico a pico <5 mm em todas as derivações de membros ou <10 mm nas precordiais.
+  limiares:
+    membros_mm: <5
+    precordiais_mm: <10
+  medidas: []
+  gatilhos:
+  - ecg.low_voltage
+  - ecg.low_voltage_precordial
+  armadilhas:
+  - Checar calibração 10 mm/mV.
+  - 'Causas: derrame, DPOC, obesidade, amiloidose, hipotireoidismo.'
+  nao_confundir:
+  - pericardite.derrame_alternancia
+  - normal.convencoes_medida
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, baixa voltagem
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir cortes na Parte V
+- id: voltagem.baixa_amiloidose
+  versao: 1
+  nome_pt: Baixa voltagem com ondas Q (amiloidose)
+  criterio: Voltagem baixa com "pseudoinfarto" e HVE ecocardiográfica sugere amiloidose.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.low_voltage
+  armadilhas:
+  - Discordância ECG x eco é pista.
+  nao_confundir:
+  - voltagem.baixa_voltagem
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre cardiomiopatias
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: conferir

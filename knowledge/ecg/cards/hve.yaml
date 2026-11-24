@@ -1,0 +1,296 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: hve
+cartoes:
+- id: hve.sokolow_lyon
+  versao: 1
+  nome_pt: 'HVE: Sokolow-Lyon'
+  criterio: Soma da onda S mais profunda em V1 com a R maior em V5 ou V6; valor acima de 35 mm sugere
+    sobrecarga ventricular esquerda.
+  limiares:
+    soma_mm: '>35'
+  medidas:
+  - sokolow_lyon_mv
+  - indices.sokolow_mm
+  gatilhos:
+  - ecg.lvh
+  - ecg.lvh_voltage
+  armadilhas:
+  - Alta sensibilidade em jovens, magros e atletas gera falsos positivos.
+  - Conferir a calibração de 10 mm/mV.
+  nao_confundir:
+  - hve.cornell_voltagem
+  - hve.peguero
+  fonte:
+    ref: sokolow_1949
+    local: Am Heart J 1949;37:161, critério R V5/V6 + S V1
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: hve.r_avl
+  versao: 1
+  nome_pt: 'HVE: R em aVL'
+  criterio: R em aVL acima de 11 mm sugere HVE, sobretudo com eixo horizontalizado.
+  limiares:
+    r_avl_mm: '>11'
+  medidas:
+  - r_amplitude_mv
+  gatilhos:
+  - ecg.lvh
+  armadilhas:
+  - Critério de baixa sensibilidade isolado.
+  nao_confundir:
+  - hve.cornell_voltagem
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, critérios de voltagem em derivações de membros
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: limiar de R aVL conferido de memória; confirmar na Parte V
+- id: hve.cornell_voltagem
+  versao: 1
+  nome_pt: 'HVE: voltagem de Cornell'
+  criterio: 'R em aVL somada à S em V3: acima de 28 mm em homens e acima de 20 mm em mulheres.'
+  limiares:
+    homem_mm: '>28'
+    mulher_mm: '>20'
+  medidas:
+  - cornell_mv
+  - indices.cornell_mm
+  gatilhos:
+  - ecg.lvh
+  - ecg.lvh_voltage
+  armadilhas:
+  - Aplicar corte por sexo; usar um só corte superestima em mulheres.
+  nao_confundir:
+  - hve.sokolow_lyon
+  - hve.cornell_produto
+  fonte:
+    ref: casale_1985
+    local: Circulation 1985;71:549, critério sexo-específico
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: hve.cornell_produto
+  versao: 1
+  nome_pt: 'HVE: produto de Cornell'
+  criterio: Produto da voltagem de Cornell (somando 6 mm nas mulheres) pela duração do QRS; acima de 2440
+    mm.ms sugere HVE.
+  limiares:
+    produto_mm_ms: '>2440'
+  medidas:
+  - cornell_mv
+  - qrs_ms
+  - indices.cornell_produto
+  gatilhos:
+  - ecg.lvh
+  armadilhas:
+  - QRS largo por bloqueio de ramo infla o produto.
+  nao_confundir:
+  - hve.cornell_voltagem
+  fonte:
+    ref: okin_1995
+    local: J Am Coll Cardiol 1995;25:417
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: corte 2440 e ajuste de +6 mm em mulheres confirmar na fonte
+- id: hve.peguero
+  versao: 1
+  nome_pt: 'HVE: critério de Peguero-Lo Presti'
+  criterio: 'S mais profunda em qualquer derivação somada à S de V4: 28 mm ou mais em homens e 23 mm ou
+    mais em mulheres.'
+  limiares:
+    homem_mm: '>=28'
+    mulher_mm: '>=23'
+  medidas:
+  - indices.peguero_mm
+  - s_amplitude_mv
+  gatilhos:
+  - ecg.lvh
+  - ecg.lvh_voltage
+  armadilhas:
+  - Mais sensível que Sokolow e Cornell na validação original; menos testado fora dela.
+  nao_confundir:
+  - hve.sokolow_lyon
+  - hve.cornell_voltagem
+  fonte:
+    ref: peguero_2017
+    local: J Am Coll Cardiol 2017;69:1694
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: hve.romhilt_voltagem
+  versao: 1
+  nome_pt: 'Romhilt-Estes: pontos de voltagem (3)'
+  criterio: 3 pontos se qualquer R ou S de membro >=20 mm, S em V1/V2 >=30 mm ou R em V5/V6 >=30 mm.
+  limiares:
+    pontos: 3
+  medidas:
+  - r_amplitude_mv
+  - s_amplitude_mv
+  gatilhos:
+  - ecg.lvh
+  armadilhas:
+  - Pontuar o item de voltagem uma só vez.
+  nao_confundir:
+  - hve.romhilt_escore
+  fonte:
+    ref: romhilt_1968
+    local: Am Heart J 1968;75:752, item voltagem
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: hve.romhilt_st_t
+  versao: 1
+  nome_pt: 'Romhilt-Estes: alteração ST-T (3 ou 1)'
+  criterio: 3 pontos para ST-T típico de sobrecarga sem digital; 1 ponto se em uso de digitálico.
+  limiares:
+    pontos_sem_digital: 3
+    pontos_com_digital: 1
+  medidas: []
+  gatilhos:
+  - ecg.secondary_repolarization
+  - ecg.lvh
+  armadilhas:
+  - Digital produz ST em colher que simula strain.
+  nao_confundir:
+  - repol.strain_vs_isquemia
+  - repol.digital
+  fonte:
+    ref: romhilt_1968
+    local: Am Heart J 1968;75:752, item ST-T
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: hve.romhilt_ae
+  versao: 1
+  nome_pt: 'Romhilt-Estes: sobrecarga atrial esquerda (3)'
+  criterio: 3 pontos para fase terminal negativa da P em V1 com profundidade >=1 mm e duração >=40 ms.
+  limiares:
+    pontos: 3
+    profundidade_mm: '>=1'
+    duracao_ms: '>=40'
+  medidas: []
+  gatilhos:
+  - ecg.lae
+  - ecg.lvh
+  armadilhas:
+  - Mesmo achado vale como índice de Morris.
+  nao_confundir:
+  - atrial.ae_morris
+  fonte:
+    ref: romhilt_1968
+    local: Am Heart J 1968;75:752, item atrial
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: hve.romhilt_eixo
+  versao: 1
+  nome_pt: 'Romhilt-Estes: desvio do eixo (2)'
+  criterio: 2 pontos para eixo do QRS de -30 graus ou mais à esquerda.
+  limiares:
+    pontos: 2
+    eixo_graus: <=-30
+  medidas:
+  - qrs_axis_deg
+  gatilhos:
+  - ecg.left_axis*
+  - ecg.lvh
+  armadilhas:
+  - Hemibloqueio anterior também desvia o eixo.
+  nao_confundir:
+  - bloqueio.bdas
+  fonte:
+    ref: romhilt_1968
+    local: Am Heart J 1968;75:752, item eixo
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: hve.romhilt_qrs_deflexao
+  versao: 1
+  nome_pt: 'Romhilt-Estes: QRS e deflexão intrinsecoide (1+1)'
+  criterio: 1 ponto para QRS >=90 ms e 1 ponto para deflexão intrinsecoide em V5/V6 >=50 ms.
+  limiares:
+    qrs_ms: '>=90'
+    intrinsecoide_ms: '>=50'
+  medidas:
+  - qrs_ms
+  - intrinsicoid_deflection_ms
+  gatilhos:
+  - ecg.lvh
+  armadilhas:
+  - Medida da deflexão intrinsecoide é imprecisa.
+  nao_confundir:
+  - hve.romhilt_escore
+  fonte:
+    ref: romhilt_1968
+    local: Am Heart J 1968;75:752, itens duração e deflexão
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: hve.romhilt_escore
+  versao: 1
+  nome_pt: 'Romhilt-Estes: interpretação do escore'
+  criterio: Soma >=5 pontos indica HVE; 4 pontos, HVE provável.
+  limiares:
+    definida: '>=5'
+    provavel: 4
+  medidas: []
+  gatilhos:
+  - ecg.lvh
+  armadilhas:
+  - Escore lento de aplicar e pouco sensível; somar apenas itens objetivamente medidos.
+  nao_confundir:
+  - hve.sokolow_lyon
+  fonte:
+    ref: romhilt_1968
+    local: Am Heart J 1968;75:752
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: hve.gubner_ungerleider
+  versao: 1
+  nome_pt: 'HVE: R em DI mais S em DIII'
+  criterio: Soma de R em DI com S em DIII acima de 25 mm sugere HVE.
+  limiares:
+    soma_mm: '>25'
+  medidas: []
+  gatilhos:
+  - ecg.lvh
+  armadilhas:
+  - Pouco usado; serve como critério de membros adicional.
+  nao_confundir:
+  - hve.sokolow_lyon
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, critérios de membros
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: critério e corte conferidos de memória
+- id: hve.sbc_interpretacao
+  versao: 1
+  nome_pt: 'HVE: como a SBC orienta a conclusão'
+  criterio: Laudar HVE quando critério de voltagem se associa a alteração de repolarização ou outros achados;
+    voltagem isolada é achado limítrofe.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.lvh
+  - ecg.lvh_voltage
+  armadilhas:
+  - Voltagem isolada em jovem não deve ser rotulada como doença.
+  nao_confundir:
+  - hve.sokolow_lyon
+  fonte:
+    ref: sbc_laudos_2022
+    local: Arq Bras Cardiol 2022;119(4):638-680, seção sobre sobrecargas ventriculares
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: redação exata da recomendação conferir na diretriz
+- id: hve.aumento_deflexao_lateral
+  versao: 1
+  nome_pt: 'HVE: padrão de sobrecarga sistólica'
+  criterio: Voltagem alta com infradesnível de ST convexo e T assimétrica invertida em V5-V6, DI e aVL.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.lvh
+  - ecg.secondary_repolarization
+  armadilhas:
+  - Mesmo padrão ocorre na isquemia subendocárdica.
+  nao_confundir:
+  - repol.strain_vs_isquemia
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, HVE com alterações de ST-T
+    tipo: paráfrase
+  revisado_por_medico: false

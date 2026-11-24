@@ -1,0 +1,58 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: brugada
+cartoes:
+- id: brugada.tipo1
+  versao: 1
+  nome_pt: Padrão de Brugada tipo 1
+  criterio: ST em abóbada (coved) >=2 mm no ponto J em ≥1 derivação V1-V2 seguido por T negativa.
+  limiares:
+    j_mm: '>=2'
+  medidas: []
+  gatilhos: []
+  armadilhas:
+  - Repetir com derivações altas V1-V2 no 2º e 3º espaços.
+  - Febre e fármacos podem desmascarar.
+  nao_confundir:
+  - brugada.tipo2
+  - conducao.brd_incompleto
+  fonte:
+    ref: brugada_consenso_2002
+    local: Circulation 2005;111:659
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: consensos recentes (Shanghai) mantêm; confirmar
+- id: brugada.tipo2
+  versao: 1
+  nome_pt: Padrão tipo 2 / sela
+  criterio: Supra de J >=2 mm com ST >=1 mm e T positiva ou bifásica (sela).
+  limiares:
+    j_mm: '>=2'
+    st_mm: '>=1'
+  medidas: []
+  gatilhos: []
+  armadilhas:
+  - Não é diagnóstico por si.
+  nao_confundir:
+  - brugada.tipo1
+  fonte:
+    ref: brugada_consenso_2002
+    local: Circulation 2005;111:659
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: critérios de tipo 2/3 foram revisados; confirmar
+- id: brugada.shanghai
+  versao: 1
+  nome_pt: Escore de Shanghai
+  criterio: Escore ponderado para síndrome de Brugada incluindo ECG, clínica, história familiar e genética.
+  limiares: {}
+  medidas: []
+  gatilhos: []
+  armadilhas:
+  - Aplicar com especialista.
+  nao_confundir:
+  - brugada.tipo1
+  fonte:
+    ref: shanghai_2016
+    local: Heart Rhythm 2016;13:e295
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: pontuações não detalhadas

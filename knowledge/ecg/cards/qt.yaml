@@ -1,0 +1,101 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: qt
+cartoes:
+- id: qt.longo
+  versao: 1
+  nome_pt: QT longo
+  criterio: 'QTc acima de 450/460 ms (H/M); acima de 500 ms ou aumento >60 ms sobre basal eleva risco
+    de torsades. Causas: fármacos, hipocalemia, hipomagnesemia, hipocalcemia, genética.'
+  limiares:
+    qtc_ms: '>=450/460'
+    risco_ms: '>500'
+  medidas:
+  - qtc_bazett_ms
+  - qtc_fridericia_ms
+  gatilhos:
+  - ecg.long_qt
+  armadilhas:
+  - Corrigir pela fórmula adequada e pelo QRS largo.
+  - Verificar eletrólitos.
+  nao_confundir:
+  - qtc.valores_limite
+  - repol.hipocalemia
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, QT prolongado
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: qt.schwartz
+  versao: 1
+  nome_pt: Escore de Schwartz (QT longo congênito)
+  criterio: Pontuação de QTc, torsades, T alternante, síncope, história familiar; >3,5 pontos = alta probabilidade.
+  limiares:
+    alta_prob: '>3.5'
+  medidas: []
+  gatilhos:
+  - ecg.long_qt
+  armadilhas:
+  - QTc >=480 ms soma pontos.
+  nao_confundir:
+  - qt.longo
+  fonte:
+    ref: schwartz_2011
+    local: Circulation 2011;124:2181
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: qt.curto
+  versao: 1
+  nome_pt: QT curto
+  criterio: QTc curto (<=340-360 ms) com sintomas ou história familiar; <=320 ms é diagnóstico isolado
+    nas diretrizes recentes.
+  limiares:
+    qtc_ms: <=360
+    diagnostico_ms: <=320
+  medidas:
+  - qtc_bazett_ms
+  gatilhos:
+  - ecg.short_qt
+  armadilhas:
+  - Hipercalcemia, digital, hipertermia encurtam o QT.
+  nao_confundir:
+  - qt.longo
+  fonte:
+    ref: esc_va_2022
+    local: Diretriz ESC arritmias ventriculares 2022
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: cortes variam entre consensos
+- id: qt.torsades
+  versao: 1
+  nome_pt: Torsades de pointes
+  criterio: TV polimórfica com QRS que gira em torno da linha de base, precedida por QT longo e pausa
+    (curto-longo-curto).
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.long_qt
+  armadilhas:
+  - Suspender fármacos, repor K e Mg.
+  nao_confundir:
+  - taq.tv
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: qt.onda_u
+  versao: 1
+  nome_pt: Onda U
+  criterio: Deflexão após a T, <25% dela; proeminente em hipocalemia, bradicardia e fármacos.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.long_qt
+  armadilhas:
+  - Não incluir a U no QT, exceto se fundida.
+  nao_confundir:
+  - repol.hipocalemia
+  fonte:
+    ref: aha_2009_part_iv
+    local: Parte IV, onda U
+    tipo: paráfrase
+  revisado_por_medico: false

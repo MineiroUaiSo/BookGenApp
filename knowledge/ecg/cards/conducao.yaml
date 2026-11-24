@@ -1,0 +1,277 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: conducao
+cartoes:
+- id: conducao.bre_completo
+  versao: 1
+  nome_pt: Bloqueio completo de ramo esquerdo
+  criterio: QRS >=120 ms com R larga e entalhada em DI, aVL, V5-V6, sem Q septal e S/QS largo em V1-V2;
+    segmento ST/T opostos ao QRS.
+  limiares:
+    qrs_ms: '>=120'
+    deflexao_intrinsecoide_ms: '>60'
+  medidas:
+  - qrs_ms
+  gatilhos:
+  - ecg.lbbb
+  armadilhas:
+  - Infarto no BRE exige critérios de Sgarbossa.
+  nao_confundir:
+  - conducao.bre_strauss
+  - conducao.bre_incompleto
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, BRE completo
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.bre_strauss
+  versao: 1
+  nome_pt: 'BRE: critérios de Strauss'
+  criterio: QRS >=140 ms em homens ou >=130 ms em mulheres, com entalhe/empastamento mesossistólico em
+    2 derivações contíguas (V1,V2,V5,V6,DI,aVL); mais específico para o substrato do BRE verdadeiro.
+  limiares:
+    homem_ms: '>=140'
+    mulher_ms: '>=130'
+  medidas:
+  - qrs_ms
+  gatilhos:
+  - ecg.lbbb
+  armadilhas:
+  - Importante na seleção para ressincronização.
+  nao_confundir:
+  - conducao.bre_completo
+  fonte:
+    ref: strauss_2011
+    local: Am J Cardiol 2011;107:927
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.bre_incompleto
+  versao: 1
+  nome_pt: BRE incompleto
+  criterio: Morfologia de BRE com QRS de 110 a 119 ms.
+  limiares:
+    qrs_ms: 110-119
+  medidas:
+  - qrs_ms
+  gatilhos:
+  - ecg.ilbbb
+  armadilhas:
+  - Pode evoluir para BRE completo.
+  nao_confundir:
+  - conducao.bre_completo
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, bloqueios incompletos
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.brd_completo
+  versao: 1
+  nome_pt: Bloqueio completo de ramo direito
+  criterio: QRS >=120 ms com rsr', rsR' ou rSR' em V1-V2; S larga (>40 ms) em DI e V6; deflexão intrinsecoide
+    em V1 >50 ms.
+  limiares:
+    qrs_ms: '>=120'
+    s_larga_ms: '>40'
+    intrinsecoide_v1_ms: '>50'
+  medidas:
+  - qrs_ms
+  gatilhos:
+  - ecg.rbbb
+  armadilhas:
+  - Em BRD, ST-T em V1-V3 são secundárias; lateral é interpretável.
+  nao_confundir:
+  - conducao.brd_incompleto
+  - brugada.tipo1
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, BRD completo
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.brd_incompleto
+  versao: 1
+  nome_pt: BRD incompleto
+  criterio: Morfologia de BRD (rSr' em V1) com QRS de 110 a 119 ms.
+  limiares:
+    qrs_ms: 110-119
+  medidas:
+  - qrs_ms
+  gatilhos:
+  - ecg.irbbb
+  armadilhas:
+  - Variante frequente em jovens; rSr' em V1 também em CIA.
+  nao_confundir:
+  - conducao.brd_completo
+  - brugada.tipo2
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, bloqueios incompletos
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.ivcd
+  versao: 1
+  nome_pt: Atraso inespecífico da condução intraventricular
+  criterio: QRS >=110 ms (ou >=120 ms) sem morfologia de BRE nem de BRD.
+  limiares:
+    qrs_ms: '>=110'
+  medidas:
+  - qrs_ms
+  gatilhos:
+  - ecg.ivcd
+  - ecg.qrs_borderline
+  armadilhas:
+  - Hiperpotassemia, fármacos classe I e doença miocárdica o causam.
+  nao_confundir:
+  - conducao.bre_completo
+  - conducao.brd_completo
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, atraso inespecífico
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.aberrancia
+  versao: 1
+  nome_pt: Aberrância de condução (dependente de frequência)
+  criterio: QRS com morfologia de BRD ou BRE que surge com frequência crítica ou após ciclo longo (Ashman).
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.rbbb
+  - ecg.lbbb
+  armadilhas:
+  - Em taquicardia de QRS largo, preferir TV até prova contrária.
+  nao_confundir:
+  - taq.qrs_largo
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, condução aberrante
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.bav1
+  versao: 1
+  nome_pt: BAV de 1º grau
+  criterio: PR acima de 200 ms constante, com cada P seguida de QRS.
+  limiares:
+    pr_ms: '>200'
+  medidas:
+  - pr_ms
+  gatilhos:
+  - ecg.av_block_1
+  armadilhas:
+  - PR longo com P escondida na T anterior pode ser TQRS.
+  nao_confundir:
+  - normal.p_pr
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, bloqueio AV de primeiro grau
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.bav2_mobitz1
+  versao: 1
+  nome_pt: BAV 2º grau Mobitz I (Wenckebach)
+  criterio: PR aumenta progressivamente até uma P bloqueada; RR encurta e a pausa é menor que dois ciclos
+    P-P. Costuma ser nodal.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.av_block_mobitz1
+  - ecg.irregular_rhythm
+  armadilhas:
+  - Agrupamento de QRS (grupo-batimento).
+  nao_confundir:
+  - conducao.bav2_mobitz2
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, bloqueio AV de segundo grau
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.bav2_mobitz2
+  versao: 1
+  nome_pt: BAV 2º grau Mobitz II
+  criterio: PR fixo nos batimentos conduzidos, com P bloqueada súbita; geralmente infranodal com QRS alargado.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.av_block_mobitz2
+  armadilhas:
+  - Indicação frequente de marca-passo.
+  nao_confundir:
+  - conducao.bav2_mobitz1
+  - conducao.bav_2_1
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, bloqueio AV de segundo grau
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.bav_2_1
+  versao: 1
+  nome_pt: BAV 2:1 e avançado
+  criterio: 'Duas P por QRS: sem batimentos consecutivos não é possível separar Mobitz I de II; BAV avançado:
+    dois ou mais bloqueios consecutivos com alguma condução.'
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.av_block_2to1
+  armadilhas:
+  - QRS largo e PR fixo sugerem nível infranodal.
+  nao_confundir:
+  - conducao.bav2_mobitz1
+  - conducao.bav2_mobitz2
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, BAV 2:1 e avançado
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.bav3
+  versao: 1
+  nome_pt: BAV total (3º grau)
+  criterio: Dissociação AV completa com P regulares sem relação com QRS e frequência ventricular menor
+    que a atrial; escape juncional (QRS estreito) ou ventricular (QRS largo).
+  limiares: {}
+  medidas:
+  - heart_rate_bpm
+  - pr_ms
+  gatilhos:
+  - ecg.av_block_3
+  armadilhas:
+  - Dissociação AV sem bloqueio ocorre quando o ventrículo é mais rápido.
+  nao_confundir:
+  - conducao.dissociacao_av
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, BAV de terceiro grau
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.dissociacao_av
+  versao: 1
+  nome_pt: Dissociação atrioventricular
+  criterio: Átrios e ventrículos batem de forma independente; pode ser por bloqueio, ritmo juncional acelerado
+    ou TV.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.av_block_3
+  armadilhas:
+  - Dissociação isorrítmica não significa bloqueio.
+  nao_confundir:
+  - conducao.bav3
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, dissociação AV
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: conducao.disfuncao_sinusal
+  versao: 1
+  nome_pt: Disfunção do nó sinusal
+  criterio: Bradicardia sinusal persistente, pausas sinusais, parada sinusal ou síndrome taqui-bradi.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.sinus_bradycardia
+  armadilhas:
+  - Atletas e sono têm bradicardia fisiológica.
+  nao_confundir:
+  - normal.fc_ritmo
+  fonte:
+    ref: esc_brady_2021
+    local: Diretriz ESC de bradicardia 2021, seção sobre doença do nó sinusal
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: verificar seção exata

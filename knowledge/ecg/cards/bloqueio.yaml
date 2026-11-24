@@ -1,0 +1,102 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: bloqueio
+cartoes:
+- id: bloqueio.bdas
+  versao: 1
+  nome_pt: Bloqueio divisional anterossuperior esquerdo
+  criterio: Eixo entre -45 e -90 graus, qR em aVL, rS em DII-DIII-aVF, QRS <120 ms; deflexão intrinsecoide
+    em aVL >=45 ms.
+  limiares:
+    eixo_graus: -45 a -90
+    intrinsecoide_avl_ms: '>=45'
+  medidas:
+  - qrs_axis_deg
+  - qrs_ms
+  gatilhos:
+  - ecg.lafb
+  armadilhas:
+  - Excluir infarto inferior (Q em inferiores) antes de atribuir o eixo ao BDAS.
+  nao_confundir:
+  - eixo.desvio_esquerda
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, bloqueio fascicular anterior esquerdo
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: bloqueio.bdpi
+  versao: 1
+  nome_pt: Bloqueio divisional posteroinferior esquerdo
+  criterio: Eixo >=+90 graus, rS em DI e aVL, qR em DIII e aVF, QRS <120 ms; excluir HVD e biótipo.
+  limiares:
+    eixo_graus: '>=90'
+  medidas:
+  - qrs_axis_deg
+  - qrs_ms
+  gatilhos:
+  - ecg.lpfb
+  armadilhas:
+  - Diagnóstico de exclusão; mais raro que BDAS.
+  nao_confundir:
+  - eixo.desvio_direita
+  - hvd.eixo_direita
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, bloqueio fascicular posterior esquerdo
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: bloqueio.bifascicular
+  versao: 1
+  nome_pt: Bloqueio bifascicular
+  criterio: BRD associado a BDAS (mais comum) ou BDPI.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.rbbb
+  - ecg.lafb
+  - ecg.lpfb
+  armadilhas:
+  - Com BAV 1º grau não prova bloqueio trifascicular.
+  nao_confundir:
+  - bloqueio.trifascicular
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, bloqueios combinados
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: bloqueio.trifascicular
+  versao: 1
+  nome_pt: Bloqueio trifascicular
+  criterio: Bloqueio bifascicular com atraso da condução AV (PR longo) ou alternância de ramos; indicação
+    de atenção para risco de BAV total.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.rbbb
+  - ecg.lafb
+  - ecg.av_block_1
+  armadilhas:
+  - PR longo pode estar no nó AV e não no sistema His-Purkinje.
+  nao_confundir:
+  - bloqueio.bifascicular
+  fonte:
+    ref: aha_2009_part_iii
+    local: Parte III, bloqueios combinados
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: definição de trifascicular tem variações
+- id: bloqueio.bsvdr
+  versao: 1
+  nome_pt: Bloqueio septal e variantes
+  criterio: Descrições de bloqueio de fascículo septal têm critérios debatidos; evitar laudar sem concordância.
+  limiares: {}
+  medidas: []
+  gatilhos: []
+  armadilhas:
+  - Alta variabilidade entre fontes.
+  nao_confundir:
+  - bloqueio.bdas
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre bloqueios fasciculares
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: critério controverso; não confirmado

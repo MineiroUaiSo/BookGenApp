@@ -1,0 +1,204 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: iam
+cartoes:
+- id: iam.stemi_universal
+  versao: 1
+  nome_pt: 'IAM com supra de ST: 4ª Definição Universal'
+  criterio: 'Supradesnível de ST no ponto J em duas derivações contíguas: >=1 mm em todas exceto V2-V3;
+    em V2-V3: >=2 mm (homem >=40 a), >=2,5 mm (homem <40 a), >=1,5 mm (mulher).'
+  limiares:
+    geral_mm: '>=1'
+    v2v3_homem_40_mm: '>=2'
+    v2v3_homem_menor40_mm: '>=2.5'
+    v2v3_mulher_mm: '>=1.5'
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  armadilhas:
+  - Bloqueio de ramo, HVE e repolarização precoce tornam o critério não aplicável.
+  - Conferir com ECG prévio.
+  nao_confundir:
+  - pericardite.tipica
+  - repol.repolarizacao_precoce
+  fonte:
+    ref: udmi4_2018
+    local: Circulation 2018;138:e618, seção critérios ECG de IAM
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: iam.v2v3_sexo_idade
+  versao: 1
+  nome_pt: Limiares de V2-V3 por sexo e idade
+  criterio: Em V2-V3 o corte de supra é maior em homens jovens (2,5 mm antes dos 40) e menor em mulheres
+    (1,5 mm).
+  limiares:
+    homem_menor40: 2.5
+    homem_40mais: 2
+    mulher: 1.5
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_anterior*
+  armadilhas:
+  - Variante normal masculina tem supra de ST em V1-V3.
+  nao_confundir:
+  - iam.stemi_universal
+  fonte:
+    ref: udmi4_2018
+    local: Seção critérios ECG de IAM
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: iam.depressao_st_isquemia
+  versao: 1
+  nome_pt: Depressão de ST e T invertida de isquemia
+  criterio: Infra de ST horizontal ou descendente >=0,5 mm em duas derivações contíguas, ou T negativa
+    >1 mm com R proeminente ou R/S >1.
+  limiares:
+    infra_mm: '>=0.5'
+    t_neg_mm: '>1'
+  medidas: []
+  gatilhos:
+  - ecg.st_depression_*
+  - ecg.t_inversion_*
+  armadilhas:
+  - Infra ascendente rápido costuma ser sem significado.
+  nao_confundir:
+  - isquemia.infra_st_subendocardica
+  - repol.strain_vs_isquemia
+  fonte:
+    ref: udmi4_2018
+    local: Seção critérios ECG de isquemia miocárdica
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: iam.posterior
+  versao: 1
+  nome_pt: IAM posterior
+  criterio: Infra de ST em V1-V3 com R proeminente; confirmar com V7-V9 (supra >=0,5 mm; >=1 mm em homens
+    <40 a).
+  limiares:
+    v7v9_mm: '>=0.5'
+  medidas: []
+  gatilhos:
+  - ecg.st_depression_*
+  armadilhas:
+  - Solicitar V7-V9.
+  nao_confundir:
+  - isquemia.onda_r_alta_v1
+  fonte:
+    ref: udmi4_2018
+    local: Seção critérios ECG de IAM, derivações posteriores
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: iam.ventriculo_direito
+  versao: 1
+  nome_pt: IAM de ventrículo direito
+  criterio: Supra em V3R-V4R >=0,5 mm (>=1 mm em homens <30 anos); suspeitar com IAM inferior.
+  limiares:
+    v4r_mm: '>=0.5'
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_inferior*
+  armadilhas:
+  - Evitar nitratos/diuréticos até esclarecer.
+  nao_confundir:
+  - iam.stemi_universal
+  fonte:
+    ref: udmi4_2018
+    local: Seção critérios ECG de IAM, derivações direitas
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: iam.localizacao_territorios
+  versao: 1
+  nome_pt: Territórios do IAM
+  criterio: DII, DIII e aVF = inferior; V1-V3 = septal/anterior; V3-V4 = anterior; V4-V6, DI e aVL = lateral.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  - ecg.pathologic_q_*
+  armadilhas:
+  - Supra em aVL reciprocamente com inferiores sugere oclusão alta.
+  nao_confundir:
+  - iam.stemi_universal
+  fonte:
+    ref: aha_2009_part_vi
+    local: Parte VI, localização
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: iam.reciprocas
+  versao: 1
+  nome_pt: Alterações recíprocas
+  criterio: Infra de ST em derivações opostas ao supra reforça o diagnóstico de oclusão aguda; ausência
+    é comum em pericardite.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  - ecg.st_depression_*
+  armadilhas:
+  - Reciprocidade falta em V1 e aVR na pericardite apenas.
+  nao_confundir:
+  - pericardite.tipica
+  fonte:
+    ref: aha_2009_part_vi
+    local: Parte VI, alterações recíprocas
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: iam.q_patologica
+  versao: 1
+  nome_pt: Onda Q patológica (4ª Definição)
+  criterio: Q >=20 ms ou QS em V2-V3; Q >=30 ms e >=1 mm em duas derivações contíguas de DI, DII, aVL,
+    aVF, V4-V6; R >=40 ms em V1 com R/S>1 e T positiva sugere infarto posterior.
+  limiares:
+    v2v3_ms: '>=20'
+    outras_ms: '>=30'
+    outras_prof_mm: '>=1'
+  medidas: []
+  gatilhos:
+  - ecg.pathologic_q_*
+  armadilhas:
+  - Q em DIII isolada, aVR e V1 pode ser normal.
+  - Q por CMH, pré-excitação, BRE.
+  nao_confundir:
+  - cmh.q_septais
+  - wpw.pseudoinfarto
+  fonte:
+    ref: udmi4_2018
+    local: Seção critérios de IAM prévio
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: iam.t_hiperaguda
+  versao: 1
+  nome_pt: Onda T hiperaguda
+  criterio: T larga, simétrica e alta, proporcional ao QRS, nos primeiros minutos da oclusão.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  armadilhas:
+  - T alta benigna em V2-V3 de homens jovens; hiperpotassemia tem T apiculada e estreita.
+  nao_confundir:
+  - repol.hiperpotassemia
+  fonte:
+    ref: udmi4_2018
+    local: Seção critérios ECG de IAM
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: sem limiar numérico
+- id: iam.evolucao
+  versao: 1
+  nome_pt: Evolução temporal do IAM
+  criterio: Supra, depois Q e T negativa em horas a dias; supra persistente semanas após sugere aneurisma
+    de VE.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.st_elevation_*
+  - ecg.t_inversion_*
+  - ecg.pathologic_q_*
+  armadilhas:
+  - Datar pelo ECG é impreciso.
+  nao_confundir:
+  - iam.stemi_universal
+  fonte:
+    ref: aha_2009_part_vi
+    local: Parte VI, evolução
+    tipo: paráfrase
+  revisado_por_medico: false

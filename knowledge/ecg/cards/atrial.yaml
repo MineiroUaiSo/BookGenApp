@@ -1,0 +1,88 @@
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: atrial
+cartoes:
+- id: atrial.ad_p_pulmonale
+  versao: 1
+  nome_pt: 'Sobrecarga atrial direita: P pulmonale'
+  criterio: P apiculada com amplitude de 2,5 mm ou mais em DII, DIII e aVF; em V1 componente inicial positivo
+    alto.
+  limiares:
+    p_ii_mm: '>=2.5'
+  medidas:
+  - p_duration_ms
+  gatilhos:
+  - ecg.rae
+  armadilhas:
+  - Duração da P costuma ser normal.
+  - Frequente em DPOC.
+  nao_confundir:
+  - atrial.ae_morris
+  - pulmonar.dpoc_padrao
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, sobrecarga atrial direita
+    tipo: paráfrase
+  revisado_por_medico: false
+- id: atrial.ae_morris
+  versao: 1
+  nome_pt: 'Sobrecarga atrial esquerda: índice de Morris'
+  criterio: Fase terminal negativa da P em V1 com profundidade >=1 mm e duração >=40 ms; P em DII com
+    120 ms ou mais, bimodal.
+  limiares:
+    p_ms: '>=120'
+    v1_prof_mm: '>=1'
+    v1_dur_ms: '>=40'
+  medidas:
+  - p_duration_ms
+  gatilhos:
+  - ecg.lae
+  armadilhas:
+  - Atraso interatrial isolado gera P longa sem aumento anatômico.
+  nao_confundir:
+  - atrial.ad_p_pulmonale
+  fonte:
+    ref: morris_1964
+    local: Circulation 1964;29:242, força terminal de P em V1
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: cortes atuais da força terminal conferir na Parte V
+- id: atrial.biatrial
+  versao: 1
+  nome_pt: Sobrecarga biatrial
+  criterio: P com amplitude aumentada em DII e componente terminal negativo profundo em V1, ou P bifásica
+    alta em V1.
+  limiares: {}
+  medidas: []
+  gatilhos:
+  - ecg.rae
+  - ecg.lae
+  armadilhas:
+  - Critérios pouco específicos.
+  nao_confundir:
+  - atrial.ad_p_pulmonale
+  - atrial.ae_morris
+  fonte:
+    ref: aha_2009_part_v
+    local: Parte V, sobrecarga biatrial
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: confirmar critérios exatos
+- id: atrial.atraso_interatrial
+  versao: 1
+  nome_pt: Bloqueio interatrial
+  criterio: P com 120 ms ou mais, em geral bimodal; avançado quando P é bifásica (+/-) nas inferiores.
+  limiares:
+    p_ms: '>=120'
+  medidas:
+  - p_duration_ms
+  gatilhos:
+  - ecg.lae
+  armadilhas:
+  - Associado a FA; não equivale a aumento atrial.
+  nao_confundir:
+  - atrial.ae_morris
+  fonte:
+    ref: bayes_de_luna
+    local: Capítulo sobre bloqueios interatriais
+    tipo: paráfrase
+  revisado_por_medico: false
+  verificar: referência de livro; confirmar o critério em artigo primário
