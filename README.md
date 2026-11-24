@@ -2,8 +2,9 @@
 
 > Apoio à decisão e ensino. **Não é dispositivo médico certificado.** Todo laudo é rascunho e exige revisão médica.
 
-- **ECG**: DICOM (pasta inteira), HL7 aECG XML, CSV, WFDB e **foto/print de alta resolução** (digitalização automática: perspectiva, grade, calibração, layouts 3x4+1 / 6x2 / 12x1). Identifica P, Q, R, S, R', T, U em cada derivação; mede P, PR, QRS, QT, QTc (4 fórmulas), eixos, ST (J/J+60/J+80), Sokolow, Cornell; ritmo e bloqueios; **animação da condução cardíaca** isolada ou em conjunto.
+- **ECG**: DICOM (pasta inteira), HL7 aECG XML, CSV, WFDB e **foto/print de alta resolução** (digitalização automática: perspectiva, grade, calibração, layouts 3x4+1 / 3x4+3 / 6x2 / 12x1 detectados por rótulos, homografia pela grade, leitura do cabeçalho impresso por moldes e checagem de plausibilidade). Identifica P, Q, R, S, R', T, U em cada derivação; mede P, PR, QRS, QT, QTc (4 fórmulas), eixos, ST (J/J+60/J+80), Sokolow, Cornell; ritmo e bloqueios; **animação da condução cardíaca** isolada ou em conjunto.
 - **RX**: DICOM (pasta inteira) ou imagem. Segmenta e **legenda cada estrutura** (pulmões, coração, traqueia, clavículas, escápulas, hilos, aorta, mediastino, diafragma, coluna, esterno, alças intestinais…), mede ICT, desvio traqueal, seios costofrênicos etc. e faz **reconstrução 3D aproximada a partir de PA + Perfil**.
+- **Critérios**: índices de HVE (Sokolow, Cornell e produto, Peguero, Romhilt-Estes) e 142 cartões de critério em `knowledge/ecg/cards/` com busca lexical (SQLite FTS5, sem modelo local).
 - **IA (Claude)**: descrição minuciosa → análise crítica com diferenciais citando a bibliografia (`knowledge/`), destacando discordâncias com as medidas.
 
 ## Rodar
@@ -22,7 +23,7 @@ cd frontend && npm install && npm run build    # o backend serve frontend/dist e
 # ou, em desenvolvimento: npm run dev  (http://localhost:5173)
 ```
 
-Testes: `cd backend && pytest` (113) · `cd frontend && npm test -- --run` (27).
+Testes: `cd backend && pytest` · `cd frontend && npm test -- --run` (27).
 
 Imagens enviadas juntas (ex.: PA + Perfil em PNG) formam um único estudo — necessário para o 3D.
 
@@ -41,4 +42,6 @@ Imagens enviadas juntas (ex.: PA + Perfil em PNG) formam um único estudo — ne
 - Validação em bases reais em andamento (ver RETOMADA.md); achados críticos (STE, pneumotórax, BAV3) sempre "sugestivo".
 - Limiares de `knowledge/*.yaml` escritos de memória pelos agentes — precisam de revisão por especialista.
 - Segmentação de perfil, abdome e ossos é heurística; 3D é aproximação (casco visual), não tomografia.
-- IA (Claude) testada com cliente simulado; requer chave de API para uso real.
+- IA: laudo só com texto e validador pós-LLM (números, achados críticos); texto queimado em RX é mascarado e o envio é bloqueado se não mascarado. Requer chave de API.
+- CXAS (segmentação anatômica) é opcional (`MEDLENS_RX_CXAS=1`, venv separado, uso de pesquisa).
+- Avaliação: `docs/benchmarks/r2_base.md` (PTB-XL dev N=9183 com IC95%); teste externo CODE-test preparado e não executado.

@@ -1,46 +1,36 @@
-# RETOMADA — MedLens (plano de melhoria, 2026-11-24)
+# RETOMADA — MedLens (rodada 2, 2026-11-24)
 
-Branch: `claude/ecg-rx-ai-reader-nd20rs` (local, **sem push/deploy**). Trilhas executadas em worktrees `~/medlens-wt/<trilha>` (branches `wt/<trilha>`), mescladas aqui em sequência. Logs detalhados com comandos e hashes: `docs/benchmarks/trilha_<X>_log.md`. Plano original: Fable (E1-E7, R1-R6, abdome).
+Branch: `claude/ecg-rx-ai-reader-nd20rs` (local, **sem push/deploy**). Rodada 2 orquestrada por Opus; executores Sonnet em worktrees `~/medlens-wt/r2-<trilha>` (branches `wt/r2-<trilha>`), mesclados aqui em sequência. Logs por trilha: `docs/benchmarks/trilha_r2_<trilha>_log.md`. Planos: `docs/planning/plano_fable_r2.md` (10 ações), `docs/planning/plano_fable_ecg.md` (ECG ficha/cartões/digitalização). Specs prontas das trilhas não lançadas: `docs/planning/r2_specs_pendentes.md`.
 
-## Estado por item (antes → depois)
-| Item | Estado | Métrica |
+Parado por orçamento de uso CRÍTICO (janela de 5h a 97%). Rodada 1: ver histórico do git (commit f9b3def).
+
+## Mesclado nesta rodada (suíte backend após merges: 1 falha corrigida → 0; frontend build ok)
+| Trilha | Estado | Números (antes → depois) |
 |---|---|---|
-| Dados (A) | feito | LUDB 200, PTB-XL 3000, QTDB 105, IU 5910 (espelho HF), JSRT 247, PAX-Ray++ test 800; splits congelados; teste anti-vazamento; LUDB dev/teste separados no relatório |
-| E1 ST (B) | feito, meta não | PTB-XL dev STD espec 69→67% (sens 69→68%); STE FP 87→94 (UDMI-4 mulher 1,5 mm sobe FP por construção). Após E2: STD 88/322, STE 0/73 |
-| E2 delineação (D) | feito, meta sim (dev) | LUDB dev QRS on 39,8→55,6%, off 58,7→70,9%, QRS global 52,5→74,4%, QT 68,1→78,8%. QTDB: on 28→39%, off 50→45% (piorou) |
-| E3 marca-passo/FA (C) | feito, quase | PPV FA 0,771→0,796 (meta 0,80), sens 0,854→0,842; FP IAM em PACE 32→9; regra PACE sens 0,61 |
-| E4 NORM/IVCD (D) | feito, meta não | NORM como normal 68,6→74,5% (meta 80); IVCD só ≥120 ms; 110-119 = `ecg.qrs_borderline` |
-| E5 P/BAV/STACH | feito parcial | Sens P LUDB 81,7→90,3%; STACH 67,7→88,5%; BAV1 30,7% (=); BAV3 0/12 (=) |
-| E6 classificador | só spec | `docs/research/e6_classificador_spec.md` |
-| E7 foto ECG (H) | feito parcial | 200 renders PTB-XL: utilizável 90→97,5%, Pearson mediano 0,19→0,82 (meta 0,9; perfil hard 0,10) |
-| R1 IU publicado (E) | feito (amostra) | prosa fixa removida; bench IU 800 estudos (seed 0, max-side 512), números em trilha_E_log.md; rx.md ainda não regenerado |
-| R2 limiar por patologia (E) | feito em dev | IU dev, sensibilidade com limiar 0,65 → limiar a 90% espec.: derrame 0,23→0,85 (AUC 0,945), cardiomegalia 0,31→0,75 (0,931), atelectasia 0,07→0,59, consolidação 0,05→0,45, pneumonia 0→0,25; pneumotórax (3 pos) fica 0,65. Otimista (IU no treino do TorchXRayVision). VinDr test pendente |
-| R3 CXAS | não feito | instalação em venv separado negada/sem tempo |
-| R4 estruturas não segmentadas (F) | feito | esterno/costelas/aorta-perfil = "não suportado"; lado do Shenzhen só com teste unitário (dataset indisponível) |
-| R5 derrame costofrênico (E) | feito | regra acerta 1/13 derrames (sens 0,08) => rebaixada (confiança ≤0,15); escore do modelo é o sinal principal |
-| R6 latência (F) | parcial | PSPNet MPS 0,6 s vs CPU 6,7 s; bench p50 6,3→3,4 s (máquina carregada); **regressão**: cauda heurística p95 0,9→24,9 s (`find_lung_pair` 9 estratégias) |
-| Abdome (G) | esqueleto | `bench/abdomen_bench.py` flow/drr/gas + `docs/benchmarks/abdome_spec.md`; região 10/10 nos DICOM; nenhum achado de abdome emitido (gás = "medida/sugestivo, não validado") |
-| Caso DICOM real (F) | feito | Causa: venv do servidor sem torch/torchxrayvision/pylibjpeg (instalados agora). Heurística de pulmão robusta; 10/10 região correta; ICT modelo 0,46-0,52; ICT heurístico implausível vira "não confiável" |
-| IA OpenRouter (I) | feito | fallback quando sem ANTHROPIC_API_KEY; 1 laudo RX real testado (2 chamadas, Sonnet 5.5, custo de centavos) |
-| Heur. Dice (F) | melhor | jsrt pulmão 0,21→0,64, coração 0,15→0,44; PAX-Ray PA pulmão 0,03→0,34 |
+| 1 higiene (hyg) | feito | 4 testes quebrados → 0; use_model explícito vence env; fixture LITFL sintética; /health importa/carrega de verdade + banner na UI; R6: p95 heurístico 24,9 → 1,81 s (máquina carregada; meta 1,5 s não confirmada), Dice jsrt pulmão 0,636 → 0,636 |
+| 2 base de avaliação (eval) | feito | dev PTB-XL ampliado N=9183 (NORM 2815), IC95% bootstrap em todas as tabelas, gold STE_acute, medidas vs 12SL (PTB-XL+), subgrupos; CODE-test baixado e protegido (NÃO rodado). Linha de base: `docs/benchmarks/r2_base.md` (NORM→normal 74,7%; FA sens/PPV 84,4/84,0; BAV1 38,3/52,8; BAV3 0/12; STD 56,6/82,5 espec; STE_acute sens 51,2% FP 341; viés PR +11,6 ms; QRS +25,3 ms; ST-J MAE 28,9 µV) |
+| 3 texto IA (llm) | parcial | validador pós-LLM, retry+failover Anthropic→OpenRouter, mascarar texto queimado + bloqueio de envio; conjunto fixo 60 ids congelado, só 2 laudos rodados (65/65 números conferem, 0 críticos sem lastro) — 60 laudos custariam ~US$ 11 |
+| 4 calibração RX (calib) | feito | ECE (IU dev, CV 5 folds): atelectasia 0,121→0,042, consolidação 0,157→0,019, derrame 0,077→0,014, cardiomegalia 0,059→0,022; zona "indeterminado"; nódulo JSRT AUC 0,628 [0,555–0,699] (fraco). VinDr/BRAX/VinBigData: exigem credencial |
+| 9-R3 CXAS (cxas) | feito, flag off | Dice PAX-Ray++ (200 img): coração 0,950 PA / 0,942 perfil; coluna 0,930/0,933 (PSPNet 0,81/0,51 e 0,66/0,40); MIT "research use only" → `MEDLENS_RX_CXAS=1` desligado por padrão; venv `~/medlens-venvs/cxas` |
+| 10 E7 + abdome (e7abd) | parcial | Pearson mediano 0,823→0,967; perfil hard 0,104→0,810; utilizável 97,5% (2,5% abstenção "só FC/ritmo"); abdome: fluxo nos DICOM ok; DRR TotalSegmentator não feito |
+| K digitalização (ecgk) | parcial | caso1: layout 6x2→3x4+3 (faixas V1/II/V5), PR 94→152, QRS 266→116, sem pré-excitação; cabeçalho lido por moldes (QRS 112, QT 438, QTc 482, eixos 49/20/171; PR impresso cortado); R aVL/V4 ainda baixos (xfail). Falta: UI manual, banda larga/saturação, quality.py |
+| J laudo LLM (laudo) | parcial | laudo pt-BR estruturado + markdown + versão curta, só texto; caso1 errado → aviso de divergência; caso1 correto → HVE+CMH sugestiva; Peguero = S máx + S V4 (28/23). Falta: citações [F]/[C], ficha ecg_features/v1, remover imagem das chamadas antigas de ECG (LGPD) |
+| 1B índices HVE (ecgidx) | feito com ressalva | Sokolow, Cornell(+produto), Peguero, Romhilt-Estes, Morris; HVE+strain → "repolarização secundária"; AE; CMH sugestivo; pré-excitação bloqueada. PTB-XL dev: LVH sens 71,6→76,1; STD sens 68,2→62,0 (FP 321→290) — queda >2 pt por supressão do strain: DECISÃO MÉDICA |
+| 1C cartões (cards) | feito | 142 cartões YAML (paráfrase + referência primária), busca FTS5 + select_cards; 91 marcados "verificar"; todos revisado_por_medico=false |
 
-Suíte backend: 2 falhas pré-existentes de `tests/test_collector_litfl.py` (fixture `litfl_sample.html` ausente) + 2 falhas **dependentes de ordem** em `tests/test_rx_real_dicom.py::test_chest_segmented_with_ict[True-torax/1|2]` (passam isoladas e com os outros test_rx*; algum teste anterior da suíte deixa o modelo/estado stubado — investigar isolamento, ex. `seg_model` cache/monkeypatch).
+## Gasto OpenRouter: ~US$ 0,47 (llm 0,357 + laudo 0,118) de US$ 0,50; saldo ~US$ 2,65. Não usar mais nesta rodada.
 
-## Pendências
-1. Trilha E mesclada (bench IU em amostra de 800; rodar completo exige mais tempo/GPU).
-2. Regenerar `docs/benchmarks/ecg.md` e `rx.md` no código mesclado (`python -m bench.ecg_bench` / `bench.rx_bench --report-only` após rodar) — os números novos estão só nos logs por trilha.
-3. R6: limitar tentativas de `find_lung_pair` (cauda 24,9 s); medir latência com máquina ociosa.
-4. BAV1 (PR enviesado ~+30 ms), BAV2/3 (N=12), NORM ≥80%, STE 0 TP: precisam de onset de P/QRS melhor ou mais dados (Chapman/CPSC, TODO em DATASETS.md).
-5. E7: retificação por pontos de fuga da grade (perfil hard).
-6. R3 (CXAS) em venv separado; Montgomery/Shenzhen bloqueados por robots do Open-i.
-7. PTB-XL folds 9-10: queimados (rodados 1x por trilha B, C, D, E5). Próximo teste deve ser externo.
-8. Limpar worktrees: `git worktree remove ~/medlens-wt/<X>` após confirmar merges.
+## Pendências (ordem)
+1. **BUG tórax×abdome pela tag DICOM** (prioridade máxima): trilha `r2-tagfix` lançada no fim; conferir `git -C ~/medlens-wt/r2-tagfix log` e mesclar se a suíte passar; senão relançar com a spec em RETOMADA (view.py:146/156).
+2. Bench PTB-XL dev do código mesclado (tag R2merged; rodar: `cd backend && PYTHONPATH=. MEDLENS_DATASETS=... MEDLENS_BENCH=../data/bench python -m bench.ecg_bench --source ptbxl --split dev --tag R2merged --workers 4`) e comparar com r2_base.md / logs; também `--set large`.
+3. Lançar trilhas não iniciadas com as specs de `docs/planning/r2_specs_pendentes.md`: 5 (UX/qualidade/log), 6 (E5 P/BAV), 7 (E1 ST), 8 (E3/E4 FA/NORM), 9-E6 (sombra), depois ondas 2-4 do plano ECG.
+4. Regenerar `docs/benchmarks/ecg.md`/`rx.md` no código final; teste externo CODE-test **uma vez só**, no fim.
+5. LGPD: remover envio da imagem de ECG nas chamadas antigas (`llm/__init__.py` ~162).
+6. Limpar worktrees após confirmar merges (`git worktree remove ~/medlens-wt/<X>`).
 
 ## Decisões do médico / usuário
-- Reiniciar o servidor da porta 8000 para carregar torch/torchxrayvision/pylibjpeg (instalados no `.venv`; não reiniciei).
-- Credenciamento PhysioNet para VinDr-CXR (teste primário de achados RX).
-- Aceitar IU via espelho HF `abdulhaseeb1308/IU-Xray` (rótulos por heurística de texto, só dev) ou fornecer outra fonte.
-- Limiar STE UDMI-4 por sexo (mulher V2-V3 1,5 mm) aumenta FP: manter diretriz ou não.
-- Anotar 100-150 RX de abdome (diâmetro de alça) e 30-50 perfis para R3.
-- E6 (classificador IAM/HVE): decisão regulatória (SaMD, RDC 657/2022) antes de qualquer código.
-- Push/deploy: não feitos (regra desta tarefa).
+- STD vs strain: aceitar queda de sens STD (68→62%) em troca de rotular strain como secundário, ou restringir a supressão.
+- Gabarito caso1 inconsistente: Cornell 58 mm (R aVL 21 + S V3 37) implicaria Peguero positivo; confirmar S V3 real.
+- Rodar 60 laudos IA (~US$ 11) ou modelo mais barato; revisar 20 laudos.
+- Licença CXAS (pesos MIMIC/DINOv3) antes de ligar por padrão; 91 cartões "verificar".
+- Credencial PhysioNet/Kaggle (VinDr, BRAX, VinBigData); reiniciar o servidor da porta 8000; E6 na UI só após decisão regulatória.
