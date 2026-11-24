@@ -548,8 +548,12 @@ def _worker(args):
     return res
 
 
+CACHE_TAG = ""   # set by --tag: separate cache file, report printed to stdout, docs/benchmarks/ecg.md untouched
+RECORD_RANGE: Optional[tuple[int, int]] = None   # set by --records A-B (numeric suffix of the record id, inclusive)
+
+
 def cache_path(source: str) -> Path:
-    return OUT_ROOT / f"{source}.jsonl"
+    return OUT_ROOT / f"{source}{CACHE_TAG}.jsonl"
 
 
 def load_cache(source: str) -> dict[str, dict]:
@@ -575,6 +579,13 @@ def run_source(source: str, limit: Optional[int], workers: int, force: bool) -> 
     if not recs:
         print(f"[{source}] no manifest records; skipped")
         return 0
+    if RECORD_RANGE:
+        def _num_id(r):
+            try:
+                return int(str(r["id"]).rsplit("-", 1)[-1])
+            except ValueError:
+                return -1
+        recs = [r for r in recs if RECORD_RANGE[0] <= _num_id(r) <= RECORD_RANGE[1]]
     recs = sample_records(recs, limit)
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
     cache = {} if force else load_cache(source)
@@ -1046,11 +1057,22 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--force", action="store_true", help="ignore the cache and recompute")
     ap.add_argument("--report-only", action="store_true")
+    ap.add_argument("--records", default=None, help="restrict to numeric id range A-B (inclusive), e.g. 1-160 (LUDB dev) / 161-200 (test)")
+    ap.add_argument("--tag", default="", help="cache-file suffix; with --tag only the LUDB table is printed and docs are not rewritten")
     a = ap.parse_args(argv)
+    global CACHE_TAG, RECORD_RANGE
+    if a.records:
+        lo, hi = a.records.split("-")
+        RECORD_RANGE = (int(lo), int(hi))
+    CACHE_TAG = a.tag
     srcs = {"all": ["ludb", "ptbxl", *IMAGE_SOURCES], "images": IMAGE_SOURCES}.get(a.source, [a.source])
     if not a.report_only:
         for s in srcs:
             run_source(s, a.limit, a.workers, a.force)
+    if a.tag:
+        body, _ = report_ludb(load_cache("ludb")) if "ludb" in srcs else ("", {})
+        print(body.split("### Per-lead")[0])
+        return 0
     p = build_report()
     print(f"report: {p}")
     return 0
