@@ -100,7 +100,7 @@ def ecg_analyze(study_id: str, body: Optional[ECGRequest] = None, ai: bool = Fal
 
                 result.ai = ecg_report(result, png)
             else:
-                result.ai = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ausente).")
+                result.ai = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
         except ImportError as e:
             raise _not_installed(e)
     return result
@@ -162,7 +162,7 @@ def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False
 
                 result.ai = rx_report(result)
             else:
-                result.ai = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ausente).")
+                result.ai = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
         except ImportError as e:
             raise _not_installed(e)
     return result

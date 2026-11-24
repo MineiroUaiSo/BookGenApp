@@ -62,6 +62,7 @@ GOOD = {
 
 
 def test_unavailable_without_credentials(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
     assert llm.ai_available() is False

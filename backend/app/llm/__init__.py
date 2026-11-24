@@ -25,7 +25,7 @@ def _prompt(name: str) -> str:
 
 
 def unavailable(reason: str | None = None) -> AIReport:
-    lim = ["IA indisponível: defina ANTHROPIC_API_KEY (ou ANTHROPIC_AUTH_TOKEN) e instale o pacote 'anthropic'."]
+    lim = ["IA indisponível: defina ANTHROPIC_API_KEY (ou ANTHROPIC_AUTH_TOKEN) e instale o pacote 'anthropic', ou defina OPENROUTER_API_KEY (fallback)."]
     if reason:
         lim.append(reason)
     return AIReport(available=False, model=None, limitations=lim)
@@ -131,8 +131,15 @@ def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str) -> AI
     except json.JSONDecodeError:
         return AIReport(available=True, model=model,
                         limitations=["A resposta estruturada do modelo não pôde ser interpretada."])
+    except _client.LLMProviderError as e:
+        log.warning("llm provider failure: %s", e)
+        return AIReport(available=False, model=model, limitations=[str(e)])
     except Exception as e:  # erros tipados da API (anthropic.*) e demais
-        import anthropic
+        try:
+            import anthropic
+        except ImportError:
+            log.exception("llm failure")
+            return AIReport(available=False, model=model, limitations=[f"Erro inesperado na IA: {type(e).__name__}"])
 
         if isinstance(e, anthropic.RateLimitError):
             msg = "Limite de requisições da API atingido; tente novamente em instantes."

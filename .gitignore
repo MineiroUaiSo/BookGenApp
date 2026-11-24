@@ -9,3 +9,5 @@ knowledge/private/
 *.egg-info/
 .pytest_cache/
 weights/
+.env.*
+!.env.example
