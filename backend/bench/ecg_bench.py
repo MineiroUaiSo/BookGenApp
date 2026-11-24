@@ -575,6 +575,17 @@ def in_split(rid: str, split: str, folds: dict[str, int]) -> bool:
     return fo is not None and ((fo <= 8) if split == "dev" else (fo >= 9))
 
 
+LITFL_SPLIT = "all"   # --litfl-split dev|test|all: deterministic split by LITFL page (hash of page_title/url), ~70/30
+
+
+def litfl_split_of(rec: dict) -> str:
+    import hashlib
+    ex = rec.get("extra") or {}
+    key = str(ex.get("page_title") or rec.get("url") or rec.get("group") or rec["id"])
+    h = int(hashlib.md5(key.encode("utf-8")).hexdigest()[:8], 16) % 100
+    return "dev" if h < 70 else "test"
+
+
 RECORD_RANGE: Optional[tuple[int, int]] = None   # set by --records A-B (numeric suffix of the record id, inclusive)
 
 
@@ -615,6 +626,8 @@ def run_source(source: str, limit: Optional[int], workers: int, force: bool) -> 
     if SPLIT != "all" and source == "ptbxl":
         _folds = ptbxl_fold_map()
         recs = [r for r in recs if in_split(r["id"], SPLIT, _folds)]
+    if LITFL_SPLIT != "all" and source == "litfl":
+        recs = [r for r in recs if litfl_split_of(r) == LITFL_SPLIT]
     recs = sample_records(recs, limit)
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
     cache = {} if force else load_cache(source)
@@ -1101,9 +1114,15 @@ def main(argv=None) -> int:
                     help="PTB-XL split by strat_fold: dev = folds 1-8, test = folds 9-10 (official test folds)")
     ap.add_argument("--records", default=None, help="restrict to numeric id range A-B (inclusive), e.g. 1-160 (LUDB dev) / 161-200 (test)")
     ap.add_argument("--tag", default="", help="cache-file suffix; with --tag only the LUDB table is printed and docs are not rewritten")
+    ap.add_argument("--litfl-split", default="all", choices=["all", "dev", "test"],
+                    help="LITFL images: deterministic page-level split (dev ~70%%, test ~30%%); prints the image report to stdout "
+                         "and leaves docs/benchmarks/ecg.md untouched")
     a = ap.parse_args(argv)
-    global CACHE_TAG, RECORD_RANGE, SPLIT
+    global CACHE_TAG, RECORD_RANGE, SPLIT, LITFL_SPLIT
     SPLIT = a.split
+    LITFL_SPLIT = a.litfl_split
+    if LITFL_SPLIT != "all" and not a.tag:
+        a.tag = f"_split_{LITFL_SPLIT}"
     if a.records:
         lo, hi = a.records.split("-")
         RECORD_RANGE = (int(lo), int(hi))
@@ -1112,6 +1131,10 @@ def main(argv=None) -> int:
     if not a.report_only:
         for s in srcs:
             run_source(s, a.limit, a.workers, a.force)
+    if a.litfl_split != "all":
+        res = {k: v for k, v in load_cache("litfl").items() if k in {r["id"] for r in read_manifest("litfl") if litfl_split_of(r) == a.litfl_split}}
+        print(report_images({"litfl": res})[0])
+        return 0
     if a.tag:
         body, _ = report_ludb(load_cache("ludb")) if "ludb" in srcs else ("", {})
         print(body.split("### Per-lead")[0])

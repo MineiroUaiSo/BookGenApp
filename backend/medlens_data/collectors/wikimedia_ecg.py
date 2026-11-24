@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from medlens_data import (PoliteSession, Record, dedupe, score_caption, source_dir, write_manifest)
+from medlens_data import (USER_AGENT, PoliteSession, Record, dedupe, score_caption, source_dir, write_manifest)
 
 SOURCE = "wikimedia_ecg"
 API = "https://commons.wikimedia.org/w/api.php"
@@ -177,14 +177,29 @@ class Crawler:
         ck.parent.mkdir(exist_ok=True)
         if ck.exists():
             return json.loads(ck.read_text())
-        for attempt in range(12):
+        import requests
+        if not hasattr(self, "_rs"):
+            self._rs = requests.Session()
+            self._rs.headers["User-Agent"] = USER_AGENT
+            self._last = 0.0
+        for attempt in range(300):
+            time.sleep(max(0.0, 2.0 - (time.time() - self._last)))
             try:
-                txt = self.api_ps.get(API, params=dict(params), timeout=60, use_cache=False)
-                d = json.loads(txt)
-            except Exception as e:  # PoliteSession gave up after its own retries (429 etc.)
-                wait = min(300, 20 * (attempt + 1))
-                print(f"  api retry in {wait}s: {str(e)[:100]}", flush=True)
+                r = self._rs.get(API, params=params, timeout=60)
+            except Exception as e:
+                print(f"  api net error: {str(e)[:80]}", flush=True)
+                time.sleep(20)
+                continue
+            self._last = time.time()
+            if r.status_code == 429 or r.status_code >= 500:
+                wait = min(60, float(r.headers.get("retry-after", 15)) + 2)
                 time.sleep(wait)
+                continue
+            txt = r.text
+            try:
+                d = json.loads(txt)
+            except Exception:
+                time.sleep(20)
                 continue
             if d.get("error", {}).get("code") == "maxlag":
                 time.sleep(10)

@@ -41,12 +41,38 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     norm = grid.normalise(rgb)
     ink0 = grid.trace_mask(norm)
     gr = grid.detect_grid(norm, ink0)
-    if not gr["px_per_mm_x"]:
-        raise ValueError("could not detect the ECG grid (px/mm)")
-    ppx, ppy = gr["px_per_mm_x"], gr["px_per_mm_y"]
-    mm_x, px_of_mm_x = gr["map_x"]
-    mm_y, _ = gr["map_y"]
-    ink = trace.clean_ink(ink0, ppx, ppy)
+    lag = grid.rr_lag_px(ink0)
+    grid_conf = float(gr["confidence"]) if gr["px_per_mm_x"] else 0.0
+    if gr["px_per_mm_x"]:
+        ppx, ppy = gr["px_per_mm_x"], gr["px_per_mm_y"]
+        mm_x, px_of_mm_x = gr["map_x"]
+        mm_y, _ = gr["map_y"]
+        if grid.plausible_scale(ppx, lag) is False:  # wrong harmonic of the grid (1 mm vs 5 mm ...): pick by heart rate
+            for f in (5.0, 0.2, 2.0, 0.5, 4.0, 0.25):
+                if grid.plausible_scale(ppx * f, lag):
+                    ppx = ppy = ppx * f
+                    mm_x = mm_y = np.poly1d([1.0 / ppx, 0.0])
+                    px_of_mm_x = np.poly1d([ppx, 0.0])
+                    grid_conf *= 0.5
+                    warnings.append(f"grid pitch rescaled x{f:g} to give a plausible heart rate")
+                    break
+            else:
+                grid_conf *= 0.6
+                warnings.append("grid pitch gives an implausible heart rate")
+    else:  # no grid at all: scale from the beat period (assume 75 bpm) or from a 250 mm wide page
+        if lag:
+            ppx = ppy = lag / (0.8 * 25.0)
+        else:
+            ppx = ppy = rgb.shape[1] / 250.0
+        if not (1.0 < ppx < 80):
+            raise ValueError("could not detect the ECG grid (px/mm)")
+        mm_x = mm_y = np.poly1d([1.0 / ppx, 0.0])
+        px_of_mm_x = np.poly1d([ppx, 0.0])
+        grid_conf = 0.1
+        warnings.append("no grid found; scale assumed from beat period / page width")
+    gr["confidence"] = grid_conf
+    ink = trace.remove_grid_lines(ink0, ppx, ppy)
+    ink = trace.clean_ink(ink, ppx, ppy)
 
     cols_ink = ink.sum(0)
     nz = np.nonzero(cols_ink > 0)[0]
@@ -58,30 +84,36 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     n_rows = len(rows)
     if n_rows == 0:
         raise ValueError("no trace rows found")
-    if layout == "auto":
-        layout = trace.ROWS_TO_LAYOUT.get(n_rows) or trace.ROWS_TO_LAYOUT[
-            min(trace.ROWS_TO_LAYOUT, key=lambda k: abs(k - n_rows))]
-    lay = trace.LAYOUT_LEADS[layout]
-    has_rhythm = layout == "3x4+1"
-    expect_rows = len(lay[0]) + (1 if has_rhythm else 0)
-    if n_rows != expect_rows:
-        warnings.append(f"detected {n_rows} rows, layout {layout} expects {expect_rows}")
     pitch = float(np.median(np.diff(rows))) if n_rows > 1 else 30 * ppy
-    half_band = int(0.75 * pitch)
+    half_band = int(0.75 * pitch) if n_rows > 1 else int(min(0.6 * ink.shape[0], 40 * ppy))
 
-    # calibration pulse per row -> gain, speed, data origin
-    pulses = []
-    for r in rows:
-        p = trace.find_pulse(ink, r, xs_left, ppx, ppy, band=min(0.9 * pitch, 25 * ppy))
-        if p:
-            pulses.append(p)
+    # calibration pulse per row (left end; else right end of the page) -> gain, speed, data origin / end
+    def pulses_at(inkm, x0):
+        out = []
+        for r in rows:
+            p = trace.find_pulse(inkm, r, x0, ppx, ppy, band=min(0.9 * pitch, 25 * ppy))
+            if p:
+                out.append(p)
+        return out
+
+    pulses = pulses_at(ink, xs_left)
+    x_end_data = x_right
+    pulse_side = "left" if pulses else None
+    if not pulses:
+        inkf = ink[:, ::-1]
+        pf = pulses_at(inkf, ink.shape[1] - 1 - x_right)
+        if pf:
+            pulses = pf
+            pulse_side = "right"
+            x_end_data = int(ink.shape[1] - 1 - np.median([p["x_end"] for p in pf]))
     gain = gain_mm_mv
     speed = paper_speed_mm_s
     xs = None
     if pulses:
         hmm = float(np.median([p["height_mm"] for p in pulses]))
         wmm = float(np.median([p["width_mm"] for p in pulses]))
-        xs = float(np.median([p["x_end"] for p in pulses]))
+        if pulse_side == "left":
+            xs = float(np.median([p["x_end"] for p in pulses]))
         if gain is None:
             snapped = min((5.0, 10.0, 20.0), key=lambda g: abs(g - hmm))
             gain = snapped if abs(snapped - hmm) / snapped < 0.2 else 10.0
@@ -97,28 +129,46 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     gain = gain or 10.0
     speed = speed or 25.0
     if xs is None:
-        xs = xs_left + 9 * ppx
-    skip_cols = int(np.ceil(float(np.median([p["thick"] for p in pulses])) / 2)) + 2 if pulses else 3  # skip the pulse's falling stroke
+        xs = float(xs_left)
+    skip_cols = int(np.ceil(float(np.median([p["thick"] for p in pulses])) / 2)) + 2 if pulses and pulse_side == "left" else 1
     xs_mm = float(mm_x(xs))
     cps = ppx * speed  # columns per second
-    total_s = 10.0
-    meas = (x_right - xs) / cps
-    if meas < 0.9 * total_s or meas > 1.08 * total_s:
-        snap = min((2.5, 5.0, 10.0), key=lambda v: abs(v - meas))
-        total_s = snap if abs(snap - meas) / snap < 0.1 else max(2.5, round(meas * 2) / 2)
-        warnings.append(f"trace length {meas:.1f}s differs from 10 s")
-    n_cols = len(lay)
+    meas = (x_end_data - xs) / cps
+    wide = meas >= 7.0
+    if layout == "auto":
+        if n_rows <= 2:
+            layout = "strips"
+        elif n_rows in (3, 4, 5):
+            layout = "3x4+1" if n_rows >= 4 else "3x4"
+        elif n_rows == 6 or 7 <= n_rows <= 9:
+            layout = "6x2"
+        else:
+            layout = "12x1"
+    has_rhythm = layout == "3x4+1"
+    if layout == "strips":
+        lay = [trace.STRIP_NAMES[:n_rows]]
+        total_s, n_cols = meas, 1
+    else:
+        lay = trace.LAYOUT_LEADS[layout]
+        n_cols = len(lay)
+        seg_nom = 10.0 / n_cols
+        if n_cols == 1 or (wide and abs(meas - 10.0) < 1.6):
+            total_s = 10.0 if n_cols > 1 else meas
+        else:  # cropped / narrower page: keep the nominal segment length, drop columns that do not fit
+            n_fit = max(1, min(n_cols, int(round(meas / seg_nom))))
+            lay = lay[:n_fit]
+            n_cols = n_fit
+            total_s = seg_nom * n_fit
+            warnings.append(f"trace length {meas:.1f}s differs from 10 s; {n_fit} column(s) assumed")
+    expect_rows = len(lay[0]) + (1 if has_rhythm else 0)
+    if n_rows != expect_rows and layout != "strips":
+        warnings.append(f"detected {n_rows} rows, layout {layout} expects {expect_rows}")
     seg_s = total_s / n_cols
 
     leads: dict[str, list[float]] = {}
     quality: dict[str, float] = {}
     calib_extra: dict[str, float] = {}
     dbg = {"rows": rows, "ink": ink, "rgb": rgb, "traces": {}}
-
-    def process(row_y, t0_s, t1_s):
-        xa = int(round(xs + t0_s * cps))
-        xb = min(int(round(xs + t1_s * cps)), ink.shape[1])
-        return xa, xb
 
     row_cache = {}
     for ri, ry in enumerate(rows):
@@ -133,6 +183,8 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     def lead_from(ri, t0, t1):
         xa, cen, valid = row_cache[ri]
         n_out = int(round((t1 - t0) * OUT_FS))
+        if n_out < 10:
+            return None, 0.0
         t = t0 + np.arange(n_out) / OUT_FS
         px = px_of_mm_x(xs_mm + t * speed) - xa  # local column coordinate of every output sample
         a, b = int(np.floor(px.min())), int(np.ceil(px.max())) + 1

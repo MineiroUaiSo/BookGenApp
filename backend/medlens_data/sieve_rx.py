@@ -56,7 +56,7 @@ REGION_PATTERNS = [
     ("pelvis_hip", r"pelvi|hip\b|hips\b|acetabul|femoral head|sacroiliac"),
     ("skull_head", r"skull|cranial|sinus|mandib|facial|orbit|dental|panoramic|periapical|teeth|tooth|cephalo"),
     ("extremity", r"hand|wrist|finger|thumb|carpal|metacarp|foot|feet|ankle|toe\b|toes\b|tarsal|metatars|knee|femur|femoral|tibia|"
-                  r"fibula|humer|elbow|shoulder|forearm|radius|ulna|leg\b|arm\b|patella|calcane|scapula|bone|fracture|limb|digit"),
+                  r"fibula|humer|elbow|shoulder|forearm|radius|ulna|leg\b|arm\b|patella|calcane|scapula|limb|digit"),
 ]
 
 # caption phrase -> label code (codes follow knowledge/rx_signs.yaml; a few extra bone/device codes)

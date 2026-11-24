@@ -11,6 +11,7 @@ LAYOUT_LEADS = {
     "6x2": [["I", "II", "III", "aVR", "aVL", "aVF"], ["V1", "V2", "V3", "V4", "V5", "V6"]],
     "12x1": [["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]],
 }
+STRIP_NAMES = ["II", "V1", "V5", "I", "III", "aVF", "V2", "V3", "V4", "V6", "aVL", "aVR"]
 ROWS_TO_LAYOUT = {3: "3x4", 4: "3x4+1", 6: "6x2", 12: "12x1"}
 
 
@@ -34,6 +35,23 @@ def clean_ink(ink: np.ndarray, ppm_x: float, ppm_y: float) -> np.ndarray:
             continue
         keep[i] = True
     return keep[lab]
+
+
+def remove_grid_lines(ink: np.ndarray, ppm_x: float, ppm_y: float) -> np.ndarray:
+    """Dark printed grid lines (bold 5 mm lines in grey scans) survive the ink threshold. A grid line is a
+    thin full-height (or full-width) streak; the trace covers only a few rows per column. Columns/rows whose ink
+    coverage is far above the local median are cleared where the run is thin (<= 4 px)."""
+    ink = ink.copy()
+    frac = ink.mean(0)
+    med = ndi.median_filter(frac, size=int(max(9, 6 * ppm_x)), mode="nearest")
+    bad = (frac > 0.5) & (frac > med + 0.35)
+    lab, k = ndi.label(bad)
+    runs = [np.nonzero(lab == i)[0] for i in range(1, k + 1)]
+    runs = [r for r in runs if len(r) <= 4]
+    if len(runs) >= 3:  # a grid, not a QRS: several thin full-height streaks
+        for r in runs:
+            ink[:, r] = False
+    return ink
 
 
 def detect_rows(ink: np.ndarray, xa: int, xb: int, ppm_y: float):

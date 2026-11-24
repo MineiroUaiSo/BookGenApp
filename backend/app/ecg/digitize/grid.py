@@ -104,14 +104,43 @@ def estimate_pitch(profile: np.ndarray, min_pitch: float = 3.0):
     return mean_ppm, conf, mm_of_px, px_of_mm
 
 
+def rr_lag_px(ink: np.ndarray):
+    """Dominant beat period (px) from the column-wise ink extent (works for multi-row pages); None if weak."""
+    c = ink.sum(0).astype(np.float64)
+    if c.sum() < 50:
+        return None
+    c = c - ndi.gaussian_filter1d(c, max(6, len(c) // 40))
+    ac = _autocorr(c)
+    n = len(ac) // 2
+    pk, _ = find_peaks(ac[:n], height=0.08)
+    pk = [p for p in pk if p >= 6]
+    return float(pk[0]) if pk else None
+
+
+def plausible_scale(ppm: float, lag_px, speed: float = 25.0, lo: float = 0.25, hi: float = 2.6):
+    if lag_px is None:
+        return None
+    rr = lag_px / (ppm * speed)
+    return lo <= rr <= hi
+
+
 def detect_grid(norm: np.ndarray, ink: np.ndarray):
-    """Return dict(px_per_mm_x/y, confidence, mm_of_px_x/y, px_of_mm_x/y) (the maps are numpy poly1d)."""
+    """Return dict(px_per_mm_x/y, confidence, map_x/map_y (numpy poly1d pairs)).
+    Square grid assumption: a y estimate that disagrees with x (trace rows pollute the y profile) is replaced."""
     py, px = grid_profiles(norm, ink)
     ph, ch, mh, ih = estimate_pitch(py)
     pw, cw, mw, iw = estimate_pitch(px)
     res = {"px_per_mm_y": ph, "px_per_mm_x": pw, "confidence": min(ch, cw)}
     if ph and pw:
-        res.update(map_x=(mw, iw), map_y=(mh, ih))
+        ratio = ph / pw
+        if 0.87 < ratio < 1.15:
+            res.update(map_x=(mw, iw), map_y=(mh, ih))
+        else:  # inconsistent -> trust the axis with the higher confidence (x on ties), mirror to the other
+            if ch > cw + 0.15:
+                v, m, i, c = ph, mh, ih, ch
+            else:
+                v, m, i, c = pw, mw, iw, cw
+            res.update(px_per_mm_x=v, px_per_mm_y=v, map_x=(m, i), map_y=(m, i), confidence=c * 0.6)
     elif ph or pw:
         v, m, i = (ph, mh, ih) if ph else (pw, mw, iw)
         res.update(px_per_mm_x=v, px_per_mm_y=v, map_x=(m, i), map_y=(m, i), confidence=res["confidence"] * 0.5)
