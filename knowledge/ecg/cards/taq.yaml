@@ -10,7 +10,7 @@ cartoes:
   armadilhas:
   - Flutter 2:1 e taquicardia sinusal fazem parte do diferencial.
   nao_confundir:
-  - fa.flutter
+  - af.flutter
   - ritmo.taquicardia_sinusal
   fonte:
     ref: aha_2009_part_ii

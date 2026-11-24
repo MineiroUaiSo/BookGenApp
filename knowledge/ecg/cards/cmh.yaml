@@ -13,7 +13,7 @@ cartoes:
   armadilhas:
   - ECG pode ser normal em parte dos pacientes com CMH.
   nao_confundir:
-  - hve.sokolow_lyon
+  - lvh.sokolow_lyon
   - cmh.atleta
   fonte:
     ref: ommen_2024

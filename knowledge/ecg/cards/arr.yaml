@@ -12,7 +12,7 @@ cartoes:
   armadilhas:
   - Aberrância em ESSV simula ESV.
   nao_confundir:
-  - fa.fibrilacao
+  - af.fibrilacao
   fonte:
     ref: aha_2009_part_ii
     local: Parte II, batimentos prematuros

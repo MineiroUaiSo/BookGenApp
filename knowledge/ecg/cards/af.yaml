@@ -1,6 +1,6 @@
-# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: fa
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: af
 cartoes:
-- id: fa.fibrilacao
+- id: af.fibrilacao
   versao: 1
   nome_pt: Fibrilação atrial
   criterio: Ritmo irregularmente irregular sem P definidas, com ondas fibrilatórias, QRS em geral estreito.
@@ -17,13 +17,13 @@ cartoes:
   - Regularização sugere BAV ou digital.
   nao_confundir:
   - ritmo.sinusal_arritmia
-  - fa.flutter
+  - af.flutter
   fonte:
     ref: aha_2009_part_ii
     local: Parte II, fibrilação atrial
     tipo: paráfrase
   revisado_por_medico: false
-- id: fa.resposta_ventricular
+- id: af.resposta_ventricular
   versao: 1
   nome_pt: 'FA: resposta ventricular'
   criterio: 'Descrever FC média: lenta <60, controlada <110, rápida >110 bpm.'
@@ -38,14 +38,14 @@ cartoes:
   armadilhas:
   - Resposta lenta pode indicar doença do nó/BAV.
   nao_confundir:
-  - fa.fibrilacao
+  - af.fibrilacao
   fonte:
     ref: esc_af_2024
     local: ESC 2024, controle de frequência
     tipo: paráfrase
   revisado_por_medico: false
   verificar: cortes dependem da diretriz
-- id: fa.bloqueio_associado
+- id: af.bloqueio_associado
   versao: 1
   nome_pt: FA com QRS largo
   criterio: Distinguir BR preexistente, aberrância e pré-excitação.
@@ -65,7 +65,7 @@ cartoes:
     tipo: paráfrase
   revisado_por_medico: false
   verificar: conferir
-- id: fa.flutter
+- id: af.flutter
   versao: 1
   nome_pt: Flutter atrial
   criterio: 'Ondas F regulares em dente de serra (~250-350/min) sem linha isoelétrica; típico anti-horário:
@@ -78,7 +78,7 @@ cartoes:
   armadilhas:
   - 2:1 dá FC ~150 e pode ser confundido com taquicardia sinusal.
   nao_confundir:
-  - fa.fibrilacao
+  - af.fibrilacao
   - ritmo.taquicardia_sinusal
   fonte:
     ref: aha_2009_part_ii
@@ -86,7 +86,7 @@ cartoes:
     tipo: paráfrase
   revisado_por_medico: false
   verificar: faixa de frequência conferir
-- id: fa.flutter_atipico
+- id: af.flutter_atipico
   versao: 1
   nome_pt: Flutter horário e atípico
   criterio: Padrão invertido (positivo em inferiores) ou morfologia distinta; localizar circuito exige
@@ -98,7 +98,7 @@ cartoes:
   armadilhas:
   - ECG não define o circuito.
   nao_confundir:
-  - fa.flutter
+  - af.flutter
   fonte:
     ref: aha_2009_part_ii
     local: Parte II

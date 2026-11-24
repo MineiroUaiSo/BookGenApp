@@ -1,6 +1,6 @@
-# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: hve
+# Cartões de critério ECG (paráfrase própria; revisado_por_medico=false). Família: lvh
 cartoes:
-- id: hve.sokolow_lyon
+- id: lvh.sokolow_lyon
   versao: 1
   nome_pt: 'HVE: Sokolow-Lyon'
   criterio: Soma da onda S mais profunda em V1 com a R maior em V5 ou V6; valor acima de 35 mm sugere
@@ -17,14 +17,14 @@ cartoes:
   - Alta sensibilidade em jovens, magros e atletas gera falsos positivos.
   - Conferir a calibração de 10 mm/mV.
   nao_confundir:
-  - hve.cornell_voltagem
-  - hve.peguero
+  - lvh.cornell_voltagem
+  - lvh.peguero
   fonte:
     ref: sokolow_1949
     local: Am Heart J 1949;37:161, critério R V5/V6 + S V1
     tipo: paráfrase
   revisado_por_medico: false
-- id: hve.r_avl
+- id: lvh.r_avl
   versao: 1
   nome_pt: 'HVE: R em aVL'
   criterio: R em aVL acima de 11 mm sugere HVE, sobretudo com eixo horizontalizado.
@@ -37,14 +37,14 @@ cartoes:
   armadilhas:
   - Critério de baixa sensibilidade isolado.
   nao_confundir:
-  - hve.cornell_voltagem
+  - lvh.cornell_voltagem
   fonte:
     ref: aha_2009_part_v
     local: Parte V, critérios de voltagem em derivações de membros
     tipo: paráfrase
   revisado_por_medico: false
   verificar: limiar de R aVL conferido de memória; confirmar na Parte V
-- id: hve.cornell_voltagem
+- id: lvh.cornell_voltagem
   versao: 1
   nome_pt: 'HVE: voltagem de Cornell'
   criterio: 'R em aVL somada à S em V3: acima de 28 mm em homens e acima de 20 mm em mulheres.'
@@ -60,14 +60,14 @@ cartoes:
   armadilhas:
   - Aplicar corte por sexo; usar um só corte superestima em mulheres.
   nao_confundir:
-  - hve.sokolow_lyon
-  - hve.cornell_produto
+  - lvh.sokolow_lyon
+  - lvh.cornell_produto
   fonte:
     ref: casale_1985
     local: Circulation 1985;71:549, critério sexo-específico
     tipo: paráfrase
   revisado_por_medico: false
-- id: hve.cornell_produto
+- id: lvh.cornell_produto
   versao: 1
   nome_pt: 'HVE: produto de Cornell'
   criterio: Produto da voltagem de Cornell (somando 6 mm nas mulheres) pela duração do QRS; acima de 2440
@@ -83,14 +83,14 @@ cartoes:
   armadilhas:
   - QRS largo por bloqueio de ramo infla o produto.
   nao_confundir:
-  - hve.cornell_voltagem
+  - lvh.cornell_voltagem
   fonte:
     ref: okin_1995
     local: J Am Coll Cardiol 1995;25:417
     tipo: paráfrase
   revisado_por_medico: false
   verificar: corte 2440 e ajuste de +6 mm em mulheres confirmar na fonte
-- id: hve.peguero
+- id: lvh.peguero
   versao: 1
   nome_pt: 'HVE: critério de Peguero-Lo Presti'
   criterio: 'S mais profunda em qualquer derivação somada à S de V4: 28 mm ou mais em homens e 23 mm ou
@@ -107,14 +107,14 @@ cartoes:
   armadilhas:
   - Mais sensível que Sokolow e Cornell na validação original; menos testado fora dela.
   nao_confundir:
-  - hve.sokolow_lyon
-  - hve.cornell_voltagem
+  - lvh.sokolow_lyon
+  - lvh.cornell_voltagem
   fonte:
     ref: peguero_2017
     local: J Am Coll Cardiol 2017;69:1694
     tipo: paráfrase
   revisado_por_medico: false
-- id: hve.romhilt_voltagem
+- id: lvh.romhilt_voltagem
   versao: 1
   nome_pt: 'Romhilt-Estes: pontos de voltagem (3)'
   criterio: 3 pontos se qualquer R ou S de membro >=20 mm, S em V1/V2 >=30 mm ou R em V5/V6 >=30 mm.
@@ -128,13 +128,13 @@ cartoes:
   armadilhas:
   - Pontuar o item de voltagem uma só vez.
   nao_confundir:
-  - hve.romhilt_escore
+  - lvh.romhilt_escore
   fonte:
     ref: romhilt_1968
     local: Am Heart J 1968;75:752, item voltagem
     tipo: paráfrase
   revisado_por_medico: false
-- id: hve.romhilt_st_t
+- id: lvh.romhilt_st_t
   versao: 1
   nome_pt: 'Romhilt-Estes: alteração ST-T (3 ou 1)'
   criterio: 3 pontos para ST-T típico de sobrecarga sem digital; 1 ponto se em uso de digitálico.
@@ -155,7 +155,7 @@ cartoes:
     local: Am Heart J 1968;75:752, item ST-T
     tipo: paráfrase
   revisado_por_medico: false
-- id: hve.romhilt_ae
+- id: lvh.romhilt_ae
   versao: 1
   nome_pt: 'Romhilt-Estes: sobrecarga atrial esquerda (3)'
   criterio: 3 pontos para fase terminal negativa da P em V1 com profundidade >=1 mm e duração >=40 ms.
@@ -176,7 +176,7 @@ cartoes:
     local: Am Heart J 1968;75:752, item atrial
     tipo: paráfrase
   revisado_por_medico: false
-- id: hve.romhilt_eixo
+- id: lvh.romhilt_eixo
   versao: 1
   nome_pt: 'Romhilt-Estes: desvio do eixo (2)'
   criterio: 2 pontos para eixo do QRS de -30 graus ou mais à esquerda.
@@ -197,7 +197,7 @@ cartoes:
     local: Am Heart J 1968;75:752, item eixo
     tipo: paráfrase
   revisado_por_medico: false
-- id: hve.romhilt_qrs_deflexao
+- id: lvh.romhilt_qrs_deflexao
   versao: 1
   nome_pt: 'Romhilt-Estes: QRS e deflexão intrinsecoide (1+1)'
   criterio: 1 ponto para QRS >=90 ms e 1 ponto para deflexão intrinsecoide em V5/V6 >=50 ms.
@@ -212,13 +212,13 @@ cartoes:
   armadilhas:
   - Medida da deflexão intrinsecoide é imprecisa.
   nao_confundir:
-  - hve.romhilt_escore
+  - lvh.romhilt_escore
   fonte:
     ref: romhilt_1968
     local: Am Heart J 1968;75:752, itens duração e deflexão
     tipo: paráfrase
   revisado_por_medico: false
-- id: hve.romhilt_escore
+- id: lvh.romhilt_escore
   versao: 1
   nome_pt: 'Romhilt-Estes: interpretação do escore'
   criterio: Soma >=5 pontos indica HVE; 4 pontos, HVE provável.
@@ -231,13 +231,13 @@ cartoes:
   armadilhas:
   - Escore lento de aplicar e pouco sensível; somar apenas itens objetivamente medidos.
   nao_confundir:
-  - hve.sokolow_lyon
+  - lvh.sokolow_lyon
   fonte:
     ref: romhilt_1968
     local: Am Heart J 1968;75:752
     tipo: paráfrase
   revisado_por_medico: false
-- id: hve.gubner_ungerleider
+- id: lvh.gubner_ungerleider
   versao: 1
   nome_pt: 'HVE: R em DI mais S em DIII'
   criterio: Soma de R em DI com S em DIII acima de 25 mm sugere HVE.
@@ -249,14 +249,14 @@ cartoes:
   armadilhas:
   - Pouco usado; serve como critério de membros adicional.
   nao_confundir:
-  - hve.sokolow_lyon
+  - lvh.sokolow_lyon
   fonte:
     ref: aha_2009_part_v
     local: Parte V, critérios de membros
     tipo: paráfrase
   revisado_por_medico: false
   verificar: critério e corte conferidos de memória
-- id: hve.sbc_interpretacao
+- id: lvh.sbc_interpretacao
   versao: 1
   nome_pt: 'HVE: como a SBC orienta a conclusão'
   criterio: Laudar HVE quando critério de voltagem se associa a alteração de repolarização ou outros achados;
@@ -269,14 +269,14 @@ cartoes:
   armadilhas:
   - Voltagem isolada em jovem não deve ser rotulada como doença.
   nao_confundir:
-  - hve.sokolow_lyon
+  - lvh.sokolow_lyon
   fonte:
     ref: sbc_laudos_2022
     local: Arq Bras Cardiol 2022;119(4):638-680, seção sobre sobrecargas ventriculares
     tipo: paráfrase
   revisado_por_medico: false
   verificar: redação exata da recomendação conferir na diretriz
-- id: hve.aumento_deflexao_lateral
+- id: lvh.aumento_deflexao_lateral
   versao: 1
   nome_pt: 'HVE: padrão de sobrecarga sistólica'
   criterio: Voltagem alta com infradesnível de ST convexo e T assimétrica invertida em V5-V6, DI e aVL.

@@ -47,7 +47,7 @@ cartoes:
   armadilhas:
   - Critérios de baixa sensibilidade.
   nao_confundir:
-  - hve.sokolow_lyon
+  - lvh.sokolow_lyon
   - hvd.criterios_r_v1
   fonte:
     ref: aha_2009_part_v

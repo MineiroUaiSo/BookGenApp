@@ -27,5 +27,5 @@ def test_codigos_emitidos_tem_cartao():
 
 def test_cartoes_chave_existem():
     ids = {c.id for c in load_cards()}
-    assert {"hve.peguero", "hve.cornell_voltagem", "hve.romhilt_escore", "fa.fibrilacao",
+    assert {"lvh.peguero", "lvh.cornell_voltagem", "lvh.romhilt_escore", "af.fibrilacao",
             "repol.strain_vs_isquemia", "isquemia.sgarbossa"} <= ids

@@ -16,7 +16,7 @@ cartoes:
   - Dor típica, troponina e evolução dinâmica prevalecem sobre o padrão.
   - Comparar com ECG prévio.
   nao_confundir:
-  - hve.romhilt_st_t
+  - lvh.romhilt_st_t
   - isquemia.infra_st_subendocardica
   fonte:
     ref: aha_2009_part_v
@@ -165,7 +165,7 @@ cartoes:
   armadilhas:
   - Efeito não indica intoxicação.
   nao_confundir:
-  - hve.romhilt_st_t
+  - lvh.romhilt_st_t
   fonte:
     ref: aha_2009_part_iv
     local: Parte IV, efeito de fármacos

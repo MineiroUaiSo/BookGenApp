@@ -58,7 +58,7 @@ cartoes:
   - Emergência.
   nao_confundir:
   - taq.qrs_largo
-  - fa.fibrilacao
+  - af.fibrilacao
   fonte:
     ref: esc_va_2022
     local: Diretriz ESC de arritmias ventriculares 2022, seção sobre pré-excitação

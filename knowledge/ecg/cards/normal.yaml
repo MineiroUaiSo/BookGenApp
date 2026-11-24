@@ -178,8 +178,8 @@ cartoes:
   - Confirmar a alteração em múltiplas derivações e em batimentos consecutivos.
   - Parkinson e tremor imitam ondas de flutter.
   nao_confundir:
-  - fa.fibrilacao
-  - fa.flutter
+  - af.fibrilacao
+  - af.flutter
   fonte:
     ref: aha_2007_part_i
     local: Parte I, qualidade técnica do traçado

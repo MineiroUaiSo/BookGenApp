@@ -12,7 +12,7 @@ cartoes:
   armadilhas:
   - Irregularidade com P sinusal estável não é FA.
   nao_confundir:
-  - fa.fibrilacao
+  - af.fibrilacao
   fonte:
     ref: aha_2009_part_ii
     local: Parte II, arritmia sinusal
@@ -32,7 +32,7 @@ cartoes:
   - P retrógrada vem logo após o QRS.
   nao_confundir:
   - ritmo.sinusal_arritmia
-  - fa.fibrilacao
+  - af.fibrilacao
   fonte:
     ref: aha_2009_part_ii
     local: Parte II, ritmos atriais e juncionais
@@ -51,7 +51,7 @@ cartoes:
   armadilhas:
   - FC acima de ~150 em adulto sugere outro ritmo (flutter 2:1, TSV).
   nao_confundir:
-  - fa.flutter
+  - af.flutter
   fonte:
     ref: aha_2009_part_ii
     local: Parte II, taquicardia sinusal
