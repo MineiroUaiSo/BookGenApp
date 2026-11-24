@@ -42,7 +42,7 @@
     "iu_xray": {
       "modality": "RX",
       "method": "dev_only",
-      "id_regex": "CXR\\d+_IM-\\d+-\\d+",
+      "id_regex": "CXR\\d+_IM-[\\d-]+",
       "note": "IU X-Ray is dev only: it is in the TorchXRayVision training data (leakage), so it is never a test set."
     },
     "jsrt_masks": {
