@@ -178,17 +178,24 @@ LICENSES = {
 class RangeFile(io.RawIOBase):
     """Seekable read-only file over HTTP Range requests (lets zipfile pull single members from a multi-GB zip)."""
 
-    def __init__(self, url: str, session=None):
+    def __init__(self, url: str, session=None, size: int = 0):
         import requests
         from medlens_data import USER_AGENT
         self.url, self.s = url, session or requests.Session()
         self.s.headers["User-Agent"] = USER_AGENT
-        r = self.s.get(url, headers={"Range": "bytes=0-0"}, timeout=60)
-        r.raise_for_status()
-        cr = r.headers.get("Content-Range", "")
-        if r.status_code != 206 or "/" not in cr:
-            raise RuntimeError("server does not support Range")
-        self.size = int(cr.rsplit("/", 1)[1])
+        import time
+        self.size = size or 0
+        for attempt in range(0 if self.size else 5):   # the proxy sometimes answers HEAD without Content-Length
+            try:
+                r = self.s.head(url, allow_redirects=True, timeout=60)
+                if "Content-Length" in r.headers:
+                    self.size = int(r.headers["Content-Length"])
+                    break
+            except Exception:
+                pass
+            time.sleep(2 * (attempt + 1))
+        if not self.size:
+            raise RuntimeError("could not determine remote size")
         self.pos = 0
 
     def seekable(self): return True
@@ -205,10 +212,19 @@ class RangeFile(io.RawIOBase):
         n = min(n, self.size - self.pos)
         if n <= 0:
             return b""
-        r = self.s.get(self.url, headers={"Range": f"bytes={self.pos}-{self.pos + n - 1}"}, timeout=300)
-        r.raise_for_status()
-        self.pos += len(r.content)
-        return r.content
+        import time
+        last = None
+        for attempt in range(8):
+            try:
+                r = self.s.get(self.url, headers={"Range": f"bytes={self.pos}-{self.pos + n - 1}"}, timeout=300)
+                if r.status_code == 206 and len(r.content) == n:
+                    self.pos += n
+                    return r.content
+                last = f"status {r.status_code} len {len(r.content)} != {n}"
+            except Exception as e:  # proxy resets / timeouts
+                last = repr(e)
+            time.sleep(2 * (attempt + 1))
+        raise RuntimeError(f"range read failed at {self.pos}+{n}: {last}")
 
     def readinto(self, b):
         d = self.read(len(b)); b[:len(d)] = d; return len(d)
@@ -222,7 +238,7 @@ def fetch_shenzhen_images(zen_dir: Path, out_dir: Path, url: str = "https://open
     mz = zipfile.ZipFile(next(zen_dir.glob("train_masks-*.zip")))
     stems = sorted(Path(n).name[:-len("_mask.png")] for n in mz.namelist() if Path(n).name.startswith("CHN") and n.endswith("_mask.png"))
     out_dir.mkdir(parents=True, exist_ok=True)
-    zf = zipfile.ZipFile(RangeFile(url))
+    zf = zipfile.ZipFile(RangeFile(url, size=3770205534 if "ChinaSet" in url else 0))
     index = {Path(n).stem: n for n in zf.namelist() if n.lower().endswith(".png")}
     done = []
     for st in stems:

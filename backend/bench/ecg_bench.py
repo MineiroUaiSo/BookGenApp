@@ -250,6 +250,7 @@ def ludb_task(rec: dict) -> dict:
                           "qt": float(np.median(g_qt)) if g_qt else None, "hr": g_hr}
     out["ours_global"] = _gm_dict(an.global_measurements)
     out["findings"] = _findings(an)
+    out["labels"] = list(rec.get("labels") or [])
     return out
 
 
@@ -700,6 +701,30 @@ def report_ludb(res: dict[str, dict]) -> tuple[str, dict]:
                     max(1, sum(d["cnt"].get("gold_qrs", 0) for d in r["data"]["leads"].values())))[:5]
     worst.append(["lowest QRS detection", ", ".join(r["id"] for r in lowdet)])
     t5 = table(worst, ["Criterion", "Worst record ids (mean |err|)"])
+    # diagnosis agreement with LUDB header labels (cardiologist rhythm/axis/etc. statements)
+    lab_rows = []
+    cls_pos = defaultdict(set)
+    for r in ok:
+        for lab in r["data"].get("labels", []):
+            c = LABEL_ALIAS.get(str(lab).lower().split(".", 1)[-1])
+            if c and c in PRED:
+                cls_pos[c].add(r["id"])
+    for c, ids in sorted(cls_pos.items(), key=lambda kv: -len(kv[1])):
+        tp = fp = fn = tn = 0
+        miss = []
+        for r in ok:
+            codes = {f["code"] for f in r["data"]["findings"]}
+            g, pr = r["id"] in ids, bool(PRED[c](codes))
+            tp += g and pr
+            fn += g and not pr
+            fp += (not g) and pr
+            tn += (not g) and not pr
+            if g and not pr:
+                miss.append(r["id"])
+        if len(ids) >= 2:
+            lab_rows.append([c, len(ids), _ci(tp, tp + fn), _ci(tn, tn + fp), _ci(tp, tp + fp), ", ".join(miss[:4]) or "-"])
+    lab_tbl = ("\n\n### Diagnosis agreement with LUDB header statements (small N, indicative only)\n\nLUDB header statements are free-text from the cardiologist (e.g. 'left ventricular hypertrophy' is attached to >50% of records, mostly without voltage criteria; median Sokolow-Lyon here is ~1.3 mV), so low sensitivity for LVH/LAFB mostly reflects label definition, not necessarily detector error.\n\n" +
+               table(lab_rows, ["Class", "N pos", "Sens % [CI]", "Spec % [CI]", "PPV % [CI]", "Missed ids"])) if lab_rows else ""
     body = (f"{n_rec} records analysed ({len(bad)} failed), {n_lead_rec} record-leads; annotated beats {cnt['gold_qrs']}, "
             f"P waves {cnt['gold_p']}, T waves {cnt['gold_t']}.  Timing: {_timing(ok)}.\n\n"
             "### Fiducial-point error vs cardiologist annotation (per lead, per matched beat)\n\n" + t1 +
@@ -710,7 +735,7 @@ def report_ludb(res: dict[str, dict]) -> tuple[str, dict]:
             "\n\nP/T counted detected when our peak lies within the annotated wave ±30 ms (P) / ±50 ms (T). "
             "PPV counts our waves in beats matched to an annotated beat.\n\n"
             "### Global intervals (our median beat vs annotation: earliest onset / latest offset across leads, median over beats)\n\n"
-            + t3 + "\n\n### Per-lead mean ± SD error (ms)\n\n" + t4 + "\n\n### Worst examples\n\n" + t5)
+            + t3 + "\n\n### Per-lead mean ± SD error (ms)\n\n" + t4 + "\n\n### Worst examples\n\n" + t5 + lab_tbl)
     if bad:
         c = Counter(r["error"].split(":")[0] for r in bad)
         body += f"\n\nFailures: {dict(c)}; ids: {', '.join(r['id'] for r in bad[:10])}"

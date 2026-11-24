@@ -88,7 +88,7 @@ def delineation_from_annotation(samples: list[int], symbols: list[str]) -> dict[
 
 # ------------------------------------------------------------------ LUDB labels
 _LUDB_RULES: list[tuple[str, list[str]]] = [
-    (r"sinus rhythm", ["ecg.sinus_rhythm"]),
+    (r"(?<!irregular )sinus rhythm", ["ecg.sinus_rhythm"]),
     (r"sinus tachycardia", ["ecg.sinus_tachycardia"]),
     (r"sinus bradycardia", ["ecg.sinus_bradycardia"]),
     (r"sinus arrhythmia|irregular sinus", ["ecg.irregular_rhythm", "ecg.sinus_arrhythmia"]),
@@ -96,9 +96,9 @@ _LUDB_RULES: list[tuple[str, list[str]]] = [
     (r"atrial flutter", ["ecg.atrial_flutter"]),
     (r"left axis deviation", ["ecg.left_axis_deviation"]),
     (r"right axis deviation", ["ecg.right_axis_deviation"]),
-    (r"i degree av|first degree", ["ecg.av_block_1"]),
-    (r"iii degree av|third degree", ["ecg.av_block_3"]),
-    (r"ii degree av|second degree", ["ecg.av_block_2"]),
+    (r"\bi degree av|first degree", ["ecg.av_block_1"]),
+    (r"\biii degree av|third degree", ["ecg.av_block_3"]),
+    (r"\bii degree av|second degree", ["ecg.av_block_2"]),
     (r"incomplete right bundle", ["ecg.irbbb"]),
     (r"incomplete left bundle", ["ecg.ilbbb"]),
     (r"(?<!incomplete )(?<!in)complete right bundle", ["ecg.rbbb"]),
