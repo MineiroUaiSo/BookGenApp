@@ -13,6 +13,8 @@
 cd backend
 pip install -e '.[dev,ecg,recon,ai]'          # + '.[rx]' para torch/torchxrayvision
 export ANTHROPIC_API_KEY=...                   # opcional (sem chave: medidas + regras)
+# ou: export OPENROUTER_API_KEY=...  [MEDLENS_OR_MODEL=anthropic/claude-sonnet-5.5]  (fallback via OpenRouter)
+# DICOM JPEG Lossless (ex.: MIDRC-RICORD) exige: pip install -e '.[dicom-compressed]'
 uvicorn app.main:app --port 8000
 
 # frontend
@@ -30,8 +32,13 @@ Imagens enviadas juntas (ex.: PA + Perfil em PNG) formam um único estudo — ne
 - `knowledge/` — critérios reescritos + referências (revisão clínica pendente)
 - `.claude/skills/` — skills para agentes (pydicom, neurokit2, pensamento crítico, leitura ECG/RX)
 
+## Benchmarks
+- Resultados: `docs/benchmarks/` (ecg.md, rx.md e logs por trilha `trilha_*_log.md`). Estado e pendências: `RETOMADA.md`.
+- Dados (fora do git): `data/datasets/` (LUDB, PTB-XL 3000, QTDB, IU X-ray via espelho HF, JSRT, PAX-Ray++ test). Splits congelados em `backend/bench/splits.json`; `tests/test_no_test_leak.py` falha se id de teste aparecer em `backend/bench/tuning/`.
+- Regressão em DICOM real: `tests/test_rx_real_dicom.py` e `python -m bench.rx_bench --source dicom-exemplos` (pasta `MEDLENS_DICOM_EXAMPLES`).
+
 ## Limitações conhecidas
-- Validado apenas com sinais/imagens **sintéticos**; falta validação em bases reais (LUDB, PTB-XL, radiografias anotadas).
+- Validação em bases reais em andamento (ver RETOMADA.md); achados críticos (STE, pneumotórax, BAV3) sempre "sugestivo".
 - Limiares de `knowledge/*.yaml` escritos de memória pelos agentes — precisam de revisão por especialista.
 - Segmentação de perfil, abdome e ossos é heurística; 3D é aproximação (casco visual), não tomografia.
 - IA (Claude) testada com cliente simulado; requer chave de API para uso real.
