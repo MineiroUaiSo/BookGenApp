@@ -966,10 +966,45 @@ def build_report(path: Optional[Path] = None) -> Path:
     return write_markdown(path, "Benchmark RX (MedLens)", sections)
 
 
+# ================================================================ smoke: real DICOM examples
+def run_smoke(modes: list[str], out: Optional[Path] = None) -> int:
+    """Per-file region / view / polarity / segmentation of real DICOMs in $MEDLENS_DICOM_EXAMPLES
+    (default ~/Downloads/dicom-exemplos, torax/ + abdome/). Not part of the rx.md report."""
+    import glob
+    if str(BACKEND) not in sys.path:
+        sys.path.insert(0, str(BACKEND))
+    from app.dicom.render import load_dicom, render_to_uint8
+    root = Path(os.environ.get("MEDLENS_DICOM_EXAMPLES", str(Path.home() / "Downloads" / "dicom-exemplos")))
+    files = sorted(glob.glob(str(root / "*" / "*" / "*.dcm")))
+    if not files:
+        print(f"nenhum DICOM em {root} (defina MEDLENS_DICOM_EXAMPLES)")
+        return 1
+    lines = ["| arquivo | polaridade | modo | região | incidência | segmentação | ICT | s |", "|---|---|---|---|---|---|---|---|"]
+    for f in files:
+        name = "/".join(Path(f).parts[-3:-1])
+        ds = load_dicom(f)
+        pol = str(ds.get("PhotometricInterpretation", "?"))
+        try:
+            img = render_to_uint8(ds)
+        except RuntimeError as e:
+            lines.append(f"| {name} | {pol} | - | - | - | {str(e)[:60]} | - | - |")
+            continue
+        for mode in modes:
+            a, dt = _analyze(img, name, mode, ds)
+            ict = _meas(a, "cardiothoracic_ratio")
+            lines.append(f"| {name} | {pol} | {mode} | {a.region.value} | {a.view.value} | "
+                         f"{a.quality.get('segmentação', '')[:45]} | {'-' if ict is None else ict} | {dt:.1f} |")
+    text = "\n".join(lines)
+    print(text)
+    if out:
+        out.write_text(text + "\n")
+    return 0
+
+
 # ======================================================================================= CLI
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="bench.rx_bench")
-    ap.add_argument("--source", choices=list(SOURCE_ARG), default="all")
+    ap.add_argument("--source", choices=list(SOURCE_ARG) + ["dicom-exemplos"], default="all")
     ap.add_argument("--limit", type=int, default=None, help="max items (seg/cap) or studies (iu) per source")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 0))
     ap.add_argument("--models", choices=["on", "off", "both"], default="both")
@@ -978,6 +1013,8 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path, default=None)
     a = ap.parse_args(argv)
     modes = ["model", "heur"] if a.models == "both" else [MODES[a.models]]
+    if a.source == "dicom-exemplos":
+        return run_smoke(modes, a.out)
     if not a.report_only:
         for kind in SOURCE_ARG[a.source]:
             run_kind(kind, modes, a.limit, a.workers, a.max_side)

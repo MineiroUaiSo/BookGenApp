@@ -37,7 +37,8 @@ def _frame(ds) -> np.ndarray:
         arr = ds.pixel_array
     except Exception as e:  # compressed syntax without a decoder, corrupt data...
         raise RuntimeError(
-            f"cannot decode pixel data ({getattr(ds.file_meta, 'TransferSyntaxUID', '?')}): {e}. "
+            f"codec DICOM não suportado (instale pylibjpeg): cannot decode pixel data "
+            f"({getattr(ds.file_meta, 'TransferSyntaxUID', '?')}): {e}. "
             "Install optional decoders: pip install pylibjpeg pylibjpeg-libjpeg pylibjpeg-openjpeg"
         ) from e
     spp = int(ds.get("SamplesPerPixel", 1) or 1)
