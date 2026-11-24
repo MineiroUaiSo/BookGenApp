@@ -61,49 +61,58 @@ def estimate_pitch(profile: np.ndarray, min_pitch: float = 3.0):
     pk, props = find_peaks(ac[:maxlag], height=0.03)
     pk = [p for p in pk if p >= min_pitch]
     if not pk:
-        return None, 0.0
+        return None, 0.0, None, None
     hs = {p: ac[p] for p in pk}
     hmax = max(hs.values())
     L = next(p for p in pk if hs[p] >= 0.4 * hmax)
     # N = number of pitches across the profile: 1 mm pitch -> N >~ 100 (a page is >100 mm), 5 mm pitch -> N <~ 65.
     bold = len(x) / L < 80
-    # refine: regression on detected line positions
+    # refine: regression on detected line positions (5 mm bold lines if the small ones are faint)
+    unit = 5.0 if bold else 1.0
     p0 = float(L)
     sm = ndi.gaussian_filter1d(x, max(0.6, p0 / 12))
     pos, _ = find_peaks(sm, distance=max(2, int(0.6 * p0)), prominence=0.15 * np.std(sm) + 1e-9)
     pitch = p0
+    mm_of_px = np.poly1d([unit / p0, 0.0])
+    px_of_mm = np.poly1d([p0 / unit, 0.0])
+    conf = float(min(1.0, ac[L] / 0.5))
     if len(pos) >= 10:
         pos = pos.astype(np.float64)
-        for _ in range(4):
-            idx = np.round((pos - pos[0]) / pitch)
+        idx = np.round((pos - pos[0]) / pitch)
+        for _ in range(5):
             A = np.stack([idx, np.ones_like(idx)], 1)
             coef, *_ = np.linalg.lstsq(A, pos, rcond=None)
             res = pos - A @ coef
-            keep = np.abs(res) < 0.2 * pitch
+            keep = np.abs(res) < 0.2 * coef[0]
             if keep.sum() < 8:
                 break
-            coef, *_ = np.linalg.lstsq(A[keep], pos[keep], rcond=None)
+            pos, idx = pos[keep], idx[keep]
+            coef, *_ = np.linalg.lstsq(np.stack([idx, np.ones_like(idx)], 1), pos, rcond=None)
             pitch = float(coef[0])
-            pos, _ = pos[keep], None
-            pos = pos
-        conf = float(min(1.0, ac[L] / 0.5))
+            idx = np.round((pos - coef[1]) / pitch)
+        if len(pos) >= 8:
+            deg = 2 if len(pos) >= 15 else 1
+            mm = idx * unit
+            mm_of_px = np.poly1d(np.polyfit(pos, mm, deg))
+            px_of_mm = np.poly1d(np.polyfit(mm, pos, deg))
+            # mean pitch over the span (robust to the quadratic term)
+            span = pos.max() - pos.min()
+            pitch = span / ((mm.max() - mm.min()) / unit)
     else:
-        conf = float(min(1.0, ac[L] / 0.5)) * 0.5
-    return (pitch / 5.0 if bold else pitch), conf
+        conf *= 0.5
+    mean_ppm = pitch / unit
+    return mean_ppm, conf, mm_of_px, px_of_mm
 
 
 def detect_grid(norm: np.ndarray, ink: np.ndarray):
-    """Return dict(px_per_mm_x, px_per_mm_y, confidence)."""
+    """Return dict(px_per_mm_x/y, confidence, mm_of_px_x/y, px_of_mm_x/y) (the maps are numpy poly1d)."""
     py, px = grid_profiles(norm, ink)
-    ph, ch = estimate_pitch(py)
-    pw, cw = estimate_pitch(px)
+    ph, ch, mh, ih = estimate_pitch(py)
+    pw, cw, mw, iw = estimate_pitch(px)
     res = {"px_per_mm_y": ph, "px_per_mm_x": pw, "confidence": min(ch, cw)}
     if ph and pw:
-        if abs(ph - pw) / max(ph, pw) < 0.08:  # isotropic: share the better-conditioned estimate
-            m = 0.5 * (ph + pw)
-            res["px_per_mm_x"] = res["px_per_mm_y"] = m
+        res.update(map_x=(mw, iw), map_y=(mh, ih))
     elif ph or pw:
-        v = ph or pw
-        res["px_per_mm_x"] = res["px_per_mm_y"] = v
-        res["confidence"] *= 0.5
+        v, m, i = (ph, mh, ih) if ph else (pw, mw, iw)
+        res.update(px_per_mm_x=v, px_per_mm_y=v, map_x=(m, i), map_y=(m, i), confidence=res["confidence"] * 0.5)
     return res

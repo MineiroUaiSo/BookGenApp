@@ -60,15 +60,8 @@ def find_pulse(ink: np.ndarray, y_base: float, xs_left: int, ppm_x: float, ppm_y
     top = np.where(sub.any(0), sub.argmax(0), -1).astype(np.float64)  # first ink row per column
     bot = np.where(sub.any(0), sub.shape[0] - 1 - sub[::-1].argmax(0), -1).astype(np.float64)
     ok = top >= 0
-    # foot (baseline before the rising edge): first ~0.8 mm of columns
-    nf = max(2, int(0.8 * ppm_x))
-    foot_cols = np.arange(0, nf)
-    foot_cols = foot_cols[ok[foot_cols]]
-    if len(foot_cols) == 0:
-        return None
-    # plateau: columns whose top is far above the foot and nearly constant
-    y_foot = np.median((top[foot_cols] + bot[foot_cols]) / 2)
-    cand = ok & ((y_foot - top) > 2.5 * ppm_y) & ((bot - top) < 0.12 * ppm_y * 10)  # thin horizontal line
+    yref = y_base - y0
+    cand = ok & ((yref - top) > 2.0 * ppm_y) & ((bot - top) < 1.2 * ppm_y)  # thin horizontal line above baseline
     # largest run of cand columns with near-constant top
     best = None
     i = 0
@@ -89,9 +82,18 @@ def find_pulse(ink: np.ndarray, y_base: float, xs_left: int, ppm_x: float, ppm_y
     wmm = (j - i + 1) / ppm_x
     if wmm < 2.5:
         return None
-    thick = float(np.median((bot - top + 1)[foot_cols]))
+    thick = float(np.median((bot - top + 1)[i:j + 1]))
     y_plat = float(np.median(top[i:j + 1]) + thick / 2)
-    y_f = float(y_foot)
+    foot = np.arange(0, max(0, i - int(thick) - 2))
+    foot = foot[ok[foot]] if len(foot) else foot
+    if len(foot) >= 3:
+        y_f = float(np.median((top[foot] + bot[foot]) / 2))
+    else:  # no foot visible: baseline right after the falling edge
+        aft = np.arange(j + int(0.4 * ppm_x) + 2, min(n, j + int(1.6 * ppm_x) + 2))
+        aft = aft[ok[aft]] if len(aft) else aft
+        if len(aft) == 0:
+            return None
+        y_f = float(np.median((top[aft] + bot[aft]) / 2))
     hmm = (y_f - y_plat) / ppm_y
     # falling edge centre = plateau end + half thickness; rising stroke start
     return dict(height_mm=hmm, width_mm=wmm + thick / ppm_x, x_end=x0 + j + thick / 2.0,

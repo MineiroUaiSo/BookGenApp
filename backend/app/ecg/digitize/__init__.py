@@ -20,7 +20,7 @@ def _interp_nan(y):
     return y, 1.0
 
 
-def _resample(y_cols: np.ndarray, cols_per_s: float, n_out: int) -> np.ndarray:
+def _unused(y_cols: np.ndarray, cols_per_s: float, n_out: int) -> np.ndarray:
     if cols_per_s > OUT_FS * 1.2:
         from scipy.ndimage import gaussian_filter1d
         y_cols = gaussian_filter1d(y_cols, 0.5 * cols_per_s / OUT_FS)
@@ -42,6 +42,8 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     if not gr["px_per_mm_x"]:
         raise ValueError("could not detect the ECG grid (px/mm)")
     ppx, ppy = gr["px_per_mm_x"], gr["px_per_mm_y"]
+    mm_x, px_of_mm_x = gr["map_x"]
+    mm_y, _ = gr["map_y"]
     ink = trace.clean_ink(ink0, ppx, ppy)
 
     cols_ink = ink.sum(0)
@@ -94,11 +96,13 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
     speed = speed or 25.0
     if xs is None:
         xs = xs_left + 9 * ppx
+    xs_mm = float(mm_x(xs))
     cps = ppx * speed  # columns per second
     total_s = 10.0
     meas = (x_right - xs) / cps
     if meas < 0.9 * total_s or meas > 1.08 * total_s:
-        total_s = max(2.5, round(meas * 2) / 2)
+        snap = min((2.5, 5.0, 10.0), key=lambda v: abs(v - meas))
+        total_s = snap if abs(snap - meas) / snap < 0.1 else max(2.5, round(meas * 2) / 2)
         warnings.append(f"trace length {meas:.1f}s differs from 10 s")
     n_cols = len(lay)
     seg_s = total_s / n_cols
@@ -125,16 +129,24 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
 
     def lead_from(ri, t0, t1):
         xa, cen, valid = row_cache[ri]
-        a, b = int(round(t0 * cps)), int(round(t1 * cps))
-        seg = cen[a:b]
-        q = float(valid[a:b].mean()) if b > a else 0.0
-        seg, ok = _interp_nan(seg.copy())
+        n_out = int(round((t1 - t0) * OUT_FS))
+        t = t0 + np.arange(n_out) / OUT_FS
+        px = px_of_mm_x(xs_mm + t * speed) - xa  # local column coordinate of every output sample
+        a, b = int(np.floor(px.min())), int(np.ceil(px.max())) + 1
+        a, b = max(a, 0), min(b, len(cen))
+        if b <= a:
+            return None, 0.0
+        q = float(valid[a:b].mean())
+        seg, ok = _interp_nan(cen[a:b].copy())
         if not ok:
             return None, 0.0
-        base = float(np.median(seg))
-        mv = -(seg - base) / (ppy * gain)
-        n_out = int(round((t1 - t0) * OUT_FS))
-        return _resample(mv, cps, n_out), q
+        ymm = mm_y(seg + 0.0)  # px -> mm on the paper (vertical)
+        base = float(np.median(ymm))
+        mv = -(ymm - base) / gain
+        if cps > OUT_FS * 1.2:
+            from scipy.ndimage import gaussian_filter1d
+            mv = gaussian_filter1d(mv, 0.5 * cps / OUT_FS)
+        return np.interp(px - a, np.arange(len(mv)), mv), q
 
     for c, names in enumerate(lay):
         for r, name in enumerate(names):

@@ -19,8 +19,8 @@ def detect_r_peaks(amp: np.ndarray, fs: float):
     if len(cand) == 0:
         return np.array([], int), 0
     h = mwi[cand]
-    ref = np.median(np.sort(h)[len(h) // 2:])
-    keep = cand[h >= 0.25 * ref]
+    ref = float(np.percentile(h, 90))
+    keep = cand[h >= 0.15 * ref]
     # fill long gaps with a lower threshold
     if len(keep) >= 3:
         rr = np.median(np.diff(keep))

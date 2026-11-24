@@ -28,7 +28,13 @@ def detect_mains(x: np.ndarray, fs: float):
         r = p[band].max() / (np.median(p[side]) + 1e-18)
         if r > ratio_best:
             best, ratio_best = f0, r
-    return best if ratio_best > 12 else None
+    if best is None or ratio_best <= 12:
+        return None
+    # require a real sinusoid at f0 (lock-in amplitude), not just harmonics of the heart rhythm
+    t = np.arange(x.shape[1]) / fs
+    z = np.exp(-2j * np.pi * best * t)
+    a = np.median(np.abs(2 * (x * z).mean(axis=1)))
+    return best if a > 0.004 else None
 
 
 def preprocess(x: np.ndarray, fs: float):

@@ -1,0 +1,351 @@
+"""Rules-based ECG findings (pt-BR). Thresholds are sex-agnostic unless noted; all are
+decision-support heuristics from AHA/ACC/HRS 2009, SBC 2022 and UDMI-4, not diagnoses."""
+from __future__ import annotations
+
+from ...schemas import Finding, Reference
+
+R_AHA = Reference(id="aha_2009_part_iii", source="Surawicz B et al. AHA/ACCF/HRS Recommendations for the "
+                  "Standardization and Interpretation of the ECG, Part III: Intraventricular Conduction "
+                  "Disturbances. Circulation 2009;119:e235", note="Critérios de BRD/BRE/BDAS/BDPI")
+R_SBC = Reference(id="sbc_laudos_2022", source="Diretriz sobre a Análise e Emissão de Laudos "
+                  "Eletrocardiográficos, Sociedade Brasileira de Cardiologia, 2022")
+R_UDMI = Reference(id="udmi4_2018", source="Thygesen K et al. Fourth Universal Definition of Myocardial "
+                   "Infarction (2018). Circulation 2018;138:e618", note="Limiares de supradesnivelamento de ST e ondas Q")
+R_GOLD = Reference(id="goldberger_2023", source="Goldberger's Clinical Electrocardiography: A Simplified "
+                   "Approach, 10th ed., Elsevier 2023")
+
+LEAD_PRETTY = {"I": "D1", "II": "D2", "III": "D3"}
+
+
+def pl(leads):
+    return ", ".join(LEAD_PRETTY.get(l, l) for l in leads)
+
+
+def _f(code, label, sev, ev, refs, conf=0.6):
+    return Finding(code=code, label=label, severity=sev, evidence=ev, references=refs, confidence=conf,
+                   origin="rules")
+
+
+ADJ = [("V1", "V2"), ("V2", "V3"), ("V3", "V4"), ("V4", "V5"), ("V5", "V6"), ("II", "aVF"), ("aVF", "III"),
+       ("aVL", "I"), ("I", "II")]
+ADJ_SET = set(ADJ) | {(b, a) for a, b in ADJ}
+INF, ANT, LAT = {"II", "III", "aVF"}, {"V1", "V2", "V3", "V4"}, {"I", "aVL", "V5", "V6"}
+
+
+def territories(leads):
+    """Group leads that have >=1 contiguous neighbour in the set into territory labels."""
+    S = {l for l in leads if any((l, m) in ADJ_SET for m in leads)}
+    out = []
+    inf, ant, lat = S & INF, S & ANT, S & LAT
+    # I-II adjacency is not a territory link by itself
+    if len(inf) >= 2:
+        out.append(("inferior", sorted(inf, key=["II", "III", "aVF"].index)))
+    ant_ord = sorted(ant, key=lambda l: int(l[1]))
+    lat_ord = [l for l in ["I", "aVL", "V5", "V6"] if l in lat]
+    if len(ant) >= 2 and len(lat) >= 2:
+        out.append(("anterolateral", ant_ord + lat_ord))
+    elif len(ant) >= 2:
+        out.append(("anterior", ant_ord))
+    elif len(lat) >= 2:
+        out.append(("lateral", lat_ord))
+    elif len(ant) + len(lat) >= 2 and ("V4" in ant and "V5" in lat):
+        out.append(("anterolateral", ant_ord + lat_ord))
+    return out
+
+
+def classify_rhythm(c):
+    """Returns (rhythm string, kind)."""
+    hr, cv, rmssd = c["hr"], c["cv"], c["rmssd"]
+    av = c.get("av")
+    irregular = cv > 0.12 and rmssd > 0.10
+    if av and av.get("type") == "av3":
+        return "Bloqueio atrioventricular total com ritmo de escape (dissociação AV)", "av3"
+    if av and av.get("type", "") and av["type"].startswith("av2"):
+        return "Ritmo sinusal com bloqueio atrioventricular de 2º grau", "av2"
+    if c["p_present"] and c["frac_p"] >= 0.6:
+        if not c["sinus_p"]:
+            return "Ritmo atrial ectópico ou juncional (onda P não sinusal)", "ectopic"
+        if irregular or (cv > 0.12):
+            return "Ritmo sinusal irregular (arritmia sinusal ou extrassístoles)", "sinus_irreg"
+        if hr is not None and hr < 60:
+            return "Bradicardia sinusal", "sinus"
+        if hr is not None and hr > 100:
+            return "Taquicardia sinusal", "sinus"
+        return "Ritmo sinusal regular", "sinus"
+    if irregular:
+        return "Fibrilação atrial", "af"
+    return "Ritmo regular sem onda P identificável (juncional ou indeterminado)", "no_p"
+
+
+def build_findings(c):
+    """c: context dict from analyze_signal. Returns list[Finding]."""
+    gm, L, bd = c["gm"], c["lm"], c["bd"]
+    kind = c["rhythm_kind"]
+    fs_ms = 1000.0 / c["fs"]
+    out = []
+    hr = gm.heart_rate_bpm
+    sinus = kind in ("sinus", "sinus_irreg", "av2")
+    g = lambda l, a: getattr(L[l], a) if l in L else None
+
+    # ---- rhythm / rate
+    if kind == "af":
+        out.append(_f("ecg.atrial_fibrillation", "Fibrilação atrial", "abnormal",
+                      [f"RR irregularmente irregular (CV {c['cv']:.2f}, RMSSD/RR {c['rmssd']:.2f})",
+                       "ondas P não identificadas", f"FC média {hr:.0f} bpm"], [R_SBC, R_GOLD], 0.6))
+    elif kind == "sinus":
+        if hr < 60:
+            sev = "critical" if hr < 40 else ("abnormal" if hr < 50 else "borderline")
+            out.append(_f("ecg.sinus_bradycardia", "Bradicardia sinusal", sev, [f"FC {hr:.0f} bpm (<60)"],
+                          [R_SBC, R_GOLD], 0.7))
+        elif hr > 100:
+            sev = "critical" if hr > 150 else "abnormal"
+            out.append(_f("ecg.sinus_tachycardia", "Taquicardia sinusal", sev, [f"FC {hr:.0f} bpm (>100)"],
+                          [R_SBC, R_GOLD], 0.7))
+        else:
+            out.append(_f("ecg.sinus_rhythm", "Ritmo sinusal regular", "normal",
+                          [f"FC {hr:.0f} bpm", f"RR CV {c['cv']:.2f}", "onda P positiva em D2 e negativa em aVR"],
+                          [R_GOLD], 0.7))
+    elif kind == "sinus_irreg":
+        out.append(_f("ecg.irregular_rhythm", "Ritmo sinusal irregular", "borderline",
+                      [f"RR CV {c['cv']:.2f}", f"FC média {hr:.0f} bpm"], [R_GOLD], 0.5))
+    elif kind == "ectopic":
+        out.append(_f("ecg.non_sinus_p", "Onda P de morfologia não sinusal (ritmo atrial ectópico ou juncional)",
+                      "abnormal", ["P não positiva em D2 e/ou não negativa em aVR"], [R_GOLD], 0.4))
+    elif kind == "no_p":
+        out.append(_f("ecg.no_p_wave", "Ritmo regular sem onda P identificável", "abnormal",
+                      [f"FC {hr:.0f} bpm", "sem onda P consistente antes do QRS"], [R_GOLD], 0.4))
+
+    # ---- AV conduction
+    av = c.get("av")
+    pr = gm.pr_ms
+    if av and av.get("type") == "av3":
+        out.append(_f("ecg.av_block_3", "Bloqueio atrioventricular de 3º grau (total)", "critical",
+                      [f"frequência atrial ~{av['atrial_rate']:.0f} bpm, ventricular ~{av['vent_rate']:.0f} bpm",
+                       "ondas P regulares dissociadas dos QRS, intervalo PR variável"], [R_SBC, R_GOLD], 0.6))
+    elif av and av.get("type") in ("av2_m1", "av2_m2", "av2_21", "av2_unspec"):
+        t = av["type"]
+        lab = {"av2_m1": "Bloqueio AV de 2º grau Mobitz I (Wenckebach)",
+               "av2_m2": "Bloqueio AV de 2º grau Mobitz II",
+               "av2_21": "Bloqueio AV de 2º grau 2:1 (tipo indeterminado)",
+               "av2_unspec": "Bloqueio AV de 2º grau"}[t]
+        out.append(_f("ecg." + t.replace("av2_m1", "av_block_2_mobitz1").replace("av2_m2", "av_block_2_mobitz2")
+                      .replace("av2_21", "av_block_2_21").replace("av2_unspec", "av_block_2"), lab,
+                      "critical" if t == "av2_m2" else "abnormal",
+                      [f"{av.get('n_drops', 0)} onda(s) P bloqueada(s) (sem QRS)",
+                       f"PR condutivos: {', '.join(f'{x:.0f}' for x in av['prs'][~__import__('numpy').isnan(av['prs'])][:8])} ms (pico P até QRS)"],
+                      [R_SBC, R_GOLD], 0.5))
+    elif sinus and pr is not None:
+        if pr > 200:
+            out.append(_f("ecg.av_block_1", "Bloqueio atrioventricular de 1º grau", "abnormal",
+                          [f"PR {pr:.0f} ms (>200 ms)"], [R_SBC, R_GOLD], 0.7))
+        elif pr < 120:
+            qrs = gm.qrs_ms or 0
+            esr = bd.early_slope_ratio
+            if qrs >= 110 and esr is not None and esr < 0.45:
+                out.append(_f("ecg.preexcitation", "Padrão de pré-excitação ventricular (onda delta)", "abnormal",
+                              [f"PR {pr:.0f} ms (<120)", f"QRS {qrs:.0f} ms (>=110)",
+                               f"início do QRS lentificado (razão de velocidade inicial {esr:.2f})"],
+                              [R_SBC, R_GOLD], 0.5))
+            else:
+                out.append(_f("ecg.short_pr", "Intervalo PR curto", "borderline", [f"PR {pr:.0f} ms (<120)"],
+                              [R_SBC, R_GOLD], 0.6))
+
+    # ---- axis
+    ax = gm.qrs_axis_deg
+    qrs = gm.qrs_ms or 0
+    morph = {l: (L[l].morphology or "") for l in L}
+    if ax is not None:
+        if ax < -30:
+            sev = "borderline" if ax >= -45 else "abnormal"
+            lab = "Desvio do eixo elétrico do QRS para a esquerda" if ax >= -90 else "Desvio extremo do eixo do QRS (indeterminado)"
+            out.append(_f("ecg.left_axis_deviation", lab, sev, [f"eixo do QRS {ax:.0f}° (normal -30° a +90°)"],
+                          [R_AHA, R_SBC], 0.7))
+            if -90 <= ax <= -45 and qrs < 120 and "q" in morph.get("aVL", "").lower()[:1] and \
+                    all(morph.get(l, "").lower().startswith("r") for l in ("II", "III", "aVF") if l in morph):
+                out.append(_f("ecg.lafb", "Bloqueio divisional anterossuperior esquerdo (BDAS)", "abnormal",
+                              [f"eixo {ax:.0f}°", f"aVL {morph.get('aVL')}", "rS em D2/D3/aVF", f"QRS {qrs:.0f} ms"],
+                              [R_AHA, R_SBC], 0.55))
+        elif ax > 90:
+            out.append(_f("ecg.right_axis_deviation", "Desvio do eixo elétrico do QRS para a direita", "abnormal",
+                          [f"eixo do QRS {ax:.0f}° (normal -30° a +90°)"], [R_AHA, R_SBC], 0.7))
+            if ax <= 180 and qrs < 120 and morph.get("I", "").lower().startswith("rs") and \
+                    morph.get("III", "").lower().startswith("q") and morph.get("aVF", "").lower().startswith("q"):
+                out.append(_f("ecg.lpfb", "Bloqueio divisional posteroinferior esquerdo (BDPI)", "abnormal",
+                              [f"eixo {ax:.0f}°", "rS em D1, qR em D3/aVF", f"QRS {qrs:.0f} ms"], [R_AHA, R_SBC], 0.5))
+
+    # ---- intraventricular conduction
+    v1, v6, d1 = morph.get("V1", ""), morph.get("V6", ""), morph.get("I", "")
+    dur = qrs
+    v1_term_r = bool(v1) and v1[-1] in ("R", "r", "'")
+    v1_rprime = "'" in v1 and "R" in v1.upper()
+    s_wide = any(w.kind == "S" and (w.offset - w.onset) * fs_ms >= 40 for l in ("I", "V6") if l in bd.leads
+                 for w in bd.leads[l].waves)
+    s_present = any(w.kind == "S" for l in ("I", "V6", "V5") if l in bd.leads for w in bd.leads[l].waves)
+    v1_neg = bool(v1) and (v1 == "QS" or v1.upper().startswith("RS") or v1.startswith("rS") or
+                           (c["lm"]["V1"].s_amplitude_mv is not None and abs(c["lm"]["V1"].s_amplitude_mv) >
+                            (c["lm"]["V1"].r_amplitude_mv or 0) and not v1_rprime))
+    lat_mono = all(bool(morph.get(l)) and morph[l][0] != "q" and morph[l][0] != "Q" and "s" not in morph[l].lower()
+                   for l in ("V6", "I") if l in morph)
+    cbbb = None
+    if "V1" in L and "V6" in L:
+        if dur >= 120 and v1_term_r and v1_rprime or (dur >= 120 and v1_term_r and s_present):
+            cbbb = "rbbb"
+        elif dur >= 120 and v1_neg and lat_mono:
+            cbbb = "lbbb"
+        elif 100 <= dur < 120 and v1_rprime and v1.lower().startswith("rs"):
+            cbbb = "irbbb"
+        elif 100 <= dur < 120 and v1_neg and lat_mono:
+            cbbb = "ilbbb"
+    ev = [f"QRS {dur:.0f} ms", f"V1 {v1 or '-'}", f"V6 {v6 or '-'}", f"D1 {d1 or '-'}"]
+    if cbbb == "rbbb":
+        out.append(_f("ecg.rbbb", "Bloqueio completo de ramo direito (BRD)", "abnormal",
+                      ev + ["R/R' terminal em V1 com S empastada em D1/V6"], [R_AHA, R_SBC], 0.7))
+    elif cbbb == "lbbb":
+        out.append(_f("ecg.lbbb", "Bloqueio completo de ramo esquerdo (BRE)", "abnormal",
+                      ev + ["V1 predominantemente negativo, R monofásica sem q em D1/V6"], [R_AHA, R_SBC], 0.7))
+    elif cbbb == "irbbb":
+        out.append(_f("ecg.irbbb", "Bloqueio incompleto de ramo direito", "borderline", ev, [R_AHA, R_SBC], 0.55))
+    elif cbbb == "ilbbb":
+        out.append(_f("ecg.ilbbb", "Bloqueio incompleto de ramo esquerdo", "borderline", ev, [R_AHA, R_SBC], 0.5))
+    elif dur >= 110 and not any(f.code == "ecg.preexcitation" for f in out):
+        out.append(_f("ecg.ivcd", "Distúrbio inespecífico da condução intraventricular", "abnormal",
+                      [f"QRS {dur:.0f} ms (>=110)", "critérios de BRD/BRE não preenchidos"], [R_AHA, R_SBC], 0.5))
+    c["bbb"] = cbbb
+
+    # ---- atrial overload
+    if sinus and c["p_present"]:
+        ev_l, ev_r = [], []
+        pII = L.get("II")
+        if pII and pII.p_duration_ms and pII.p_duration_ms > 120:
+            ev_l.append(f"P em D2 com {pII.p_duration_ms:.0f} ms (>120)")
+        pd = bd.leads["II"].p if "II" in bd.leads else None
+        if pd is not None and pd.morph == "bífida" and pd.extra.get("interpeak_ms", 0) >= 40:
+            ev_l.append(f"P bífida em D2 (intervalo entre picos {pd.extra['interpeak_ms']:.0f} ms)")
+        p1 = bd.leads["V1"].p if "V1" in bd.leads else None
+        if p1 is not None and p1.extra.get("neg_depth") is not None and p1.extra["neg_depth"] >= 0.1 \
+                and p1.extra.get("neg_dur_ms", 0) >= 40:
+            ev_l.append(f"índice de Morris: componente negativo terminal em V1 {p1.extra['neg_depth']*10:.1f} mm x "
+                        f"{p1.extra['neg_dur_ms']:.0f} ms")
+        for l in ("II", "III", "aVF"):
+            a = g(l, "p_amplitude_mv")
+            if a is not None and a >= 0.25:
+                ev_r.append(f"P de {a*10:.1f} mm em {LEAD_PRETTY.get(l, l)} (>=2,5 mm)")
+        if ev_l:
+            out.append(_f("ecg.lae", "Sobrecarga atrial esquerda", "abnormal", ev_l, [R_SBC, R_GOLD], 0.5))
+        if ev_r:
+            out.append(_f("ecg.rae", "Sobrecarga atrial direita", "abnormal", ev_r, [R_SBC, R_GOLD], 0.5))
+
+    # ---- ventricular hypertrophy
+    sl, cn = gm.sokolow_lyon_mv, gm.cornell_mv
+    lvh = []
+    if sl is not None and sl > 3.5:
+        lvh.append(f"Sokolow-Lyon {sl*10:.0f} mm (>35 mm)")
+    if cn is not None and cn > 2.0:
+        lvh.append(f"Cornell {cn*10:.0f} mm (>28 mm homens / >20 mm mulheres)")
+    ravl = bd.leads["aVL"].r_max if "aVL" in bd.leads else 0
+    if ravl > 1.1:
+        lvh.append(f"R em aVL {ravl*10:.0f} mm (>11 mm)")
+    if lvh:
+        strong = (sl is not None and sl > 3.5) or (cn is not None and cn > 2.8) or len(lvh) >= 2
+        out.append(_f("ecg.lvh", "Sobrecarga ventricular esquerda (critérios de voltagem)",
+                      "abnormal" if strong else "borderline", lvh, [R_SBC, R_GOLD], 0.55 if strong else 0.4))
+    rv = []
+    if "V1" in bd.leads and c["bbb"] not in ("rbbb",):
+        r1, s1 = bd.leads["V1"].r_max, -bd.leads["V1"].s_min
+        if r1 >= 0.7:
+            rv.append(f"R em V1 {r1*10:.0f} mm (>=7 mm)")
+        if r1 > s1 and r1 >= 0.5:
+            rv.append(f"R/S em V1 {r1/max(s1, 1e-3):.1f} (>1)")
+        s56 = max([-bd.leads[l].s_min for l in ("V5", "V6") if l in bd.leads], default=0)
+        if r1 + s56 >= 1.05:
+            rv.append(f"R V1 + S V5/V6 = {(r1+s56)*10:.0f} mm (>=10,5 mm)")
+        if ax is not None and ax > 110:
+            rv.append(f"eixo do QRS {ax:.0f}° (>110°)")
+    if len(rv) >= 2:
+        out.append(_f("ecg.rvh", "Sobrecarga ventricular direita", "abnormal", rv, [R_SBC, R_GOLD], 0.45))
+
+    # ---- QT
+    qtc_val = None
+    if gm.qtc_bazett_ms is not None:
+        use_fr = hr is not None and (hr < 60 or hr > 100)
+        qtc_val = gm.qtc_fridericia_ms if use_fr else gm.qtc_bazett_ms
+        nm = "Fridericia" if use_fr else "Bazett"
+        evq = [f"QT {gm.qt_ms:.0f} ms", f"QTc {nm} {qtc_val:.0f} ms (Bazett {gm.qtc_bazett_ms:.0f}, "
+               f"Fridericia {gm.qtc_fridericia_ms:.0f})", "limiares sem distinção de sexo: >450 limítrofe, >470 alterado, >500 crítico"]
+        if qtc_val > 450:
+            sev = "critical" if qtc_val > 500 else ("abnormal" if qtc_val > 470 else "borderline")
+            out.append(_f("ecg.long_qt", "QT longo", sev, evq, [R_SBC, R_GOLD], 0.6))
+        elif qtc_val <= 340:
+            out.append(_f("ecg.short_qt", "QT curto", "abnormal", evq[:2] + ["QTc <= 340 ms"], [R_SBC, R_GOLD], 0.5))
+
+    # ---- ST elevation / depression
+    ste, std = {}, {}
+    for l, m in L.items():
+        if l == "aVR" or m.st_j_mv is None:
+            continue
+        thr = 0.2 if l in ("V2", "V3") else 0.1
+        if m.st_j_mv >= thr:
+            ste[l] = m.st_j_mv
+        j60 = m.st_j60_mv
+        if j60 is not None and j60 <= -0.05 and m.st_j_mv <= 0.0 + 0.02:
+            std[l] = j60
+    caution = []
+    if c["bbb"] in ("lbbb", "rbbb"):
+        caution.append("interpretar com cautela na presença de bloqueio de ramo")
+    if any(f.code == "ecg.lvh" for f in out):
+        caution.append("pode ser secundário à sobrecarga ventricular")
+    for name, lds in territories(list(ste)):
+        out.append(_f("ecg.st_elevation_" + name, f"Supradesnivelamento do segmento ST ({name}: {pl(lds)})",
+                      "critical", [f"ST em J: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} +{ste[l]*10:.1f} mm" for l in lds),
+                                   "limiar UDMI-4: >=1 mm (V2-V3: >=2 mm sem distinção de sexo/idade)"] + caution,
+                      [R_UDMI, R_SBC], 0.6))
+    for name, lds in territories(list(std)):
+        out.append(_f("ecg.st_depression_" + name, f"Infradesnivelamento do segmento ST ({name}: {pl(lds)})",
+                      "abnormal", ["ST em J+60: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} {std[l]*10:.1f} mm" for l in lds),
+                                   "limiar UDMI-4: >=0,5 mm em 2 derivações contíguas"] + caution,
+                      [R_UDMI, R_SBC], 0.55))
+
+    # ---- pathological Q
+    qpos = {}
+    for l in ["I", "II", "aVL", "aVF", "V2", "V3", "V4", "V5", "V6"]:
+        if l not in L:
+            continue
+        m = L[l]
+        if m.q_amplitude_mv is None:
+            continue
+        qa, qd = abs(m.q_amplitude_mv), m.q_duration_ms or 0
+        rr_ = m.r_amplitude_mv or 0
+        isqs = (m.morphology == "QS" and l in ("V2", "V3") and qa >= 0.1)
+        if (qd >= 40 and qa >= 0.1) or (qa >= 0.25 * rr_ and qa >= 0.2) or isqs:
+            qpos[l] = (qa, qd)
+    for name, lds in territories(list(qpos)):
+        out.append(_f("ecg.pathologic_q_" + name, f"Ondas Q patológicas ({name}: {pl(lds)})", "abnormal",
+                      ["; ".join(f"{LEAD_PRETTY.get(l, l)} Q {qpos[l][0]*10:.1f} mm / {qpos[l][1]:.0f} ms" for l in lds),
+                       "critério: Q >=40 ms e >=1 mm, ou >=25% da R, em 2 derivações contíguas"],
+                      [R_UDMI, R_SBC], 0.5))
+
+    # ---- low voltage
+    def pp(l):
+        return bd.leads[l].r_max - bd.leads[l].s_min
+    limb = [pp(l) for l in ("I", "II", "III", "aVR", "aVL", "aVF") if l in bd.leads]
+    prec = [pp(l) for l in ("V1", "V2", "V3", "V4", "V5", "V6") if l in bd.leads]
+    if len(limb) == 6 and max(limb) < 0.5:
+        out.append(_f("ecg.low_voltage", "Baixa voltagem do QRS nas derivações dos membros", "abnormal",
+                      [f"amplitude máxima QRS nos membros {max(limb)*10:.1f} mm (<5 mm)"], [R_SBC, R_GOLD], 0.6))
+    elif len(prec) == 6 and max(prec) < 1.0:
+        out.append(_f("ecg.low_voltage_precordial", "Baixa voltagem do QRS nas derivações precordiais", "borderline",
+                      [f"amplitude máxima QRS precordial {max(prec)*10:.1f} mm (<10 mm)"], [R_SBC], 0.5))
+
+    # ---- T inversion
+    tinv = {l: L[l].t_amplitude_mv for l in ("I", "II", "aVL", "aVF", "V2", "V3", "V4", "V5", "V6")
+            if l in L and L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -0.1}
+    for name, lds in territories(list(tinv)):
+        out.append(_f("ecg.t_inversion_" + name, f"Inversão da onda T ({name}: {pl(lds)})", "abnormal",
+                      ["T: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} {tinv[l]*10:.1f} mm" for l in lds),
+                       "limiar: T <= -1 mm em 2 derivações contíguas"] + caution, [R_UDMI, R_SBC, R_GOLD], 0.5))
+
+    abn = [f for f in out if f.severity != "normal"]
+    if not abn:
+        out.append(_f("ecg.within_normal_limits", "Eletrocardiograma sem alterações pelas regras automáticas",
+                      "normal", ["nenhuma regra de anormalidade foi acionada"], [R_GOLD], 0.5))
+    return out

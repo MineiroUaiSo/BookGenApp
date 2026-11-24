@@ -93,7 +93,7 @@ def global_qrs(seg, fs, a):
     w0, w1 = max(1, a - int(0.05 * fs)), min(n - 2, a + int(0.05 * fs))
     im = w0 + int(np.argmax(v[w0:w1 + 1]))
     vmax = float(v[im])
-    thr = max(0.05 * vmax, 2.5 * float(np.percentile(v, 30)))
+    thr = max(0.02 * vmax, 1.6 * float(np.percentile(v, 30)))
     gap = max(3, int(0.012 * fs))
     lo, hi = max(1, a - int(0.2 * fs)), min(n - 2, a + int(0.22 * fs))
     on, off = _scan(v, im, thr, gap, lo, hi)
@@ -176,14 +176,14 @@ def qrs_components(y, on, off, fs):
     return waves, morph
 
 
-def _extent(y, pk, lo, hi, frac, noise, rise_tol):
+def _extent(y, pk, lo, hi, frac, noise, rise_tol, frac_off=None):
     """Walk from peak pk outwards until |y| < max(frac*|peak|, 2*noise), sign change or re-rise."""
     sg = 1.0 if y[pk] >= 0 else -1.0
     pv = abs(y[pk])
-    thr = max(frac * pv, 2.0 * noise)
     ys = sg * y
     res = []
     for step, lim in ((-1, lo), (1, hi)):
+        thr = max((frac if step < 0 or frac_off is None else frac_off) * pv, 2.0 * noise)
         i, rmin, rmi = pk, ys[pk], pk
         while i != lim:
             i += step
@@ -225,7 +225,7 @@ def detect_t(y, fs, j, hi, noise, a):
         if s_ == sg and pr_ > 0.6 * prom0 and abs(ys[k]) > abs(ys[pk]) * 1.1:
             pk = k
     amp = float(ys[pk])
-    on, off = _extent(ys, pk, lo, hi, 0.04, noise, 0.15 * abs(amp) + 0.01)
+    on, off = _extent(ys, pk, lo, hi, 0.05, noise, 0.15 * abs(amp) + 0.01, 0.10)
     morph = "positiva" if amp > 0 else "invertida"
     # biphasic: significant opposite peak adjacent
     opp = [(p_, k) for p_, k, s_ in cands[1:] if s_ != sg and p_ >= 0.4 * prom0 and on - int(0.08 * fs) <= k <= off + int(0.12 * fs)]
@@ -278,7 +278,10 @@ def detect_p(y, fs, lo, hi, noise):
     cands.sort(key=lambda c: (-round(c[0], 3), -c[1]))
     for pr_, pk in cands:
         amp = float(ys[pk])
-        on, off = _extent(ys, pk, lo, hi, 0.05, noise, 0.6 * abs(amp))
+        # local reference (flat part of the window) so that residual offsets do not stretch the borders
+        ref0 = float(np.percentile(ys[lo:hi + 1], 10 if amp > 0 else 90))
+        yl = ys - ref0
+        on, off = _extent(yl, pk, lo, hi, 0.04, noise, 0.6 * abs(amp))
         # biphasic continuation (terminal opposite deflection, e.g. V1)
         sg = 1 if amp > 0 else -1
         tail_end = min(hi, off + int(0.08 * fs))
@@ -349,7 +352,7 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
     tl = [(l, d_.t) for l, d_ in bd.leads.items() if d_.t is not None]
     if tl:
         mx = max(abs(t.amp) for _, t in tl)
-        sig = [t for _, t in tl if abs(t.amp) >= 0.4 * mx]
+        sig = [t for _, t in tl if abs(t.amp) >= 0.6 * mx]
         bd.t_off = max(t.offset for t in sig)
     t_ref = bd.t_off if bd.t_off is not None else off + int(0.3 * rr_loc * fs / 1000)
     for li, lead in enumerate(leads):
@@ -364,7 +367,7 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
     pl = [(l, d_.p) for l, d_ in bd.leads.items() if d_.p is not None]
     if pl:
         mx = max(abs(p.amp) for _, p in pl)
-        sig = [p for _, p in pl if abs(p.amp) >= 0.4 * mx and abs(p.amp) >= 0.03]
+        sig = [p for _, p in pl if abs(p.amp) >= 0.6 * mx and abs(p.amp) >= 0.03]
         if sig:
             bd.p_on = min(p.onset for p in sig)
             bd.p_off = max(p.offset for p in sig)

@@ -158,7 +158,7 @@ def rotate_image(rgb: np.ndarray, deg: float) -> np.ndarray:
         return rgb
     if cv2 is not None:
         h, w = rgb.shape[:2]
-        M = cv2.getRotationMatrix2D((w / 2, h / 2), -deg, 1.0)
+        M = cv2.getRotationMatrix2D((w / 2, h / 2), deg, 1.0)
         return cv2.warpAffine(rgb, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
     return ndi.rotate(rgb, deg, axes=(1, 0), reshape=False, order=1, mode="nearest")
 

@@ -177,6 +177,7 @@ class ConductionPhase(BaseModel):
     end_ms: float
     ecg_correlate: str                       # "onda P", "segmento PR", "QRS", "ST-T"
     note: Optional[str] = None
+    abnormal: bool = False                   # added: phase is delayed/altered (block, bypass, AF...)
 
 
 class ECGAnalysis(BaseModel):
@@ -191,6 +192,8 @@ class ECGAnalysis(BaseModel):
     findings: list[Finding] = []                # rules-based
     ai: Optional[AIReport] = None
     warnings: list[str] = []
+    median_waves: list[Wave] = []               # added: fiducials of the median beat (beat_index=-1), ms from median_beats start
+    median_beat_r_index: Optional[int] = None   # added: sample index of the R peak inside median_beats arrays
 
 
 # ---------------------------------------------------------------- RX

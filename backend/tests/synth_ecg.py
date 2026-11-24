@@ -105,8 +105,8 @@ def render_paper(leads, fs, px_per_mm=12.0, layout="3x4+1", photo_effects=False,
     cols = lay["cols"]
     n_rows = len(cols[0]) + (1 if lay["rhythm"] else 0)
     seconds = len(next(iter(leads.values()))) / fs
-    pitch_mm = {"3x4+1": 32.0, "6x2": 38.0, "12x1": 26.0}[layout]
-    x0_mm, top_mm = 9.0, 20.0
+    pitch_mm = {"3x4+1": 32.0, "6x2": 38.0, "12x1": 26.0}[layout] * max(1.0, gain_mm_mv / 10.0)
+    x0_mm, top_mm = 7.0 + 0.2 * speed_mm_s, 20.0  # pulse = 0.2 s wide
     w_mm = x0_mm + seconds * speed_mm_s + 6.0
     h_mm = top_mm + n_rows * pitch_mm + 6.0
     W, H = int(round(w_mm * ppm)), int(round(h_mm * ppm))
@@ -137,7 +137,7 @@ def render_paper(leads, fs, px_per_mm=12.0, layout="3x4+1", photo_effects=False,
     for r in range(n_rows):
         yb = row_y[r]
         # calibration pulse: baseline -> up gain mm for 5 mm (0.2 s) -> baseline; data starts at x0
-        px = [(mm2px(2.0), mm2px(yb)), (mm2px(4.0), mm2px(yb)), (mm2px(4.0), mm2px(yb - gain_mm_mv)),
+        px = [(mm2px(5.0), mm2px(yb)), (mm2px(7.0), mm2px(yb)), (mm2px(7.0), mm2px(yb - gain_mm_mv)),
               (mm2px(x0_mm - 0.0 - 0.0), mm2px(yb - gain_mm_mv)), (mm2px(x0_mm), mm2px(yb))]
         px[3] = (mm2px(x0_mm), mm2px(yb - gain_mm_mv))
         d.line(px, fill=(15, 15, 15), width=lw, joint="curve")

@@ -134,6 +134,7 @@ export interface ConductionPhase {
   end_ms: number;
   ecg_correlate: string;
   note?: string | null;
+  abnormal?: boolean;
 }
 
 export interface ECGAnalysis {
@@ -142,6 +143,10 @@ export interface ECGAnalysis {
   r_peaks_ms: number[];
   waves: Wave[];
   median_beats: Record<string, number[]>;
+  /** fiducials of the median beat (beat_index -1, ms from first median sample) */
+  median_waves?: Wave[];
+  /** R sample index inside median_beats (= round(0.3*fs)) */
+  median_beat_r_index?: number | null;
   lead_measurements: LeadMeasurements[];
   global_measurements: GlobalMeasurements;
   conduction: ConductionPhase[];
