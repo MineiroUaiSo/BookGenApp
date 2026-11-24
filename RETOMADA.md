@@ -21,7 +21,7 @@ Parado por orçamento de uso CRÍTICO (janela de 5h a 97%). Rodada 1: ver histó
 ## Gasto OpenRouter: ~US$ 0,47 (llm 0,357 + laudo 0,118) de US$ 0,50; saldo ~US$ 2,65. Não usar mais nesta rodada.
 
 ## Pendências (ordem)
-1. **BUG tórax×abdome pela tag DICOM** (prioridade máxima): trilha `r2-tagfix` lançada no fim; conferir `git -C ~/medlens-wt/r2-tagfix log` e mesclar se a suíte passar; senão relançar com a spec em RETOMADA (view.py:146/156).
+1. BUG tórax×abdome pela tag DICOM: CORRIGIDO e mesclado (r2-tagfix): 10/10 regiões corretas com modelo, 2/2 tag divergente com aviso; region_uncertain + seletor na UI. Pendente: modo sem modelo ainda erra os 2 (8/10); conferir seletor no navegador; ViewPosition/polaridade sem mudança.
 2. Bench do código mesclado FEITO (dev ampliado N=9183, tag R2mergedL; relatório gerado em scratch, não versionado): NORM→normal 74,7→74,5%; FA 84,4/84,0 (=); BAV1 38,3% (=); BAV3 0/12 (=); STE_acute 51,2%/FP 341 (=); LVH sens 72,7→74,8%; **STD sens 56,6→47,8% (espec 82,5→85,1%)** = regressão pela supressão do strain (1B) — mantida por instrução clínica (strain não é isquemia), DECISÃO MÉDICA: restringir supressão ou aceitar. Comando (tag R2merged; rodar: `cd backend && PYTHONPATH=. MEDLENS_DATASETS=... MEDLENS_BENCH=../data/bench python -m bench.ecg_bench --source ptbxl --split dev --tag R2merged --workers 4`) e comparar com r2_base.md / logs; também `--set large`.
 3. Lançar trilhas não iniciadas com as specs de `docs/planning/r2_specs_pendentes.md`: 5 (UX/qualidade/log), 6 (E5 P/BAV), 7 (E1 ST), 8 (E3/E4 FA/NORM), 9-E6 (sombra), depois ondas 2-4 do plano ECG.
 4. Regenerar `docs/benchmarks/ecg.md`/`rx.md` no código final; teste externo CODE-test **uma vez só**, no fim.
