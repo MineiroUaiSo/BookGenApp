@@ -72,9 +72,10 @@ esc_brady_2021:
 felson_2025:
   title: "Felson's Principles of Chest Roentgenology"
   authors: "Goodman LR"
-  edition: "verificar"
-  year: 2025
-  note: "Edição a verificar (a 5ª ed. é de 2019)."
+  edition: "5ª ed."
+  year: 2021
+  publisher: Elsevier
+  note: "6ª ed. anunciada; verificar antes de fixar a edição."
 fraser_pare:
   title: "Fraser and Paré's Diagnosis of Diseases of the Chest"
   authors: "Müller NL, Fraser RS, et al."
@@ -82,10 +83,16 @@ fraser_pare:
   year: 1999
   publisher: Saunders
 fleischner_glossary:
+  title: "Fleischner Society: Glossary of Terms for Thoracic Imaging (4ª ed.)"
+  authors: "Bankier AA, et al."
+  year: 2024
+  journal: "Radiology 310(2):e232558"
+fleischner_glossary_2008:
   title: "Fleischner Society: Glossary of Terms for Thoracic Imaging"
   authors: "Hansell DM, Bankier AA, MacMahon H, McLoud TC, Müller NL, Remy J"
   year: 2008
   journal: "Radiology 246:697-722"
+  note: "Histórico; preferir a versão 2024."
 webb_higgins:
   title: "Thoracic Imaging: Pulmonary and Cardiovascular Radiology"
   authors: "Webb WR, Higgins CB"
