@@ -30,6 +30,9 @@ GLOBAL_RANK = 1         # 0 = extreme lead, 1 = second most extreme (robust to o
 P_SIG = 0.8
 P_PROM = 0.015
 P_NK = 3.0
+P_PROM_PRIOR = 0.005   # weaker P accepted only at the median-beat P position (see delineate_beat p_prior)
+P_NK_PRIOR = 1.5
+P_PRIOR_TOL_MS = 50
 P_FRAC = 0.04
 CORE_FRAC = 0.10
 SKIRT_MS = 60
@@ -317,15 +320,16 @@ def detect_u(y, fs, t: WaveSeg, hi, noise):
     return WaveSeg("U", on, k, off, amp, "U")
 
 
-def detect_p(y, fs, lo, hi, noise):
-    """Most prominent P-like deflection in [lo, hi]. y baseline-subtracted 40 Hz signal."""
+def detect_p(y, fs, lo, hi, noise, prom=None, near=None):
+    """Most prominent P-like deflection in [lo, hi]. y baseline-subtracted 40 Hz signal.
+    prom: override of the prominence threshold; near=(peak_sample, tol_samples): accept only a peak close to it."""
     lo = max(lo, 1)
     hi = min(hi, len(y) - 2)
     if hi - lo < int(0.06 * fs):
         return None
     ys = _smooth(y, fs, 12)
     seg = ys[lo:hi + 1]
-    prom = max(P_PROM, P_NK * noise)
+    prom = max(P_PROM, P_NK * noise) if prom is None else prom
     pk_p, pr_p = find_peaks(seg, prominence=prom)
     pk_n, pr_n = find_peaks(-seg, prominence=prom)
     cands = [(pr_p["prominences"][i], lo + pk_p[i]) for i in range(len(pk_p))] + \
@@ -335,6 +339,8 @@ def detect_p(y, fs, lo, hi, noise):
     # candidates must be a "bump" of plausible width; prefer largest prominence, nearest QRS on ties
     cands.sort(key=lambda c: (-round(c[0], 3), -c[1]))
     for pr_, pk in cands:
+        if near is not None and abs(pk - near[0]) > near[1]:
+            continue
         amp = float(ys[pk])
         # local reference (flat part of the window) so that residual offsets do not stretch the borders
         # robust isoelectric reference: median of the window away from the candidate bump
@@ -410,7 +416,7 @@ def pr_baseline(y, fs, on, p_on, p_off, tp_lo):
     return _min_var_window(y, tp_lo, tp_hi, fs, min_ms=30)
 
 
-def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms, detect_p_waves=True):
+def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms, detect_p_waves=True, p_prior=None):
     n = seg_amp.shape[1]
     on, off, v, vmax = global_qrs(seg_amp, fs, a)
     rr_loc = rr_next_ms or rr_prev_ms or 1000.0
@@ -494,6 +500,10 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
             prev_t = t_ref - int(rr_prev_ms * fs / 1000) if rr_prev_ms else 0
             plo = max(0, prev_t + int(0.02 * fs), on - int(0.5 * fs))
             ld.p = detect_p(yd, fs, plo, on - int(0.01 * fs), ld.noise)
+            if ld.p is None and p_prior is not None:
+                # P not found by itself: look for a weaker bump where the median beat (all leads) puts the P
+                ld.p = detect_p(yd, fs, plo, on - int(0.01 * fs), ld.noise, prom=max(P_PROM_PRIOR, P_NK_PRIOR * ld.noise),
+                                near=(on + p_prior, int(P_PRIOR_TOL_MS * fs / 1000)))
         p_on_l = ld.p.onset if ld.p is not None else None
         p_off_l = ld.p.offset if ld.p is not None else None
         ld.st_base = pr_baseline(seg_del[li], fs, on, p_on_l, p_off_l, plo)

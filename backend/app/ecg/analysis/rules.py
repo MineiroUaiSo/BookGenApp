@@ -158,6 +158,8 @@ IVCD_MS = 120             # unspecific IVCD reported as abnormal from here
 AV1_PEAK_MS = 165.0   # P peak -> QRS onset (about PR - 45 ms) for PR > 200 ms
 SBRAD_HR = 50.0
 STACH_HR = 100.0
+STACH_REG_CV = 0.10      # regular tachycardia: RR CV below this
+STACH_PFRAC, STACH_PR_SD = 0.4, 30.0   # P locked to the QRS (looser than AF_PFRAC/AF_PR_SD) for tachycardia with ectopy
 # AF = irregularly irregular RR (cv>=9%, RMSSD>=10%, >=30% of successive RR differing by >10%) without a P
 # wave locked to the QRS (Goldberger 10th ed. ch. 'atrial fibrillation'; AHA/ACC/HRS AF guideline 2023)
 AF_CV, AF_RMSSD, AF_DFRAC = 0.09, 0.10, 0.30
@@ -188,9 +190,16 @@ def classify_rhythm(c):
     p_avr = c["lm"]["aVR"].p_amplitude_mv if "aVR" in c["lm"] else None
     clear_nonsinus = bool(c["p_present"]) and ((p_ii is not None and p_ii < -0.05) or
                                                (p_avr is not None and p_avr > 0.08 and (p_ii or 0) < 0.05))
+    tachy_reg = hr is not None and hr > STACH_HR and cv < STACH_REG_CV
+    if c["p_present"] and c["frac_p"] >= 0.6 and clear_nonsinus and tachy_reg:
+        # P fused into the T wave of the previous beat looks negative/absent: regular > 100 bpm without AF/flutter
+        c["stach_prob"] = "fused"
+        return "Taquicardia sinusal (provável; onda P fundida à T)", "sinus"
     if c["p_present"] and c["frac_p"] >= 0.6 and clear_nonsinus:
         return "Ritmo atrial ectópico ou juncional (onda P não sinusal)", "ectopic"
     if (irregular or cv > 0.12) and (ectopy or p_locked or c["p_present"]):
+        if hr is not None and hr > STACH_HR and av.get("p_frac", 0.0) >= STACH_PFRAC and av.get("pr_sd", 1e9) <= STACH_PR_SD:
+            c["stach_prob"] = "irreg"
         return "Ritmo sinusal irregular (arritmia sinusal ou extrassístoles)", "sinus_irreg"
     if c["p_present"] and c["frac_p"] >= 0.6:
         if hr is not None and hr < SBRAD_HR:
@@ -200,6 +209,9 @@ def classify_rhythm(c):
         return "Ritmo sinusal regular", "sinus"
     if irregular:
         return "Fibrilação atrial", "af"
+    if tachy_reg:
+        c["stach_prob"] = "fused"
+        return "Taquicardia sinusal (provável; onda P fundida à T)", "sinus"
     return "Ritmo regular sem onda P identificável (juncional ou indeterminado)", "no_p"
 
 
@@ -231,9 +243,12 @@ def build_findings(c):
             out.append(_f("ecg.sinus_bradycardia", "Bradicardia sinusal", sev, [f"FC {hr:.0f} bpm (<{SBRAD_HR:.0f})"],
                           [R_SBC, R_GOLD], 0.7))
         elif hr > STACH_HR:
-            sev = "critical" if hr > 150 else "abnormal"
-            out.append(_f("ecg.sinus_tachycardia", "Taquicardia sinusal", sev, [f"FC {hr:.0f} bpm (>100)"],
-                          [R_SBC, R_GOLD], 0.7))
+            fused = c.get("stach_prob") == "fused"
+            sev = "critical" if hr > 150 and not fused else "abnormal"
+            out.append(_f("ecg.sinus_tachycardia", "Taquicardia sinusal (provável)" if fused else "Taquicardia sinusal", sev,
+                          [f"FC {hr:.0f} bpm (>100)"] + (["ritmo regular sem FA/flutter; onda P não individualizada (provável fusão P-T)"]
+                                                        if fused else []),
+                          [R_SBC, R_GOLD], 0.5 if fused else 0.7))
         else:
             out.append(_f("ecg.sinus_rhythm", "Ritmo sinusal regular", "normal",
                           [f"FC {hr:.0f} bpm", f"RR CV {c['cv']:.2f}", "onda P positiva em D2 e negativa em aVR"],
@@ -241,6 +256,10 @@ def build_findings(c):
     elif kind == "sinus_irreg":
         out.append(_f("ecg.irregular_rhythm", "Ritmo sinusal irregular", "borderline",
                       [f"RR CV {c['cv']:.2f}", f"FC média {hr:.0f} bpm"], [R_GOLD], 0.5))
+        if c.get("stach_prob") == "irreg":
+            out.append(_f("ecg.sinus_tachycardia", "Taquicardia sinusal (provável, com irregularidade do RR)", "abnormal",
+                          [f"FC média {hr:.0f} bpm (>100)", "onda P ligada ao QRS (sem FA/flutter); irregularidade por ectopia/arritmia"],
+                          [R_SBC, R_GOLD], 0.5))
     elif kind == "ectopic":
         out.append(_f("ecg.non_sinus_p", "Onda P de morfologia não sinusal (ritmo atrial ectópico ou juncional)",
                       "abnormal", ["P não positiva em D2 e/ou não negativa em aVR"], [R_GOLD], 0.4))
@@ -252,9 +271,10 @@ def build_findings(c):
     av = c.get("av")
     pr = gm.pr_ms
     if av and av.get("type") == "av3":
-        out.append(_f("ecg.av_block_3", "Bloqueio atrioventricular de 3º grau (total)", "critical",
+        out.append(_f("ecg.av_block_3", "Bloqueio atrioventricular de 3º grau (total) (sugestivo)", "critical",
                       [f"frequência atrial ~{av['atrial_rate']:.0f} bpm, ventricular ~{av['vent_rate']:.0f} bpm",
-                       "ondas P regulares dissociadas dos QRS, intervalo PR variável"], [R_SBC, R_GOLD], 0.6))
+                       "ondas P regulares dissociadas dos QRS, intervalo PR variável",
+                       "achado sugestivo: confirmar no traçado/clínica"], [R_SBC, R_GOLD], 0.5))
     elif av and av.get("type") in ("av2_m1", "av2_m2", "av2_21", "av2_unspec"):
         t = av["type"]
         lab = {"av2_m1": "Bloqueio AV de 2º grau Mobitz I (Wenckebach)",

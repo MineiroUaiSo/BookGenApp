@@ -27,7 +27,7 @@ from .ectopy import beat_correlations, ectopic_beats, rr_irregularity_excl
 from .pacing import (RELAXED, STRICT, blank_spikes, classify_pacing, detect_spikes, is_paced_timing,
                      spike_timing)
 from .preprocess import noise_sigma, preprocess
-from .rhythm import av_analysis, detect_p_series, ectopy_pattern, flutter_features, rr_irregularity, rr_stats
+from .rhythm import av_analysis, detect_p_series, detect_p_series_resid, ectopy_pattern, flutter_features, rr_irregularity, rr_stats
 from .rpeaks import detect_r_peaks
 from .rules import build_findings, classify_rhythm
 
@@ -163,6 +163,17 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     if np.median(noise) > 0.05 or sn < 8:
         warnings.append(f"Ruído elevado (sigma {np.median(noise)*1000:.0f} µV): delimitação das ondas pode ser imprecisa.")
 
+    # ---- median beat
+    med = build_median(amp, dlt, peaks, fs, rr_med) if valid is None else \
+        _segmented_median(amp, dlt, peaks, fs, rr_med, leads, valid, warnings)
+    if med is None:
+        return _minimal(signal, study_id, warnings + ["Não foi possível construir o batimento mediano."])
+    med_amp, med_dlt, a_idx, n_used = med
+    mbd = delineate_beat(med_amp, med_dlt, fs, a_idx, leads, noise, rr_med, rr_med)
+    # P position of the median beat (relative to its QRS onset): weak P waves of single beats are searched there
+    _pp = [d_.p.peak - mbd.qrs_on for d_ in mbd.leads.values() if d_.p is not None]
+    p_prior = int(np.median(_pp)) if len(_pp) >= 3 else None
+
     # ---- per-beat delineation
     bds, beat_info, all_waves = {}, [], []
     for i, p in enumerate(peaks):
@@ -176,7 +187,7 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
             continue
         try:
             bd = delineate_beat(amp[:, p - pre:p + post + 1], dlt[:, p - pre:p + post + 1], fs, pre, leads, noise,
-                                rn, rp)
+                                rn, rp, p_prior=p_prior)
         except Exception as e:  # pragma: no cover - defensive
             warnings.append(f"Falha ao delinear batimento {i}: {e}")
             beat_info.append({"qrs_on": p, "qrs_off": p, "t_off": None})
@@ -195,13 +206,6 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
                           "p_on": (p - pre + bd.p_on) if bd.p_on is not None else None})
         all_waves += _waves(bd, leads, fs, p - pre, i)
 
-    # ---- median beat
-    med = build_median(amp, dlt, peaks, fs, rr_med) if valid is None else \
-        _segmented_median(amp, dlt, peaks, fs, rr_med, leads, valid, warnings)
-    if med is None:
-        return _minimal(signal, study_id, warnings + ["Não foi possível construir o batimento mediano."])
-    med_amp, med_dlt, a_idx, n_used = med
-    mbd = delineate_beat(med_amp, med_dlt, fs, a_idx, leads, noise, rr_med, rr_med)
     lms, gm, extras = measure_median(mbd, med_amp, med_dlt, fs, leads, rr_mean, rr_sd)
     start = a_idx - int(round(MEDIAN_PRE_MS * fs / 1000))
     median_beats = {l: [round(float(v), 5) for v in med_amp[i, start:]] for i, l in enumerate(leads)}
@@ -217,11 +221,14 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     frac_p = float(np.mean([1.0 if b[0].p_on is not None else 0.0 for b in bds.values()])) if bds else 0.0
     li2 = leads.index(pl_)
     p_series = detect_p_series(dlt[li2], fs, beat_info, noise[li2])
-    av = av_analysis(p_series, [b["qrs_on"] * 1000.0 / fs for b in beat_info], fs)
+    p_alt = detect_p_series_resid(dlt[li2], fs, beat_info, noise[li2])
+    av = av_analysis(p_series, [b["qrs_on"] * 1000.0 / fs for b in beat_info], fs, p_alt=p_alt)
     ectopic = ectopic_beats(pk_ms, beat_correlations(amp, peaks, fs, ref))   # PVC/PAC: excluded from the AF test
     irr = rr_irregularity_excl(pk_ms, ectopic) if ectopic.any() else rr_irregularity(pk_ms)
+    # PR of each beat (earliest P onset in any lead -> QRS onset) for the AV-block rule: consistent beats only
+    pr_beats = [(b['qrs_on'] - b['p_on']) * 1000.0 / fs for b in beat_info if b.get('p_on') is not None]
     ctx = dict(gm=gm, lm=L, bd=mbd, fs=fs, hr=gm.heart_rate_bpm, cv=cv, rmssd=rmssd, p_present=p_present,
-               sinus_p=sinus_p, frac_p=frac_p, av=av, age=age, sex=sex,
+               sinus_p=sinus_p, frac_p=frac_p, av=av, age=age, sex=sex, pr_beats=pr_beats,
                irr=irr, ectopy=ectopy_pattern(pk_ms), n_ectopic=int(ectopic.sum()),
                flutter=flutter_features(dlt[li2], fs, beat_info), paced=None)
     if pace_info is not None:
