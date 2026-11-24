@@ -259,6 +259,8 @@ class RXImageAnalysis(BaseModel):
     measurements: list[RXMeasurement] = []
     model_scores: dict[str, float] = {}      # auxiliary pathology probabilities
     quality: dict[str, str] = {}             # rotação, inspiração, penetração
+    burned_text: Optional[str] = None        # added: resultado do detector de texto queimado (PHI em pixels)
+    external_ai_blocked: bool = False        # added: imagem NÃO deve ir a provedor externo de IA
 
 
 class RXAnalysis(BaseModel):

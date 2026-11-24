@@ -32,6 +32,15 @@ def unavailable(reason: str | None = None) -> AIReport:
     return AIReport(available=False, model=None, limitations=lim)
 
 
+def blocked_external(analysis: RXAnalysis) -> AIReport:
+    """Política PHI: imagem com texto queimado (tag YES, ou detectado e não mascarado) não vai ao provedor
+    externo; as regras/medidas locais seguem valendo."""
+    why = "; ".join(f"{im.instance_id}: {im.burned_text}" for im in analysis.images[:6] if im.external_ai_blocked)
+    return AIReport(available=False, model=None, external_ai_blocked=True,
+                    limitations=["imagem com texto queimado não enviada à IA externa (regras e medidas locais "
+                                 "permanecem válidas).", why])
+
+
 def _system_blocks(domain: str) -> list[dict]:
     """Blocos estáticos (cacheáveis): método + conhecimento completo + referências."""
     knowledge = format_items(load_criteria(domain))  # type: ignore[arg-type]
@@ -185,6 +194,8 @@ def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None) -> AIRe
 def rx_report(analysis: RXAnalysis) -> AIReport:
     if not ai_available():
         return unavailable()
+    if any(im.external_ai_blocked for im in analysis.images[:6]):
+        return blocked_external(analysis)
     images: list[tuple[str, bytes]] = []
     for im in analysis.images[:6]:
         tag = f"{im.view.value} / {im.region.value} (id {im.instance_id})"
