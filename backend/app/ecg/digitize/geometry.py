@@ -54,6 +54,14 @@ def _order_quad(pts: np.ndarray) -> np.ndarray:
     return np.float32([pts[np.argmin(s)], pts[np.argmax(d)], pts[np.argmax(s)], pts[np.argmin(d)]])
 
 
+def _quad_ok(q: np.ndarray, w: int, h: int) -> bool:
+    """A usable paper quad: 4 distinct corners, convex-ish area >= 35% of the frame, no collapsed side."""
+    x, y = q[:, 0], q[:, 1]
+    area = 0.5 * abs(float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
+    sides = np.linalg.norm(q - np.roll(q, -1, axis=0), axis=1)
+    return bool(area >= 0.35 * w * h and sides.min() >= 0.25 * min(w, h))
+
+
 def find_paper_quad(rgb: np.ndarray):
     """Return ordered quad (TL,TR,BR,BL) in full-res pixels, or None if the paper fills the frame."""
     h, w = rgb.shape[:2]
@@ -94,6 +102,12 @@ def find_paper_quad(rgb: np.ndarray):
         quad = np.array([[xs[s.argmin()], ys[s.argmin()]], [xs[d.argmax()], ys[d.argmax()]],
                          [xs[s.argmax()], ys[s.argmax()]], [xs[d.argmin()], ys[d.argmin()]]], np.float32)
     q = _order_quad(quad) / (sc if sc < 1 else 1.0)
+    if not _quad_ok(q, w, h):  # degenerate corners (paper cut by the frame): try the min-area box, else leave unrectified
+        if cv2 is None:
+            return None
+        q = _order_quad(cv2.boxPoints(cv2.minAreaRect(hull))) / (sc if sc < 1 else 1.0)
+        if not _quad_ok(q, w, h):
+            return None
     # paper fills the frame (axis-aligned quad hugging the image borders) -> nothing to rectify
     tol = 0.03
     if (q[:, 0].min() < tol * w and q[:, 1].min() < tol * h and q[:, 0].max() > (1 - tol) * w
