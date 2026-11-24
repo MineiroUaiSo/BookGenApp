@@ -527,6 +527,8 @@ class Crawler:
             except StopIteration:
                 self.say("size cap reached")
                 break
+            if depth >= 2 and not recs:
+                follow = False     # don't drift into off-topic pages
             d = {"url": url, "title": pp.title, "depth": depth, "follow": follow, "categories": pp.categories,
                  "links": pp.links if follow else [], "records": recs, "skipped": skipped, "n_figs": len(pp.figures)}
             self.done[url] = d

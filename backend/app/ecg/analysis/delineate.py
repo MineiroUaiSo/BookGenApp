@@ -14,11 +14,18 @@ from scipy.signal import find_peaks
 
 
 TANGENT_T = True
-P50_K = 2.5
+P50_K = 2.0
 G_THR = 0.02
 LEAD_THR = 0.05
-T_SIG = 0.15
+P_SIG = 0.8
+P_PROM = 0.015
+P_NK = 3.0
+P_FRAC = 0.04
+CORE_FRAC = 0.10
+SKIRT_MS = 60
+T_SIG = 0.1
 T_Q = 1.0
+T_OUT_MS = 70
 
 
 @dataclass
@@ -105,6 +112,12 @@ def global_qrs(seg, fs, a):
     thr = max(G_THR * vmax, 1.6 * float(np.percentile(v, 30)), P50_K * float(np.percentile(v, 50)))
     gap = max(3, int(0.012 * fs))
     lo, hi = max(1, a - int(0.2 * fs)), min(n - 2, a + int(0.22 * fs))
+    if CORE_FRAC > 0:
+        # core of the QRS (fast part), then the low-threshold skirt may extend only a limited distance
+        # beyond it: stops the P-wave / T-wave upstroke from being absorbed when there is no isoelectric gap
+        c_on, c_off = _scan(v, im, max(CORE_FRAC * vmax, thr), gap, lo, hi)
+        ext = int(SKIRT_MS * fs / 1000)
+        lo, hi = max(lo, c_on - ext), min(hi, c_off + ext)
     on, off = _scan(v, im, thr, gap, lo, hi)
     return on, off, v, vmax
 
@@ -301,7 +314,7 @@ def detect_p(y, fs, lo, hi, noise):
     seg = ys[lo:hi + 1]
     # linear detrend over window borders removes residual T-tail slope
     seg = seg - np.linspace(seg[:3].mean(), seg[-3:].mean(), len(seg)) * 0.0
-    prom = max(0.02, 4 * noise)
+    prom = max(P_PROM, P_NK * noise)
     pk_p, pr_p = find_peaks(seg, prominence=prom)
     pk_n, pr_n = find_peaks(-seg, prominence=prom)
     cands = [(pr_p["prominences"][i], lo + pk_p[i]) for i in range(len(pk_p))] + \
@@ -324,7 +337,7 @@ def detect_p(y, fs, lo, hi, noise):
         if abs(amp) < prom:
             continue
         yl = ys - ref0
-        on, off = _extent(yl, pk, lo, hi, 0.04, noise, 0.6 * abs(amp))
+        on, off = _extent(yl, pk, lo, hi, P_FRAC, noise, 0.6 * abs(amp))
         # biphasic continuation (terminal opposite deflection, e.g. V1)
         sg = 1 if amp > 0 else -1
         tail_end = min(hi, off + int(0.08 * fs))
@@ -397,6 +410,9 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
         mx = max(abs(t.amp) for _, t in tl)
         sig = [t for _, t in tl if abs(t.amp) >= T_SIG * mx]
         offs = sorted(t.offset for t in sig)
+        if len(offs) >= 4:   # drop outlier leads (flat/ambiguous T whose end runs away)
+            med = float(np.median(offs))
+            offs = [o for o in offs if o <= med + T_OUT_MS * fs / 1000] or offs
         # global T end (QT): latest tangent-method end over the leads with a T wave (LUDB/clinical convention)
         bd.t_end = int(round(float(np.quantile(offs, T_Q)))) if T_Q < 1 else offs[-1]
         # t_off keeps the conservative threshold-based end of the dominant T waves (used by the rhythm
@@ -417,7 +433,7 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
     pl = [(l, d_.p) for l, d_ in bd.leads.items() if d_.p is not None]
     if pl:
         mx = max(abs(p.amp) for _, p in pl)
-        sig = [p for _, p in pl if abs(p.amp) >= 0.6 * mx and abs(p.amp) >= 0.03]
+        sig = [p for _, p in pl if abs(p.amp) >= P_SIG * mx and abs(p.amp) >= 0.03]
         if sig:
             bd.p_on = min(p.onset for p in sig)
             bd.p_off = max(p.offset for p in sig)

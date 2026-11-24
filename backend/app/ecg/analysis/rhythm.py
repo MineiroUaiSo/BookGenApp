@@ -6,6 +6,58 @@ from scipy.ndimage import uniform_filter1d
 from scipy.signal import find_peaks
 
 
+def rr_irregularity(peaks_ms):
+    """Irregularity descriptors for short (10 s) strips. Returns dict(cv, rmssd, tpr, dfrac):
+    cv = SD/mean RR; rmssd = RMSSD/mean RR; tpr = turning-point ratio (random series ~0.67, smooth
+    respiratory sinus arrhythmia ~0.3-0.5); dfrac = fraction of successive |dRR| > 10% of mean RR.
+    AF = irregularly irregular RR (Goldberger 10th ed.; AHA/ACC/HRS AF guideline 2023)."""
+    rr = np.diff(np.asarray(peaks_ms, float))
+    if len(rr) < 3:
+        return dict(cv=0.0, rmssd=0.0, tpr=0.0, dfrac=0.0)
+    m = rr.mean()
+    d = np.diff(rr)
+    tp = [(rr[i] - rr[i - 1]) * (rr[i] - rr[i + 1]) > 0 for i in range(1, len(rr) - 1)]
+    return dict(cv=float(rr.std() / m), rmssd=float(np.sqrt(np.mean(d ** 2)) / m),
+                tpr=float(np.mean(tp)) if tp else 0.0, dfrac=float(np.mean(np.abs(d) > 0.10 * m)))
+
+
+def ectopy_pattern(peaks_ms, cv_max=0.07):
+    """True when the irregularity is explained by isolated premature beats on an otherwise regular
+    rhythm (premature beat + pause, bigeminy/trigeminy): the RR intervals not adjacent to a premature
+    beat are regular, or the odd/even RR series are each regular. AF has no such underlying regularity."""
+    rr = np.diff(np.asarray(peaks_ms, float))
+    if len(rr) < 5:
+        return False
+    med = float(np.median(rr))
+    short = [i for i in range(len(rr)) if rr[i] < 0.85 * med]
+    if short and len(short) <= max(3, len(rr) // 3):
+        drop = set(short) | {i + 1 for i in short if i + 1 < len(rr)}
+        rest = np.array([x for i, x in enumerate(rr) if i not in drop])
+        if len(rest) >= 3 and rest.std() / rest.mean() < cv_max:
+            return True
+    ev, od = rr[::2], rr[1::2]
+    if len(ev) >= 3 and len(od) >= 3 and ev.std() / ev.mean() < cv_max and od.std() / od.mean() < cv_max and \
+            abs(ev.mean() - od.mean()) > 0.1 * rr.mean():
+        return True
+    return False
+
+
+def p_consistency(p_ms, beats_ms, lo=80.0, hi=300.0):
+    """Atrial activity locked to the QRS: for each QRS onset the nearest P-like peak between `lo` and `hi` ms
+    before it. Returns dict(p_frac = beats with such a peak, pr_sd = SD of the peak-to-QRS interval (ms),
+    pr_med). Sinus rhythm (even arrhythmic) has a fixed PR, AF has no consistent P (Goldberger 10th ed.)."""
+    p = np.asarray(p_ms, float)
+    q = np.asarray(beats_ms, float)
+    ivs = []
+    for qt in q:
+        c = p[(p >= qt - hi) & (p <= qt - lo)] if len(p) else p
+        ivs.append(float(qt - c[-1]) if len(c) else np.nan)
+    ivs = np.array(ivs)
+    ok = ivs[~np.isnan(ivs)]
+    return dict(p_frac=float(len(ok) / max(1, len(q))), pr_sd=float(ok.std()) if len(ok) >= 3 else float("inf"),
+                pr_med=float(np.median(ok)) if len(ok) else None)
+
+
 def rr_stats(peaks_ms):
     rr = np.diff(np.asarray(peaks_ms, float))
     if len(rr) == 0:
@@ -52,12 +104,13 @@ def av_analysis(p_ms, beats_ms, fs):
     """p_ms: P peak times; beats_ms: list of qrs_on times (ms). Returns dict or None."""
     p = np.asarray(p_ms, float)
     q = np.asarray(beats_ms, float)
+    cons = p_consistency(p, q)
     if len(p) < 4 or len(q) < 4:
-        return None
+        return dict(type=None, **cons)
     pp = np.diff(p)
     base = float(np.median(np.sort(pp)[:max(2, len(pp) // 2)]))
     if base < 250:
-        return None
+        return dict(type=None, **cons)
     near = np.abs(pp / base - np.round(pp / base)) < 0.2
     p_reg = float(np.mean(near))
     # assign each QRS to latest P at least 50 ms before and within 900 ms
@@ -74,7 +127,7 @@ def av_analysis(p_ms, beats_ms, fs):
     vent_rate = 60000.0 / rr.mean()
     atr_rate = 60000.0 / base
     res = dict(p_regular=p_reg, atrial_rate=atr_rate, vent_rate=vent_rate, type=None, prs=prs, base=base,
-               n_p=len(p), n_q=len(q))
+               n_p=len(p), n_q=len(q), **cons)
     if p_reg < 0.7:
         return res
     valid = prs[~np.isnan(prs)]

@@ -53,23 +53,102 @@ def territories(leads):
     return out
 
 
+# thresholds (mV / ratios) for bundle branch blocks; AHA 2009 Part III, tuned only inside published ranges
+RBBB_TERM_R_MV = 0.25      # terminal R/R' >= 2.5 mm in V1 (R' is usually the tallest deflection in V1)
+RBBB_LAT_S_MV = 0.1        # S wave >= 1 mm in I/V6 ("wide S"; width is unreliable in the delineation)
+RBBB_LAT_S_RATIO = 0.25    # ... and >= 25% of the R in that lead
+IRBBB_MIN_QRS = 100        # AHA 2009: incomplete RBBB 110-119 ms (adults); 100-119 ms is used by SBC for screening
+LBBB_V1_NEG_RATIO = 2.0
+LBBB_LAT_R_MV = 0.4
+LBBB_Q_MAX_MV = 0.1
+LBBB_LAT_S_RATIO = 0.5
+
+def _lead_ctx(bd, l):
+    """Amplitude features of one lead from the median-beat delineation: r (max +), s (min -, <=0), the last
+    QRS component (kind, amp) and the first-wave q amplitude (<=0, 0 when absent)."""
+    ld = bd.leads.get(l)
+    if ld is None:
+        return None
+    ws = ld.waves
+    last = (ws[-1].kind, ws[-1].amp) if ws else (None, 0.0)
+    q = min([w.amp for w in ws if w.kind == "Q"], default=0.0)
+    return dict(r=ld.r_max, s=ld.s_min, last=last, q=q)
+
+
+def _classify_bbb(bd, dur, fs_ms):
+    """Returns (kind|None, evidence). kind in rbbb|lbbb|irbbb|ilbbb."""
+    if dur < 100:
+        return None, ""
+    F = {l: _lead_ctx(bd, l) for l in ("I", "aVL", "V1", "V2", "V5", "V6")}
+    v1, v2 = F["V1"], F["V2"]
+    if v1 is None:
+        return None, ""
+    # terminal positive deflection dominating V1 (or V2) -> RBBB family
+    def term_r(f, thr):
+        k, a = f["last"]
+        return k in ("R", "R'") and a >= thr and a >= 0.5 * abs(f["s"])
+    rb_v1 = term_r(v1, RBBB_TERM_R_MV) or (v2 is not None and term_r(v2, RBBB_TERM_R_MV) and v1["r"] >= 0.1 and
+                                           v1["last"][0] in ("R", "R'"))
+    s_wide = [l for l in ("I", "V6", "V5") if F.get(l) and F[l]["s"] <= -RBBB_LAT_S_MV and
+              abs(F[l]["s"]) >= RBBB_LAT_S_RATIO * F[l]["r"]]
+    # LBBB: V1/V2 negative dominant + lateral R without q
+    neg_v1 = abs(v1["s"]) >= LBBB_V1_NEG_RATIO * max(v1["r"], 0.05) and abs(v1["s"]) >= 0.3
+    lat_ok = [l for l in ("I", "V5", "V6") if F.get(l) and F[l]["r"] >= LBBB_LAT_R_MV and
+              F[l]["q"] > -LBBB_Q_MAX_MV and abs(F[l]["s"]) <= LBBB_LAT_S_RATIO * F[l]["r"]]
+    if rb_v1 and s_wide:
+        note = (f"R/R' terminal em V1 ({v1['last'][1]*10:.0f} mm) e onda S em {pl(s_wide)} "
+                f"({', '.join(f'{F[l][chr(115)]*10:.0f} mm' for l in s_wide)})")
+        if dur >= 120:
+            return "rbbb", note
+        if dur >= IRBBB_MIN_QRS:
+            return "irbbb", note
+    elif neg_v1 and len(lat_ok) >= 2 and not rb_v1:
+        note = f"V1 predominantemente negativo ({v1['s']*10:.0f} mm), R sem q em {pl(lat_ok)}"
+        if dur >= 120:
+            return "lbbb", note
+        if dur >= 110:
+            return "ilbbb", note
+    return None, ""
+
+
+
+# rhythm thresholds. HR: sinus bradycardia <50 bpm (SBC 2022 report guideline; ESC brady 2021 uses <50 for
+# pathological significance; 50-59 bpm is the normal lower range in athletes/sleep), tachycardia >100 bpm.
+SBRAD_HR = 50.0
+STACH_HR = 100.0
+# AF = irregularly irregular RR (cv>=9%, RMSSD>=10%, >=30% of successive RR differing by >10%) without a P
+# wave locked to the QRS (Goldberger 10th ed. ch. 'atrial fibrillation'; AHA/ACC/HRS AF guideline 2023)
+AF_CV, AF_RMSSD, AF_DFRAC = 0.09, 0.10, 0.30
+AF_PFRAC, AF_PR_SD = 0.5, 20.0
+
+
 def classify_rhythm(c):
     """Returns (rhythm string, kind)."""
     hr, cv, rmssd = c["hr"], c["cv"], c["rmssd"]
-    av = c.get("av")
-    irregular = cv > 0.12 and rmssd > 0.10
-    if av and av.get("type") == "av3":
+    av = c.get("av") or {}
+    irr = c.get("irr") or dict(cv=cv, rmssd=rmssd, dfrac=1.0)
+    irregular = irr["cv"] >= AF_CV and irr["rmssd"] >= AF_RMSSD and irr["dfrac"] >= AF_DFRAC
+    ectopy = bool(c.get("ectopy"))
+    p_locked = av.get("p_frac", 1.0) >= AF_PFRAC and av.get("pr_sd", 0.0) <= AF_PR_SD
+    if av.get("type") == "av3":
         return "Bloqueio atrioventricular total com ritmo de escape (dissociação AV)", "av3"
-    if av and av.get("type", "") and av["type"].startswith("av2"):
+    if (av.get("type") or "").startswith("av2"):
         return "Ritmo sinusal com bloqueio atrioventricular de 2º grau", "av2"
+    if irregular and not ectopy and not p_locked:
+        return "Fibrilação atrial", "af"
+    # P polarity: non-sinus only with clear evidence (negative P in D2 or positive P in aVR)
+    p_ii = c["lm"]["II"].p_amplitude_mv if "II" in c["lm"] else None
+    p_avr = c["lm"]["aVR"].p_amplitude_mv if "aVR" in c["lm"] else None
+    clear_nonsinus = bool(c["p_present"]) and ((p_ii is not None and p_ii < -0.05) or
+                                               (p_avr is not None and p_avr > 0.08 and (p_ii or 0) < 0.05))
+    if c["p_present"] and c["frac_p"] >= 0.6 and clear_nonsinus:
+        return "Ritmo atrial ectópico ou juncional (onda P não sinusal)", "ectopic"
+    if (irregular or cv > 0.12) and (ectopy or p_locked or c["p_present"]):
+        return "Ritmo sinusal irregular (arritmia sinusal ou extrassístoles)", "sinus_irreg"
     if c["p_present"] and c["frac_p"] >= 0.6:
-        if not c["sinus_p"]:
-            return "Ritmo atrial ectópico ou juncional (onda P não sinusal)", "ectopic"
-        if irregular or (cv > 0.12):
-            return "Ritmo sinusal irregular (arritmia sinusal ou extrassístoles)", "sinus_irreg"
-        if hr is not None and hr < 60:
+        if hr is not None and hr < SBRAD_HR:
             return "Bradicardia sinusal", "sinus"
-        if hr is not None and hr > 100:
+        if hr is not None and hr > STACH_HR:
             return "Taquicardia sinusal", "sinus"
         return "Ritmo sinusal regular", "sinus"
     if irregular:
@@ -93,11 +172,11 @@ def build_findings(c):
                       [f"RR irregularmente irregular (CV {c['cv']:.2f}, RMSSD/RR {c['rmssd']:.2f})",
                        "ondas P não identificadas", f"FC média {hr:.0f} bpm"], [R_SBC, R_GOLD], 0.6))
     elif kind == "sinus":
-        if hr < 60:
-            sev = "critical" if hr < 40 else ("abnormal" if hr < 50 else "borderline")
-            out.append(_f("ecg.sinus_bradycardia", "Bradicardia sinusal", sev, [f"FC {hr:.0f} bpm (<60)"],
+        if hr < SBRAD_HR:
+            sev = "critical" if hr < 40 else "abnormal"
+            out.append(_f("ecg.sinus_bradycardia", "Bradicardia sinusal", sev, [f"FC {hr:.0f} bpm (<{SBRAD_HR:.0f})"],
                           [R_SBC, R_GOLD], 0.7))
-        elif hr > 100:
+        elif hr > STACH_HR:
             sev = "critical" if hr > 150 else "abnormal"
             out.append(_f("ecg.sinus_tachycardia", "Taquicardia sinusal", sev, [f"FC {hr:.0f} bpm (>100)"],
                           [R_SBC, R_GOLD], 0.7))
@@ -173,40 +252,29 @@ def build_findings(c):
                 out.append(_f("ecg.lpfb", "Bloqueio divisional posteroinferior esquerdo (BDPI)", "abnormal",
                               [f"eixo {ax:.0f}°", "rS em D1, qR em D3/aVF", f"QRS {qrs:.0f} ms"], [R_AHA, R_SBC], 0.5))
 
-    # ---- intraventricular conduction
+    # ---- intraventricular conduction (AHA/ACCF/HRS 2009 Part III; SBC 2022)
+    # Morphology letters from the delineator are noisy (small terminal r/s deflections), so the criteria
+    # use amplitudes of the main deflections instead of letter patterns:
+    #  RBBB: QRS >=120 ms, terminal R/R' in V1 (dominant over S), wide S in I and/or V6.
+    #  LBBB: QRS >=120 ms, V1-V2 predominantly negative (rS/QS), monophasic R without q in I/V5/V6.
     v1, v6, d1 = morph.get("V1", ""), morph.get("V6", ""), morph.get("I", "")
     dur = qrs
-    v1_term_r = bool(v1) and v1[-1] in ("R", "r", "'")
-    v1_rprime = "'" in v1 and "R" in v1.upper()
-    s_wide = any(w.kind == "S" and (w.offset - w.onset) * fs_ms >= 40 for l in ("I", "V6") if l in bd.leads
-                 for w in bd.leads[l].waves)
-    s_present = any(w.kind == "S" for l in ("I", "V6", "V5") if l in bd.leads for w in bd.leads[l].waves)
-    v1_neg = bool(v1) and (v1 == "QS" or v1.upper().startswith("RS") or v1.startswith("rS") or
-                           (c["lm"]["V1"].s_amplitude_mv is not None and abs(c["lm"]["V1"].s_amplitude_mv) >
-                            (c["lm"]["V1"].r_amplitude_mv or 0) and not v1_rprime))
-    lat_mono = all(bool(morph.get(l)) and morph[l][0] != "q" and morph[l][0] != "Q" and "s" not in morph[l].lower()
-                   for l in ("V6", "I") if l in morph)
-    cbbb = None
-    if "V1" in L and "V6" in L:
-        if dur >= 120 and v1_term_r and v1_rprime or (dur >= 120 and v1_term_r and s_present):
-            cbbb = "rbbb"
-        elif dur >= 120 and v1_neg and lat_mono:
-            cbbb = "lbbb"
-        elif 100 <= dur < 120 and v1_rprime and v1.lower().startswith("rs"):
-            cbbb = "irbbb"
-        elif 100 <= dur < 120 and v1_neg and lat_mono:
-            cbbb = "ilbbb"
+    cbbb, bbb_note = _classify_bbb(bd, dur, fs_ms)
+    if cbbb in ("lbbb", "rbbb", "ilbbb", "irbbb") and any(f.code == "ecg.preexcitation" for f in out):
+        cbbb = None  # delta wave widens the QRS and mimics a bundle branch block (AHA 2009 Part III, exclusions)
     ev = [f"QRS {dur:.0f} ms", f"V1 {v1 or '-'}", f"V6 {v6 or '-'}", f"D1 {d1 or '-'}"]
     if cbbb == "rbbb":
         out.append(_f("ecg.rbbb", "Bloqueio completo de ramo direito (BRD)", "abnormal",
-                      ev + ["R/R' terminal em V1 com S empastada em D1/V6"], [R_AHA, R_SBC], 0.7))
+                      ev + [bbb_note], [R_AHA, R_SBC], 0.7))
     elif cbbb == "lbbb":
         out.append(_f("ecg.lbbb", "Bloqueio completo de ramo esquerdo (BRE)", "abnormal",
-                      ev + ["V1 predominantemente negativo, R monofásica sem q em D1/V6"], [R_AHA, R_SBC], 0.7))
+                      ev + [bbb_note], [R_AHA, R_SBC], 0.7))
     elif cbbb == "irbbb":
-        out.append(_f("ecg.irbbb", "Bloqueio incompleto de ramo direito", "borderline", ev, [R_AHA, R_SBC], 0.55))
+        out.append(_f("ecg.irbbb", "Bloqueio incompleto de ramo direito", "borderline", ev + [bbb_note],
+                      [R_AHA, R_SBC], 0.5))
     elif cbbb == "ilbbb":
-        out.append(_f("ecg.ilbbb", "Bloqueio incompleto de ramo esquerdo", "borderline", ev, [R_AHA, R_SBC], 0.5))
+        out.append(_f("ecg.ilbbb", "Bloqueio incompleto de ramo esquerdo", "borderline", ev + [bbb_note],
+                      [R_AHA, R_SBC], 0.45))
     elif dur >= 110 and not any(f.code == "ecg.preexcitation" for f in out):
         out.append(_f("ecg.ivcd", "Distúrbio inespecífico da condução intraventricular", "abnormal",
                       [f"QRS {dur:.0f} ms (>=110)", "critérios de BRD/BRE não preenchidos"], [R_AHA, R_SBC], 0.5))

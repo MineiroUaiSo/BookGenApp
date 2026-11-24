@@ -24,7 +24,7 @@ from .delineate import delineate_beat
 from .leads import ALL_LEADS, derive_missing, normalize
 from .measure import MEDIAN_PRE_MS, build_median, measure_median
 from .preprocess import noise_sigma, preprocess
-from .rhythm import av_analysis, detect_p_series, rr_stats
+from .rhythm import av_analysis, detect_p_series, ectopy_pattern, rr_irregularity, rr_stats
 from .rpeaks import detect_r_peaks
 from .rules import build_findings, classify_rhythm
 
@@ -102,7 +102,9 @@ def _minimal(signal, study_id, warnings):
                        warnings=warnings)
 
 
-def analyze_signal(signal: ECGSignal, study_id: str) -> ECGAnalysis:
+def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
+                   sex: str | None = None) -> ECGAnalysis:
+    """age (years) and sex ('M'/'F') are optional; when given, voltage criteria use age/sex-aware limits."""
     warnings: list[str] = []
     fs = float(signal.fs)
     d = normalize(signal.leads)
@@ -195,7 +197,8 @@ def analyze_signal(signal: ECGSignal, study_id: str) -> ECGAnalysis:
     p_series = detect_p_series(dlt[li2], fs, beat_info, noise[li2])
     av = av_analysis(p_series, [b["qrs_on"] * 1000.0 / fs for b in beat_info], fs)
     ctx = dict(gm=gm, lm=L, bd=mbd, fs=fs, hr=gm.heart_rate_bpm, cv=cv, rmssd=rmssd, p_present=p_present,
-               sinus_p=sinus_p, frac_p=frac_p, av=av)
+               sinus_p=sinus_p, frac_p=frac_p, av=av, age=age, sex=sex,
+               irr=rr_irregularity(pk_ms), ectopy=ectopy_pattern(pk_ms))
     gm.rhythm, ctx["rhythm_kind"] = classify_rhythm(ctx)
     if ctx["rhythm_kind"] == "af":
         gm.p_duration_ms = gm.pr_ms = gm.p_axis_deg = None

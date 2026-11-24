@@ -126,6 +126,15 @@ def masks_plausible(masks: dict[str, np.ndarray], shape: tuple[int, int]) -> boo
             and masks.get("heart") is not None and masks["heart"].sum() > 0.01 * area)
 
 
+def lung_field_from_probs(prob: np.ndarray, shape: tuple[int, int]) -> Optional[np.ndarray]:
+    """Union of PSP left/right lung masks (on laterals the net splits the single lung field in two) -> mask."""
+    m = (prob[PSP_TARGETS.index('Left Lung')] > 0.5) | (prob[PSP_TARGETS.index('Right Lung')] > 0.5)
+    if m.sum() == 0:
+        return None
+    m = _largest(m)
+    return resize(m.astype(np.uint8), shape, order=0, preserve_range=True, anti_aliasing=False) > 0
+
+
 def segment_chest_model(work: np.ndarray, prob: Optional[np.ndarray] = None) -> Optional[dict[str, np.ndarray]]:
     """work: float 0..1 image at working res. Returns masks at working res, or None.
     `prob` lets the caller reuse a PSP pass already made for view detection."""

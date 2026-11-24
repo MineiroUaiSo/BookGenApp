@@ -357,7 +357,14 @@ def ptbxl_task(rec: dict) -> dict:
     t0 = time.time()
     sig = load_ecg(p)
     t1 = time.time()
-    an = analyze_signal(sig, rec["id"])
+    ex = rec.get("extra") or {}
+    try:  # PTB-XL: age 300 = ">89"; sex 0 = male, 1 = female
+        age = float(ex.get("age")) if ex.get("age") not in (None, "") else None
+        age = None if age is not None and age > 120 else age
+    except (TypeError, ValueError):
+        age = None
+    sex = {"0": "M", "1": "F"}.get(str(ex.get("sex")).split(".")[0])
+    an = analyze_signal(sig, rec["id"], age=age, sex=sex)
     t2 = time.time()
     return {"findings": _findings(an), "gm": _gm_dict(an.global_measurements), "fs": sig.fs,
             "n_beats": len(an.r_peaks_ms), "warnings": len(an.warnings), "t_load_s": round(t1 - t0, 3),
@@ -1030,6 +1037,11 @@ def build_report() -> Path:
     sections = []
     summ = []
     allr = {s: load_cache(s) for s in ["ludb", "ptbxl", *IMAGE_SOURCES]}
+    for s in list(allr):  # only records of the current manifest (caches may hold ids from older/other selections)
+        ids = {r["id"] for r in read_manifest(s)}
+        if ids:
+            allr[s] = {k: v for k, v in allr[s].items() if k in ids}
+    missing = [s for s in ["ludb", "ptbxl", *IMAGE_SOURCES] if not allr[s]]
     if SPLIT != "all":
         _folds = ptbxl_fold_map()
         allr["ptbxl"] = {k: v for k, v in allr["ptbxl"].items() if in_split(k, SPLIT, _folds)}
@@ -1063,6 +1075,9 @@ def build_report() -> Path:
             "\n\n**Caveats.** Not a medical-device validation. LUDB = 200 healthy-to-pathological 10 s records from one centre; PTB-XL labels "
             "are machine+human SCP statements with noise; absent statement != confirmed negative; image-caption agreement is weak evidence. "
             "Results are for the current rules/thresholds; re-run `python -m bench.ecg_bench` after changes.")
+    if missing:
+        head += ("\n\n**Sources with no results in this run** (manifest missing/empty or dataset not downloadable): "
+                 + ", ".join(missing) + ".")
     return _write(head, sections)
 
 

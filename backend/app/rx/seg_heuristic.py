@@ -301,10 +301,16 @@ def segment_chest_frontal(s: np.ndarray, lungs: Optional[dict] = None) -> Option
 
 
 # ------------------------------------------------------------------ lateral chest
-def segment_chest_lateral(s: np.ndarray, posterior: Optional[str] = None) -> Optional[dict[str, np.ndarray]]:
-    """posterior in {'left','right'} (image side of the spine) if known from DICOM tags."""
+def segment_chest_lateral(s: np.ndarray, posterior: Optional[str] = None,
+                          lung_hint: Optional[np.ndarray] = None) -> Optional[dict[str, np.ndarray]]:
+    """posterior in {'left','right'} (image side of the spine) if known from DICOM tags.
+    lung_hint: lung-field mask from the PSPNet pass (more reliable than the Otsu blob) at the same resolution."""
     H, W = s.shape
-    found = find_single_dark(s)
+    if lung_hint is not None and lung_hint.shape == s.shape and lung_hint.sum() > 0.04 * H * W:
+        r_ = max(2, int(round(0.01 * max(H, W))))
+        found = {"mask": _clean(lung_hint, r_), "t": float(threshold_otsu(s[int(.05 * H):int(.95 * H), int(.08 * W):int(.92 * W)]))}
+    else:
+        found = find_single_dark(s)
     if found is None:
         return None
     lung, t = found["mask"], found["t"]
