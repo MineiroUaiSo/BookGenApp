@@ -1222,7 +1222,9 @@ def _write(head: str, sections) -> Path:
 # ---------------------------------------------------------------------------------------------
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--source", default="all", choices=["ludb", "qtdb", "ptbxl", "images", "all", *IMAGE_SOURCES])
+    ap.add_argument("--source", default="all", choices=["ludb", "qtdb", "ptbxl", "images", "all", "code_test", *IMAGE_SOURCES])
+    ap.add_argument("--i-know-this-is-the-final-external-test", action="store_true", dest="final_ext",
+                    help="required (and usable ONCE, marker data/bench/ecg/code_test.RUN) for --source code_test, the final external test")
     ap.add_argument("--limit", type=int, default=None, help="max records per source (seeded random sample)")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--force", action="store_true", help="ignore the cache and recompute")
@@ -1250,6 +1252,13 @@ def main(argv=None) -> int:
         lo, hi = a.records.split("-")
         RECORD_RANGE = (int(lo), int(hi))
     CACHE_TAG = a.tag
+    if a.source == "code_test":   # guarded one-shot external test (bench/code_test.py); never part of "all"
+        from bench import code_test
+        try:
+            return code_test.run_final(a.final_ext, a.workers, OUT_ROOT, head="")
+        except code_test.FinalTestGuardError as e:
+            print(f"REFUSED: {e}", file=sys.stderr)
+            return 2
     srcs = {"all": ["ludb", "ptbxl", *IMAGE_SOURCES], "images": IMAGE_SOURCES}.get(a.source, [a.source])
     if not a.report_only:
         for s in srcs:

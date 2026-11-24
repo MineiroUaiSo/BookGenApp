@@ -75,6 +75,13 @@
       "id_regex": "[\\w.-]+_(?:frontal|lateral)",
       "test": "all",
       "note": "PAX-Ray++: only the OFFICIAL test partition is downloaded (paxray_test.json); it is test-only."
+    },
+    "code_test": {
+      "modality": "ECG",
+      "method": "external_test",
+      "id_regex": "codetest-\\d{4}",
+      "test": "all",
+      "note": "CODE-test (Ribeiro 2020, 827 patients): FINAL external test, never used for tuning; run once with --i-know-this-is-the-final-external-test (marker data/bench/ecg/code_test.RUN). Prepared, not run."
     }
   },
   "lists": {

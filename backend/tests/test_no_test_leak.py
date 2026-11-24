@@ -68,7 +68,7 @@ def test_frozen_splits_shape():
     s = splits.load_splits()["sources"]
     assert s["ludb"]["dev"] == [1, 160] and s["ludb"]["test"] == [161, 200]
     assert s["ptbxl"]["dev"] == [1, 8] and s["ptbxl"]["test"] == [9, 10]
-    assert s["qtdb"]["method"] == "external_test"
+    assert s["qtdb"]["method"] == "external_test" and s["code_test"]["method"] == "external_test"
     assert s["iu_xray"]["method"] == "dev_only"
     assert [splits.split_of("ludb", f"ludb-{i}") for i in (1, 160, 161, 200)] == ["dev", "dev", "test", "test"]
     assert splits.split_of("ptbxl", "ptbxl-00001", fold=8) == "dev"
