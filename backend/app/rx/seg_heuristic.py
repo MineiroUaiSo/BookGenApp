@@ -301,6 +301,40 @@ def segment_chest_frontal(s: np.ndarray, lungs: Optional[dict] = None) -> Option
 
 
 # ------------------------------------------------------------------ lateral chest
+# priors in lung-bbox coordinates (u: 0 posterior -> 1 anterior, v: 0 top -> 1 bottom); tuned on PAX-Ray++ lateral (dev)
+_LAT_PRIORS = {
+    "heart": dict(c=(0.62, 0.72), r=(0.30, 0.26)),
+    "spine": dict(u=(-0.12, 0.22), v=(-0.12, 1.08)),
+    "sternum": dict(u=(0.92, 1.12), v=(0.05, 0.80)),
+    "trachea": dict(u=(0.30, 0.52), v=(-0.20, 0.30)),
+}
+
+
+def _lateral_templates(s: np.ndarray, lung: np.ndarray, t: float, posterior: str) -> dict[str, np.ndarray]:
+    """Anatomical-prior masks for a lateral chest relative to the (model) lung-field bbox. Coarse by design."""
+    H, W = s.shape
+    ys, xs = np.nonzero(lung)
+    y0, y1, x0, x1 = ys.min(), ys.max(), xs.min(), xs.max()
+    Hl, Wl = max(y1 - y0, 1), max(x1 - x0, 1)
+    yy, xx = np.mgrid[0:H, 0:W]
+    v = (yy - y0) / Hl
+    u = ((xx - x0) / Wl) if posterior == "left" else ((x1 - xx) / Wl)
+    res: dict[str, np.ndarray] = {}
+    P = _LAT_PRIORS
+    cu, cv = P["heart"]["c"]
+    ru, rv = P["heart"]["r"]
+    res["heart"] = (((u - cu) / ru) ** 2 + ((v - cv) / rv) ** 2 <= 1.0) & ~(lung & (v < 0.45))
+    for k in ("spine", "sternum", "trachea"):
+        (u0, u1), (v0, v1) = P[k]["u"], P[k]["v"]
+        m = (u >= u0) & (u <= u1) & (v >= v0) & (v <= v1)
+        if k != "trachea":
+            m &= s > t          # bone is brighter than the lung threshold
+        else:
+            m &= s < t          # air column
+        res[k] = m
+    return res
+
+
 def segment_chest_lateral(s: np.ndarray, posterior: Optional[str] = None,
                           lung_hint: Optional[np.ndarray] = None) -> Optional[dict[str, np.ndarray]]:
     """posterior in {'left','right'} (image side of the spine) if known from DICOM tags.
@@ -308,7 +342,8 @@ def segment_chest_lateral(s: np.ndarray, posterior: Optional[str] = None,
     H, W = s.shape
     if lung_hint is not None and lung_hint.shape == s.shape and lung_hint.sum() > 0.04 * H * W:
         r_ = max(2, int(round(0.01 * max(H, W))))
-        found = {"mask": _clean(lung_hint, r_), "t": float(threshold_otsu(s[int(.05 * H):int(.95 * H), int(.08 * W):int(.92 * W)]))}
+        found = {"mask": _clean(lung_hint, r_), "from_hint": True,
+                 "t": float(threshold_otsu(s[int(.05 * H):int(.95 * H), int(.08 * W):int(.92 * W)]))}
     else:
         found = find_single_dark(s)
     if found is None:
@@ -393,6 +428,8 @@ def segment_chest_lateral(s: np.ndarray, posterior: Optional[str] = None,
             best, bh = rp.label, h_
     if best is not None:
         out["trachea"] = lab == best
+    if found.get("from_hint"):
+        out.update(_lateral_templates(s, lung, t, posterior))
     return out
 
 

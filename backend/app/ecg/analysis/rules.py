@@ -2,6 +2,8 @@
 decision-support heuristics from AHA/ACC/HRS 2009, SBC 2022 and UDMI-4, not diagnoses."""
 from __future__ import annotations
 
+import numpy as np
+
 from ...schemas import Finding, Reference
 
 R_AHA = Reference(id="aha_2009_part_iii", source="Surawicz B et al. AHA/ACCF/HRS Recommendations for the "
@@ -114,6 +116,7 @@ def _classify_bbb(bd, dur, fs_ms):
 
 # rhythm thresholds. HR: sinus bradycardia <50 bpm (SBC 2022 report guideline; ESC brady 2021 uses <50 for
 # pathological significance; 50-59 bpm is the normal lower range in athletes/sleep), tachycardia >100 bpm.
+AV1_PEAK_MS = 165.0   # P peak -> QRS onset (about PR - 45 ms) for PR > 200 ms
 SBRAD_HR = 50.0
 STACH_HR = 100.0
 # AF = irregularly irregular RR (cv>=9%, RMSSD>=10%, >=30% of successive RR differing by >10%) without a P
@@ -214,9 +217,17 @@ def build_findings(c):
                        f"PR condutivos: {', '.join(f'{x:.0f}' for x in av['prs'][~__import__('numpy').isnan(av['prs'])][:8])} ms (pico P até QRS)"],
                       [R_SBC, R_GOLD], 0.5))
     elif sinus and pr is not None:
-        if pr > 200:
+        # 1st-degree AV block needs a consistent PR > 200 ms (AHA 2009 Part II; SBC 2022). The global PR
+        # (earliest P onset in any lead) is inflated by noisy onsets, so the decision uses the median
+        # per-lead PR plus an independent P-peak -> QRS interval (PR minus about half of the P duration).
+        prl = [m.pr_ms for m in L.values() if m.pr_ms]
+        pr_lead = float(np.median(prl)) if len(prl) >= 4 else None
+        pk_med = (av or {}).get("pr_med")
+        if pr > 200 and pr_lead is not None and pr_lead > 200 and pk_med is not None and pk_med >= AV1_PEAK_MS:
             out.append(_f("ecg.av_block_1", "Bloqueio atrioventricular de 1º grau", "abnormal",
-                          [f"PR {pr:.0f} ms (>200 ms)"], [R_SBC, R_GOLD], 0.7))
+                          [f"PR {pr:.0f} ms (>200 ms); mediana das derivações {pr_lead:.0f} ms; "
+                           f"pico P ao QRS {pk_med:.0f} ms, consistente entre batimentos"],
+                          [R_SBC, R_GOLD], 0.7))
         elif pr < 120:
             qrs = gm.qrs_ms or 0
             esr = bd.early_slope_ratio

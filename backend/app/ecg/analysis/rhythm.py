@@ -128,17 +128,19 @@ def av_analysis(p_ms, beats_ms, fs):
     atr_rate = 60000.0 / base
     res = dict(p_regular=p_reg, atrial_rate=atr_rate, vent_rate=vent_rate, type=None, prs=prs, base=base,
                n_p=len(p), n_q=len(q), **cons)
-    if p_reg < 0.7:
+    # a spurious P-like bump (T/U wave, noise) easily fakes one blocked P in a 10 s strip: require regular atrial
+    # activity at a physiological rate (<=160/min; faster P series are noise or flutter) and >=2 blocked P.
+    if p_reg < 0.85 or atr_rate > 160 or atr_rate < 35:
         return res
     valid = prs[~np.isnan(prs)]
     # complete block: ventricular rate clearly below atrial, regular QRS, PR varying
-    if vent_rate < 0.85 * atr_rate and len(valid) >= 4 and (valid.max() - valid.min()) > 120 and cv_q < 0.2:
+    if vent_rate < 0.7 * atr_rate and len(valid) >= 4 and (valid.max() - valid.min()) > 120 and cv_q < 0.2:
         res["type"] = "av3"
         return res
     # drops: consecutive assigned indices jumping >= 2
     jumps = [k for k in range(1, len(assigned)) if assigned[k] >= 0 and assigned[k - 1] >= 0
              and assigned[k] - assigned[k - 1] >= 2]
-    if jumps:
+    if len(jumps) >= 2 or (jumps and len(q) >= 5 and len(jumps) >= 0.6 * (len(q) - 1)):
         res["n_drops"] = len(jumps)
         if len(jumps) >= 0.6 * (len(q) - 1):
             res["type"] = "av2_21"
