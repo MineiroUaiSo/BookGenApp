@@ -45,6 +45,10 @@ def test_chest_segmented_with_ict(path, models):
     assert "indisponível" not in a.quality["segmentação"], a.quality
     assert {"right_lung", "left_lung"} <= _lung_names(a)
     ict = [m for m in a.measurements if m.key == "cardiothoracic_ratio"]
+    if not models and not ict:
+        # heuristic mode may withhold an implausible CTR instead of showing it (analyze.HEUR_CTR_RANGE)
+        assert str(a.quality.get("ICT", "")).startswith("não confiável"), a.quality
+        return
     assert ict and ict[0].value is not None and 0.2 < ict[0].value < 0.9
 
 
