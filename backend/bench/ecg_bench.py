@@ -532,7 +532,76 @@ def image_task(rec: dict) -> dict:
 # ---------------------------------------------------------------------------------------------
 # execution
 # ---------------------------------------------------------------------------------------------
-TASKS = {"ludb": ludb_task, "ptbxl": ptbxl_task, **{s: image_task for s in IMAGE_SOURCES}}
+def qtdb_gold(base: str, ext: str = "q1c") -> list[dict]:
+    """QTDB manual annotations (cardiologist 1, 'q1c'): [{n:(on,pk,off), t_off|None}] in ms. QTDB marks the T wave
+    only by its peak and end (no onset)."""
+    import wfdb
+    fs = float(wfdb.rdheader(base).fs)
+    ms = 1000.0 / fs
+    ann = wfdb.rdann(base, ext)
+    sym, smp = list(ann.symbol), list(ann.sample)
+    beats = []
+    for i in range(len(sym) - 2):
+        if sym[i] == "(" and sym[i + 1] == "N" and sym[i + 2] == ")":
+            b = {"n": (smp[i] * ms, smp[i + 1] * ms, smp[i + 2] * ms), "t_off": None}
+            if i + 4 < len(sym) and sym[i + 3] == "t" and sym[i + 4] == ")":
+                b["t_off"] = smp[i + 4] * ms
+            beats.append(b)
+    return beats
+
+
+def qtdb_task(rec: dict) -> dict:
+    """External delineation test on QTDB (2 leads, 250 Hz): QRS onset/offset and T offset of annotated beats vs our
+    analysed lead. Beats matched by R peak (+-75 ms)."""
+    from app.ecg.analysis import analyze_signal
+    from app.ecg.ingest import load_ecg
+    p = resolve("qtdb", rec["path"])
+    base = str(p.with_suffix(""))
+    gold = qtdb_gold(base)
+    sig = load_ecg(Path(base + ".hea"))
+    an = analyze_signal(sig, rec["id"])
+    rpk = np.array(an.r_peaks_ms)
+    wv: dict[tuple, Any] = {}
+    for w in an.waves:
+        wv.setdefault((w.beat_index, w.kind.value), w)
+    err: dict[str, list] = defaultdict(list)
+    cnt = {"gold_qrs": len(gold), "matched": 0}
+    for b in gold:
+        if len(rpk) == 0:
+            break
+        j = int(np.argmin(np.abs(rpk - b["n"][1])))
+        if abs(rpk[j] - b["n"][1]) > BEAT_MATCH_MS:
+            continue
+        cnt["matched"] += 1
+        q = wv.get((j, "QRS"))
+        if q is not None and q.offset_ms is not None:
+            err["qrs_on"].append(q.onset_ms - b["n"][0])
+            err["qrs_off"].append(q.offset_ms - b["n"][2])
+        t = wv.get((j, "T"))
+        if t is not None and t.offset_ms is not None and b["t_off"] is not None:
+            err["t_off"].append(t.offset_ms - b["t_off"])
+    return {"err": dict(err), "cnt": cnt}
+
+
+def report_qtdb(res: dict[str, dict]) -> str:
+    ok = [r for r in res.values() if r["ok"]]
+    if not ok:
+        return "No QTDB results."
+    agg: dict[str, list] = defaultdict(list)
+    for r in ok:
+        for k, v in r["data"]["err"].items():
+            agg[k] += v
+    rows = ["| Fiducial | N | error ours-gold mean +- SD (ms) | within CSE tol |", "|---|---|---|---|"]
+    for k, nm in (("qrs_on", "QRS onset"), ("qrs_off", "QRS offset"), ("t_off", "T offset")):
+        e = np.array(agg.get(k, []), float)
+        if not len(e):
+            continue
+        tol = CSE_TOL[k]
+        rows.append(f"| {nm} | {len(e)} | {e.mean():+.1f} +- {e.std():.1f} | {np.mean(np.abs(e) <= tol) * 100:.1f}% (tol {tol} ms) |")
+    return f"{len(ok)} QTDB records (cardiologist 1 'q1c', analysed lead V5)\n\n" + "\n".join(rows)
+
+
+TASKS = {"ludb": ludb_task, "qtdb": qtdb_task, "ptbxl": ptbxl_task, **{s: image_task for s in IMAGE_SOURCES}}
 
 
 def _worker(args):
@@ -1108,7 +1177,7 @@ def _write(head: str, sections) -> Path:
 # ---------------------------------------------------------------------------------------------
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--source", default="all", choices=["ludb", "ptbxl", "images", "all", *IMAGE_SOURCES])
+    ap.add_argument("--source", default="all", choices=["ludb", "qtdb", "ptbxl", "images", "all", *IMAGE_SOURCES])
     ap.add_argument("--limit", type=int, default=None, help="max records per source (seeded random sample)")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--force", action="store_true", help="ignore the cache and recompute")
@@ -1139,6 +1208,9 @@ def main(argv=None) -> int:
         print(report_images({"litfl": res})[0])
         return 0
     if a.tag:
+        if srcs == ["qtdb"]:
+            print(report_qtdb(load_cache("qtdb")))
+            return 0
         body, _ = report_ludb(load_cache("ludb")) if "ludb" in srcs else ("", {})
         print(body.split("### Per-lead")[0])
         return 0
