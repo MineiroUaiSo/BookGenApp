@@ -151,6 +151,8 @@ def _classify_bbb(bd, dur, fs_ms, L=None):
 
 # rhythm thresholds. HR: sinus bradycardia <50 bpm (SBC 2022 report guideline; ESC brady 2021 uses <50 for
 # pathological significance; 50-59 bpm is the normal lower range in athletes/sleep), tachycardia >100 bpm.
+QRS_BORDERLINE_MS = 110   # E4: 110-119 ms without BBB morphology is only "limítrofe"
+IVCD_MS = 120             # unspecific IVCD reported as abnormal from here
 AV1_PEAK_MS = 165.0   # P peak -> QRS onset (about PR - 45 ms) for PR > 200 ms
 SBRAD_HR = 50.0
 STACH_HR = 100.0
@@ -277,11 +279,13 @@ def build_findings(c):
                           [R_SBC, R_GOLD], 0.7))
         else:
             qrs = gm.qrs_ms or 0
+            lq = sorted(m.qrs_ms for m in L.values() if m.qrs_ms)
+            qrs_pre = float(np.median(lq)) if len(lq) >= 6 else qrs   # E4: robust width (global is earliest/latest)
             esr = bd.early_slope_ratio
             # Pre-excitation (AHA 2009 Part II/III): short PR + slurred QRS upstroke (delta wave) + wide QRS. The
             # global PR is biased long by early P onsets, so PR < 140 ms is accepted when the delta wave is
             # clear (initial slope < 45% of the maximum slope) and QRS >= 100 ms.
-            if (pr < 120 or (pr < 140 and _classify_bbb(bd, qrs, fs_ms, L)[0] is None)) and qrs >= 100 \
+            if (pr < 120 or (pr < 140 and _classify_bbb(bd, qrs, fs_ms, L)[0] is None)) and qrs_pre >= 100 \
                     and esr is not None and esr < 0.45:
                 out.append(_f("ecg.preexcitation", "Padrão de pré-excitação ventricular (onda delta)", "abnormal",
                               [f"PR {pr:.0f} ms", f"QRS {qrs:.0f} ms (>=100)",
@@ -329,8 +333,9 @@ def build_findings(c):
     #  LBBB: QRS >=120 ms, V1-V2 predominantly negative (rS/QS), monophasic R without q in I/V5/V6.
     v1, v6, d1 = morph.get("V1", ""), morph.get("V6", ""), morph.get("I", "")
     lead_q = sorted(m.qrs_ms for m in L.values() if m.qrs_ms)
-    # widest reliable QRS: global (earliest onset -> latest offset) or the 90th percentile of per-lead durations
-    dur = max(qrs, lead_q[int(0.9 * (len(lead_q) - 1))]) if len(lead_q) >= 6 else qrs
+    # E4: QRS width for the conduction criteria = median of the per-lead durations (robust to one lead with a
+    # slow start/ST absorbed); the global earliest-onset/latest-offset width is kept when there are too few leads
+    dur = 0.5 * (float(np.median(lead_q)) + qrs) if len(lead_q) >= 6 else qrs
     cbbb, bbb_note = _classify_bbb(bd, dur, fs_ms, L)
     if cbbb in ("lbbb", "rbbb", "ilbbb", "irbbb") and any(f.code == "ecg.preexcitation" for f in out):
         cbbb = None  # delta wave widens the QRS and mimics a bundle branch block (AHA 2009 Part III, exclusions)
@@ -347,9 +352,13 @@ def build_findings(c):
     elif cbbb == "ilbbb":
         out.append(_f("ecg.ilbbb", "Bloqueio incompleto de ramo esquerdo", "borderline", ev + [bbb_note],
                       [R_AHA, R_SBC], 0.45))
-    elif dur >= 110 and not any(f.code == "ecg.preexcitation" for f in out):
+    elif dur >= IVCD_MS and not any(f.code == "ecg.preexcitation" for f in out):
         out.append(_f("ecg.ivcd", "Distúrbio inespecífico da condução intraventricular", "abnormal",
-                      [f"QRS {dur:.0f} ms (>=110)", "critérios de BRD/BRE não preenchidos"], [R_AHA, R_SBC], 0.5))
+                      [f"QRS {dur:.0f} ms (>={IVCD_MS})", "critérios de BRD/BRE não preenchidos"], [R_AHA, R_SBC], 0.5))
+    elif dur >= QRS_BORDERLINE_MS and not any(f.code == "ecg.preexcitation" for f in out):
+        out.append(_f("ecg.qrs_borderline", "QRS limítrofe (110-119 ms)", "borderline",
+                      [f"QRS {dur:.0f} ms (zona limítrofe {QRS_BORDERLINE_MS}-{IVCD_MS - 1} ms)",
+                       "critérios de BRD/BRE não preenchidos; sem distúrbio de condução definido"], [R_AHA, R_SBC], 0.4))
     c["bbb"] = cbbb
 
     # ---- atrial overload
