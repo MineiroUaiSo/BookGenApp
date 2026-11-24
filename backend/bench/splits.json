@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "frozen": "2026-11-24",
+  "policy": "Splits are per patient/record and FROZEN. Thresholds/rules may be tuned ONLY on 'dev'. 'test' ids must never appear in bench/tuning/*.json (enforced by tests/test_no_test_leak.py). Run a test split at most once at the end of a track and report it separately.",
+  "sources": {
+    "ludb": {
+      "modality": "ECG",
+      "method": "id_range",
+      "id_regex": "ludb-\\d+",
+      "dev": [
+        1,
+        160
+      ],
+      "test": [
+        161,
+        200
+      ],
+      "note": "200 records, one per patient (LUDB); numeric suffix of the record id."
+    },
+    "ptbxl": {
+      "modality": "ECG",
+      "method": "strat_fold",
+      "id_regex": "ptbxl-\\d{5}",
+      "dev": [
+        1,
+        8
+      ],
+      "test": [
+        9,
+        10
+      ],
+      "test_status": "BURNED (folds 9-10 were already used for evaluation before the freeze; run at most once more, at the end)",
+      "note": "strat_fold in ptbxl_database.csv; folds keep all records of a patient together."
+    },
+    "qtdb": {
+      "modality": "ECG",
+      "method": "external_test",
+      "id_regex": "qtdb-\\w+",
+      "test": "all",
+      "note": "QT Database: external test set for delineation (never used for tuning)."
+    },
+    "iu_xray": {
+      "modality": "RX",
+      "method": "dev_only",
+      "id_regex": "CXR\\d+_IM-\\d+-\\d+",
+      "note": "IU X-Ray is dev only: it is in the TorchXRayVision training data (leakage), so it is never a test set."
+    },
+    "jsrt_masks": {
+      "modality": "RX",
+      "method": "patient_hash",
+      "id_regex": "JP(?:CLN|CNN)\\d{3}",
+      "dev_pct": 70,
+      "patient_key_regex": "^(.*)$",
+      "note": "No official split; md5(patient id) % 100 < 70 -> dev."
+    },
+    "montgomery": {
+      "modality": "RX",
+      "method": "patient_hash",
+      "id_regex": "MCUCXR_\\d{4}_[01]",
+      "dev_pct": 70,
+      "patient_key_regex": "^(MCUCXR_\\d{4})",
+      "note": "No official split; hash of the patient number (id without the _0/_1 label suffix)."
+    },
+    "shenzhen": {
+      "modality": "RX",
+      "method": "patient_hash",
+      "id_regex": "CHNCXR_\\d{4}_[01]",
+      "dev_pct": 70,
+      "patient_key_regex": "^(CHNCXR_\\d{4})",
+      "note": "No official split; hash of the patient number."
+    },
+    "rx_masks_other": {
+      "modality": "RX",
+      "method": "external_test",
+      "id_regex": "[\\w.-]+_(?:frontal|lateral)",
+      "test": "all",
+      "note": "PAX-Ray++: only the OFFICIAL test partition is downloaded (paxray_test.json); it is test-only."
+    }
+  }
+}
