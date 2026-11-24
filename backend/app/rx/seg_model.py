@@ -83,8 +83,8 @@ def _largest(mask: np.ndarray) -> np.ndarray:
     return lab == counts.argmax()
 
 
-def segment_chest_model(work: np.ndarray) -> Optional[dict[str, np.ndarray]]:
-    """work: float 0..1 image at working res. Returns masks at working res, or None."""
+def psp_probs(work: np.ndarray) -> Optional[np.ndarray]:
+    """Sigmoid probabilities (14, 512, 512) of the ChestX-Det PSPNet for a working-res image (0..1), or None."""
     if not models_enabled():
         return None
     model = _psp()
@@ -98,25 +98,43 @@ def segment_chest_model(work: np.ndarray) -> Optional[dict[str, np.ndarray]]:
         t = torch.from_numpy(x)[None, None].float()
         with torch.no_grad():
             out = model(t)[0].numpy()
-        prob = 1.0 / (1.0 + np.exp(-out))
-        masks: dict[str, np.ndarray] = {}
-        h, w = work.shape
-        for i, name in enumerate(PSP_TARGETS):
-            m = prob[i] > 0.5
-            if m.sum() == 0:
-                continue
-            if name != 'Facies Diaphragmatica':
-                m = _largest(m)
-            m = resize(m.astype(np.uint8), (h, w), order=0, preserve_range=True, anti_aliasing=False) > 0
-            masks[PSP_KEYS[name]] = m
+        return (1.0 / (1.0 + np.exp(-out))).astype(np.float32)
     except Exception as e:  # pragma: no cover
         log.warning("PSPNet inference failed: %s", e)
         return None
-    area = work.shape[0] * work.shape[1]
-    ok = (masks.get("left_lung") is not None and masks.get("right_lung") is not None
-          and masks["left_lung"].sum() > 0.015 * area and masks["right_lung"].sum() > 0.015 * area
-          and masks.get("heart") is not None and masks["heart"].sum() > 0.01 * area)
-    return masks if ok else None
+
+
+def masks_from_probs(prob: np.ndarray, shape: tuple[int, int], largest: bool = True) -> dict[str, np.ndarray]:
+    """Threshold PSP probabilities -> masks at `shape` (keeps the largest component except diaphragm)."""
+    masks: dict[str, np.ndarray] = {}
+    h, w = shape
+    for i, name in enumerate(PSP_TARGETS):
+        m = prob[i] > 0.5
+        if m.sum() == 0:
+            continue
+        if largest and name != 'Facies Diaphragmatica':
+            m = _largest(m)
+        m = resize(m.astype(np.uint8), (h, w), order=0, preserve_range=True, anti_aliasing=False) > 0
+        masks[PSP_KEYS[name]] = m
+    return masks
+
+
+def masks_plausible(masks: dict[str, np.ndarray], shape: tuple[int, int]) -> bool:
+    area = shape[0] * shape[1]
+    return (masks.get("left_lung") is not None and masks.get("right_lung") is not None
+            and masks["left_lung"].sum() > 0.015 * area and masks["right_lung"].sum() > 0.015 * area
+            and masks.get("heart") is not None and masks["heart"].sum() > 0.01 * area)
+
+
+def segment_chest_model(work: np.ndarray, prob: Optional[np.ndarray] = None) -> Optional[dict[str, np.ndarray]]:
+    """work: float 0..1 image at working res. Returns masks at working res, or None.
+    `prob` lets the caller reuse a PSP pass already made for view detection."""
+    if prob is None:
+        prob = psp_probs(work)
+    if prob is None:
+        return None
+    masks = masks_from_probs(prob, work.shape)
+    return masks if masks_plausible(masks, work.shape) else None
 
 
 def pathology_scores(work: np.ndarray) -> dict[str, float]:

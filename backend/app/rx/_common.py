@@ -110,3 +110,52 @@ def to_work(img_u8: np.ndarray, max_side: int = 512):
     h, w = int(round(H / f)), int(round(W / f))
     g = resize(img_u8.astype(np.float32) / 255.0, (h, w), anti_aliasing=True, order=1)
     return g.astype(np.float32), (H / h, W / w)
+
+
+def autocrop(img_u8: np.ndarray, min_trim: float = 0.06):
+    """Trim flat borders (letterbox/zero padding/black frames). Returns (cropped, (y0, x0)).
+    Only trims when a dimension loses at least `min_trim` of its length; never below 40% of the side."""
+    a = img_u8.astype(np.int16)
+    H, W = a.shape
+    if H < 32 or W < 32:
+        return img_u8, (0, 0)
+    # a row/column is 'flat' if it carries (almost) no signal: constant padding, text-free frame
+    rflat = (a.max(axis=1) - a.min(axis=1)) < 14
+    cflat = (a.max(axis=0) - a.min(axis=0)) < 14
+
+    def span(flat):
+        n = len(flat)
+        idx = np.nonzero(~flat)[0]
+        if len(idx) == 0:
+            return 0, n
+        return int(idx[0]), int(idx[-1]) + 1
+
+    y0, y1 = span(rflat)
+    x0, x1 = span(cflat)
+    # re-evaluate columns inside the row span (a padded band can hide behind a bright label)
+    sub = a[y0:y1]
+    x0b, x1b = span((sub.max(axis=0) - sub.min(axis=0)) < 14)
+    x0, x1 = max(x0, x0b), min(x1, x1b)
+    if (y1 - y0) < 0.4 * H or (x1 - x0) < 0.4 * W or x1 <= x0 or y1 <= y0:
+        return img_u8, (0, 0)
+    if (H - (y1 - y0)) < min_trim * H and (W - (x1 - x0)) < min_trim * W:
+        return img_u8, (0, 0)
+    return img_u8[y0:y1, x0:x1], (y0, x0)
+
+
+def normalize_polarity(img_u8: np.ndarray, ring_thr: float = 0.05) -> tuple[np.ndarray, bool]:
+    """Detect inverted polarity (MONOCHROME1-like PNG/JPG: air/background bright). In radiographs the outer ring
+    of the (autocropped) image, mostly air and soft tissue, is darker than the centre (spine/mediastinum/bone).
+    Empirically (JSRT, Montgomery, IU, synthetic DRRs) ring-minus-centre is <= -0.01 for normal and >= 0.01 for
+    inverted images; we invert only when clearly positive. Returns (image, was_inverted)."""
+    c, _ = autocrop(img_u8)
+    f = c[::4, ::4].astype(np.float32) / 255.0
+    H, W = f.shape
+    if H < 16 or W < 16:
+        return img_u8, False
+    ring = np.concatenate([f[:max(1, int(.06 * H))].ravel(), f[:, :max(1, int(.06 * W))].ravel(),
+                           f[:, -max(1, int(.06 * W)):].ravel()])
+    centre = f[int(.1 * H):int(.9 * H), int(.1 * W):int(.9 * W)]
+    if float(np.median(ring)) - float(np.median(centre)) > ring_thr:
+        return (255 - img_u8).astype(np.uint8), True
+    return img_u8, False

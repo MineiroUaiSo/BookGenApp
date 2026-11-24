@@ -9,13 +9,16 @@ from skimage.measure import label
 
 from ..schemas import BodyRegion, RXImageAnalysis, RXMeasurement, RXView, Structure
 from . import measure, seg_heuristic as H, seg_model, view as V
-from ._common import build_structure, encode_png_b64, to_work
+from ._common import autocrop, build_structure, encode_png_b64, normalize_polarity, to_work
 
-HEUR_CONF = {"right_lung": .55, "left_lung": .55, "lung_field": .5, "heart": .45, "spine": .4, "trachea": .35,
-             "mediastinum": .3, "aorta": .2, "right_clavicle": .3, "left_clavicle": .3, "ribs": .2,
-             "right_diaphragm": .4, "left_diaphragm": .4, "diaphragm": .4, "sternum": .25, "bowel_gas": .4,
-             "pelvis_bones": .3, "bones": .3}
+# heuristic masks are unreliable on real films (Dice 0.07-0.24): cap confidence low
+HEUR_CONF = {"right_lung": .25, "left_lung": .25, "lung_field": .25, "heart": .2, "spine": .2, "trachea": .15,
+             "mediastinum": .15, "aorta": .1, "right_clavicle": .1, "left_clavicle": .1, "ribs": .1,
+             "right_diaphragm": .2, "left_diaphragm": .2, "diaphragm": .2, "sternum": .1, "bowel_gas": .2,
+             "pelvis_bones": .15, "bones": .15}
 MODEL_CONF = 0.75
+HEUR_WARN = ("segmentação por heurística clássica: BAIXA CONFIABILIDADE (benchmark: Dice ~0,1-0,25 em RX de tórax "
+             "reais; medidas como ICT/desvio traqueal não são confiáveis) — não usar para decisão; confirmar visualmente.")
 
 
 def _as_u8(img) -> np.ndarray:
@@ -24,10 +27,17 @@ def _as_u8(img) -> np.ndarray:
         a = a[..., :3].mean(axis=2) if a.shape[2] >= 3 else a[..., 0]
     if a.dtype != np.uint8:
         a = a.astype(np.float64)
-        lo, hi = a.min(), a.max()
+        # robust stretch: burned-in markers / hot pixels must not squash the contrast of 16-bit data
+        lo, hi = (np.percentile(a, [0.5, 99.5]) if a.dtype != np.uint8 else (a.min(), a.max()))
+        a = np.clip(a, lo, hi)
         a = ((a - lo) / (hi - lo) * 255.0) if hi > lo else np.zeros_like(a)
         a = a.astype(np.uint8)
     return a
+
+
+def _tag_polarity(ds: Any) -> bool:
+    """True if the DICOM header already states the polarity (the loader handled MONOCHROME1)."""
+    return ds is not None and getattr(ds, "PhotometricInterpretation", None) in ("MONOCHROME1", "MONOCHROME2")
 
 
 def _spacing(ds: Any, H_: int, W_: int) -> Optional[tuple[float, float]]:
@@ -68,19 +78,45 @@ _ORDER = ["right_lung", "left_lung", "lung_field", "right_hilum", "left_hilum", 
 
 def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, use_model: Optional[bool] = None) -> RXImageAnalysis:
     img = _as_u8(img_uint8)
+    img, inverted = normalize_polarity(img) if not _tag_polarity(ds) else (img, False)
     Hh, Ww = img.shape
     spacing = _spacing(ds, Hh, Ww)
-    work, scale = to_work(img)
+    # trim flat borders/letterbox (e.g. a chest film padded with black) so detection and models see the body
+    imgc, (cy0, cx0) = autocrop(img)
+    work, scale = to_work(imgc)
     s = H.smooth(work)
-    info = V.detect_view_region(s, ds)
-    view, region, kind = info["view"], info["region"], info["kind"]
     allow_model = seg_model.models_enabled() if use_model is None else use_model
+    info = V.detect_view_region(s, ds, work=work, use_model=allow_model)
+    view, region, kind = info["view"], info["region"], info["kind"]
 
     structures: list[Structure] = []
     measurements: list[RXMeasurement] = []
     quality: dict[str, str] = {}
     scores: dict[str, float] = {}
     notes = list(info["notes"])
+    if inverted:
+        notes.append("polaridade invertida detectada (fundo claro) e corrigida")
+    # canvas = working-res frame of the FULL image; crop results are pasted into it at (oy, ox)
+    ch, cw = max(1, int(round(Hh / scale[0]))), max(1, int(round(Ww / scale[1])))
+    oy, ox = int(round(cy0 / scale[0])), int(round(cx0 / scale[1]))
+    if (ch, cw) != work.shape:
+        cscale = (Hh / ch, Ww / cw)
+    else:
+        cscale = scale
+
+    def to_canvas(m):
+        if m is None or (ch, cw) == m.shape:
+            return m
+        out = np.zeros((ch, cw), dtype=m.dtype)
+        h_, w_ = min(m.shape[0], ch - oy), min(m.shape[1], cw - ox)
+        if h_ > 0 and w_ > 0:
+            out[oy:oy + h_, ox:ox + w_] = m[:h_, :w_]
+        return out
+
+    def canvas_masks(ms):
+        return {k: (to_canvas(v) if not k.startswith("_") else v) for k, v in ms.items()}
+
+    scale = cscale
     conv = measure.Conv(scale, spacing)
     full = (Hh, Ww)
     seg_desc = "sem segmentação"
@@ -89,7 +125,7 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
         masks = None
         origin = "heuristic"
         if allow_model:
-            masks = seg_model.segment_chest_model(work)
+            masks = seg_model.segment_chest_model(work, info.get("prob"))
             if masks is not None:
                 origin = "model"
         if masks is None:
@@ -108,20 +144,29 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
                 if sc.sum() > 0 and (sc & lungs_u).sum() / sc.sum() > 0.30:
                     view = RXView.AP
                     notes.append("escápulas projetadas sobre os campos pulmonares: provável incidência AP")
+            masks = canvas_masks(masks)
+            s_full = to_canvas(s)
             structures = _structures(masks, full, scale, spacing, origin, _ORDER)
             measurements, ex = measure.measure_frontal(masks, conv, view.value)
-            quality.update(measure.quality_frontal(s, masks, ex))
+            quality.update(measure.quality_frontal(s_full, masks, ex))
+            if origin == "heuristic":
+                quality["confiabilidade"] = HEUR_WARN
+                if not allow_model:
+                    quality["confiabilidade"] += " Modelo de segmentação indisponível/desligado."
         if allow_model:
             scores = seg_model.pathology_scores(work)
     elif kind == "chest_lateral":
         masks = H.segment_chest_lateral(s, V.posterior_side_from_tags(ds))
         if masks is not None:
+            masks = canvas_masks(masks)
             seg_desc = "heurística clássica (perfil) — baixa confiança"
             structures = _structures(masks, full, scale, spacing, "heuristic", _ORDER)
+            quality["confiabilidade"] = HEUR_WARN
             post = "direita" if int(masks["_posterior"][0]) == 1 else "esquerda"
             quality["orientação"] = f"coluna à {post} da imagem (estimada)"
     elif kind == "abdomen":
-        masks = H.segment_abdomen(s)
+        masks = canvas_masks(H.segment_abdomen(s))
+        quality["confiabilidade"] = HEUR_WARN
         seg_desc = "heurística clássica (padrão gasoso/limiar ósseo) — baixa confiança"
         structures = _structures(masks, full, scale, spacing, "heuristic", _ORDER)
         gas = masks.get("bowel_gas")
@@ -134,7 +179,8 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
             measurements.append(RXMeasurement(key="max_gas_lumen_diameter", label="Maior diâmetro de lúmen gasoso",
                                               value=round(float(2 * dist.max() * k), 1), unit=conv.unit))
     else:
-        masks = H.segment_bones(s)
+        masks = canvas_masks(H.segment_bones(s))
+        quality["confiabilidade"] = HEUR_WARN
         seg_desc = "heurística de limiar (ossos) — baixa confiança"
         structures = _structures(masks, full, scale, spacing, "heuristic", ["bones"])
         for st in structures:

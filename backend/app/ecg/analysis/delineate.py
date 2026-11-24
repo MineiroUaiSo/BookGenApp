@@ -13,6 +13,12 @@ from scipy.ndimage import uniform_filter1d
 from scipy.signal import find_peaks
 
 
+TANGENT_T = True
+P50_K = 2.5
+G_THR = 0.03
+LEAD_THR = 0.04
+
+
 @dataclass
 class WaveSeg:
     kind: str
@@ -93,7 +99,7 @@ def global_qrs(seg, fs, a):
     w0, w1 = max(1, a - int(0.05 * fs)), min(n - 2, a + int(0.05 * fs))
     im = w0 + int(np.argmax(v[w0:w1 + 1]))
     vmax = float(v[im])
-    thr = max(0.02 * vmax, 1.6 * float(np.percentile(v, 30)))
+    thr = max(G_THR * vmax, 1.6 * float(np.percentile(v, 30)), P50_K * float(np.percentile(v, 50)))
     gap = max(3, int(0.012 * fs))
     lo, hi = max(1, a - int(0.2 * fs)), min(n - 2, a + int(0.22 * fs))
     on, off = _scan(v, im, thr, gap, lo, hi)
@@ -203,6 +209,22 @@ def _smooth(x, fs, ms=10):
     return uniform_filter1d(x, max(1, int(ms * fs / 1000)))
 
 
+def _tangent_end(ys, pk, lim, fs, sg, ref=0.0):
+    """Tangent method: steepest descending slope after peak pk (sign-normalised), extrapolated to the baseline.
+
+    Returns the intersection index (float) or None. `lim` bounds the search to the right."""
+    z = sg * (ys - ref)
+    hi = min(lim, len(z) - 2)
+    if hi - pk < 3:
+        return None
+    d = np.gradient(z)
+    k = pk + 1 + int(np.argmin(d[pk + 1:hi + 1]))
+    sl = d[k]
+    if sl >= -1e-6:
+        return None
+    return k + (0.0 - z[k]) / sl
+
+
 def detect_t(y, fs, j, hi, noise, a):
     """y: baseline-subtracted 40 Hz signal. Returns WaveSeg or None."""
     lo = j + int(0.02 * fs)
@@ -226,17 +248,26 @@ def detect_t(y, fs, j, hi, noise, a):
             pk = k
     amp = float(ys[pk])
     on, off = _extent(ys, pk, lo, hi, 0.05, noise, 0.15 * abs(amp) + 0.01, 0.10)
+    off_thr = off
+    if TANGENT_T:
+        te = _tangent_end(ys, pk, off + int(0.04 * fs), fs, 1 if amp > 0 else -1)
+        if te is not None:
+            off = int(round(min(max(te, pk + 0.03 * fs), off)))
     morph = "positiva" if amp > 0 else "invertida"
     # biphasic: significant opposite peak adjacent
     opp = [(p_, k) for p_, k, s_ in cands[1:] if s_ != sg and p_ >= 0.4 * prom0 and on - int(0.08 * fs) <= k <= off + int(0.12 * fs)]
     if opp:
         p_, k = max(opp)
         o2, f2 = _extent(ys, k, lo, hi, 0.04, noise, 0.15 * abs(ys[k]) + 0.01)
+        if TANGENT_T and k > pk:
+            te = _tangent_end(ys, k, f2 + int(0.04 * fs), fs, 1 if ys[k] > 0 else -1)
+            if te is not None:
+                f2 = int(round(min(max(te, k + 0.03 * fs), f2)))
         on, off = min(on, o2), max(off, f2)
         morph = "bifásica (+/-)" if k > pk else "bifásica (-/+)"
     elif abs(amp) < 0.05:
         morph = "achatada"
-    return WaveSeg("T", on, pk, off, amp, morph)
+    return WaveSeg("T", on, pk, off, amp, morph, {"off_thr": max(off, off_thr)})
 
 
 def detect_u(y, fs, t: WaveSeg, hi, noise):
@@ -343,7 +374,7 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
         if ma >= 0.04:
             w = d[on:off + 1]
             im = on + int(np.argmax(w))
-            lon, loff = _scan(d, im, 0.08 * d[im], gap, on, off)
+            lon, loff = _scan(d, im, LEAD_THR * d[im], gap, on, off)
         waves, morph = qrs_components(y, on, off, fs) if ma >= 0.03 else ([], None)
         if waves:
             waves[0].onset = max(on, lon) if waves[0].onset <= lon + 2 else waves[0].onset
@@ -363,7 +394,8 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
         mx = max(abs(t.amp) for _, t in tl)
         sig = [t for _, t in tl if abs(t.amp) >= 0.6 * mx]
         bd.t_off = max(t.offset for t in sig)
-    t_ref = bd.t_off if bd.t_off is not None else off + int(0.3 * rr_loc * fs / 1000)
+    t_ref = max(t.extra.get("off_thr", t.offset) for t in sig) if tl else None
+    t_ref = t_ref if t_ref is not None else off + int(0.3 * rr_loc * fs / 1000)
     for li, lead in enumerate(leads):
         ld = bd.leads[lead]
         yd = seg_del[li] - ld.base

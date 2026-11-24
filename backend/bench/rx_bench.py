@@ -875,6 +875,9 @@ def cap_eval(rows: list[dict]) -> tuple[str, dict]:
 def build_report(path: Optional[Path] = None) -> Path:
     from bench.report import table, write_markdown
     seg = list(load_cache("seg").values())
+    for r in seg:  # PAX-Ray mixes PA and lateral synthetic projections: report them separately
+        if r.get("source") == "rx_masks_other":
+            r["source"] = f"rx_masks_other [{'LATERAL' if r.get('view') == 'LATERAL' else 'PA'}]"
     iu = list(load_cache("iu").values())
     cap = list(load_cache("cap").values())
     sections = []
@@ -946,6 +949,13 @@ def build_report(path: Optional[Path] = None) -> Path:
     tm = _timing(seg, "máscaras analyze_image") + iu_tm + cap_tm
     if tm:
         sections.append(("Tempos (s, 1 thread por worker)", table(tm, ["etapa", "caminho", "N", "média", "mediana", "p95"])))
+    sections.append(("Modos de falha observados (ver tabelas e ids acima)", "\n".join([
+        "- **Sem tags DICOM, o tórax frequentemente não é reconhecido** (região estimada como abdome/outra em imagens PNG/JPG de tórax): sem a região correta não há segmentação nem achados. Ver 'Detecção de região sem tags'.",
+        "- **Caminho heurístico**: não encontra o par de campos pulmonares na maioria das imagens reais (sem máscara em > 70% mesmo com região informada); quando segmenta, ICT com erro grande. Está ajustado a fantomas sintéticos.",
+        "- **Caminho com modelo (PSPNet ChestX-Det)**: pulmões/coração bons (Dice ~0,86/0,9 em JSRT/Montgomery); clavículas fracas (~0,6); pulmão esquerdo menor que o direito (retrocardíaco); casos de zero em imagens atípicas (ex.: `MCUCXR_0060_0`).",
+        "- **Perfil**: heurística de perfil segmenta pouco (coração/coluna/traqueia ausentes em ~metade); impacta a reconstrução 3D (falha 'Incidência lateral sem máscaras').",
+        "- **Achados**: regra de ICT>0,5 tem alta especificidade mas baixa sensibilidade em IU; modelos DenseNet com escore >= 0,65 quase nunca disparam (sensibilidade baixa) embora a AUC seja alta (>0,89); regras de seio costofrênico não detectaram derrames.",
+    ])))
     sections.append(("Ressalvas", "\n".join(f"- {c}" for c in caveats)))
     if headline:
         sections.insert(0, ("Resumo", table(headline, ["capacidade", "métrica", "N", "valor"])))

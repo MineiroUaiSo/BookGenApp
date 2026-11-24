@@ -549,6 +549,26 @@ def _worker(args):
 
 
 CACHE_TAG = ""   # set by --tag: separate cache file, report printed to stdout, docs/benchmarks/ecg.md untouched
+SPLIT = "all"   # --split dev|test|all: PTB-XL strat_fold 1-8 = dev, 9-10 = official test folds
+
+
+def ptbxl_fold_map() -> dict[str, int]:
+    import csv
+    p = DATA_ROOT / "ptbxl" / "ptbxl_database.csv"
+    if not p.exists():
+        return {}
+    with p.open(encoding="utf-8") as f:
+        return {f"ptbxl-{int(float(r['ecg_id']))}": int(float(r["strat_fold"])) for r in csv.DictReader(f)
+                if r.get("strat_fold")}
+
+
+def in_split(rid: str, split: str, folds: dict[str, int]) -> bool:
+    if split == "all" or not rid.startswith("ptbxl-"):
+        return True
+    fo = folds.get(rid)
+    return fo is not None and ((fo <= 8) if split == "dev" else (fo >= 9))
+
+
 RECORD_RANGE: Optional[tuple[int, int]] = None   # set by --records A-B (numeric suffix of the record id, inclusive)
 
 
@@ -586,6 +606,9 @@ def run_source(source: str, limit: Optional[int], workers: int, force: bool) -> 
             except ValueError:
                 return -1
         recs = [r for r in recs if RECORD_RANGE[0] <= _num_id(r) <= RECORD_RANGE[1]]
+    if SPLIT != "all" and source == "ptbxl":
+        _folds = ptbxl_fold_map()
+        recs = [r for r in recs if in_split(r["id"], SPLIT, _folds)]
     recs = sample_records(recs, limit)
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
     cache = {} if force else load_cache(source)
@@ -1008,6 +1031,9 @@ def build_report() -> Path:
     sections = []
     summ = []
     allr = {s: load_cache(s) for s in ["ludb", "ptbxl", *IMAGE_SOURCES]}
+    if SPLIT != "all":
+        _folds = ptbxl_fold_map()
+        allr["ptbxl"] = {k: v for k, v in allr["ptbxl"].items() if in_split(k, SPLIT, _folds)}
     if allr["ludb"]:
         body, h = report_ludb(allr["ludb"])
         sections.append(("LUDB: wave delineation vs cardiologist annotations", body))
@@ -1057,10 +1083,13 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--force", action="store_true", help="ignore the cache and recompute")
     ap.add_argument("--report-only", action="store_true")
+    ap.add_argument("--split", default="all", choices=["all", "dev", "test"],
+                    help="PTB-XL split by strat_fold: dev = folds 1-8, test = folds 9-10 (official test folds)")
     ap.add_argument("--records", default=None, help="restrict to numeric id range A-B (inclusive), e.g. 1-160 (LUDB dev) / 161-200 (test)")
     ap.add_argument("--tag", default="", help="cache-file suffix; with --tag only the LUDB table is printed and docs are not rewritten")
     a = ap.parse_args(argv)
-    global CACHE_TAG, RECORD_RANGE
+    global CACHE_TAG, RECORD_RANGE, SPLIT
+    SPLIT = a.split
     if a.records:
         lo, hi = a.records.split("-")
         RECORD_RANGE = (int(lo), int(hi))
