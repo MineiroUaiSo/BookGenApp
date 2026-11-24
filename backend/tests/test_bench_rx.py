@@ -131,3 +131,11 @@ def test_cap_task_and_report(tmp_path, monkeypatch):
     assert r["ok"] and r["gt_labels"] == ["cardiomegaly"] and r["hints"]["view"] == "frontal"
     B.build_report(tmp_path / "rx.md")
     assert "Imagens com legenda" in (tmp_path / "rx.md").read_text()
+
+
+def test_findings_note_only_measured():
+    assert "sem resultados IU" in B._findings_note({})
+    head = {("iu_auc", "effusion", "modelo Effusion", "model"): (0.81, 0.7, 0.9, 120, 30),
+            ("iu_find", "effusion", "modelo Effusion", "model"): ((3, 30), (85, 90), (3, 8), 120, 30)}
+    txt = B._findings_note(head)
+    assert "0.81" in txt and "3/30" in txt and "0,89" not in txt
