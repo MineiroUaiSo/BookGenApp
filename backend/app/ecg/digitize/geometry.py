@@ -94,25 +94,30 @@ def find_paper_quad(rgb: np.ndarray):
         quad = np.array([[xs[s.argmin()], ys[s.argmin()]], [xs[d.argmax()], ys[d.argmax()]],
                          [xs[s.argmax()], ys[s.argmax()]], [xs[d.argmin()], ys[d.argmin()]]], np.float32)
     q = _order_quad(quad) / (sc if sc < 1 else 1.0)
+    # paper fills the frame (axis-aligned quad hugging the image borders) -> nothing to rectify
+    tol = 0.03
+    if (q[:, 0].min() < tol * w and q[:, 1].min() < tol * h and q[:, 0].max() > (1 - tol) * w
+            and q[:, 1].max() > (1 - tol) * h
+            and abs(q[0, 1] - q[1, 1]) < 0.01 * h and abs(q[0, 0] - q[3, 0]) < 0.01 * w):
+        return None
     return q
 
 
-def warp_quad(rgb: np.ndarray, quad: np.ndarray, inset: float = 0.004) -> np.ndarray:
+def warp_quad(rgb: np.ndarray, quad: np.ndarray, inset: float = 0.006) -> np.ndarray:
     tl, tr, br, bl = quad
     W = int(round(max(np.linalg.norm(tr - tl), np.linalg.norm(br - bl))))
     H = int(round(max(np.linalg.norm(bl - tl), np.linalg.norm(br - tr))))
     dst = np.float32([[0, 0], [W, 0], [W, H], [0, H]])
-    # inset: sample slightly inside the paper to drop the dark rim
-    ix, iy = inset * W, inset * H
-    dst_in = np.float32([[-ix, -iy], [W + ix, -iy], [W + ix, H + iy], [-ix, H + iy]])
     if cv2 is not None:
-        M = cv2.getPerspectiveTransform(np.float32(quad), dst_in)
+        M = cv2.getPerspectiveTransform(np.float32(quad), dst)
         out = cv2.warpPerspective(rgb, M, (W, H), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
     else:
         from skimage.transform import ProjectiveTransform, warp
         tf = ProjectiveTransform()
-        tf.estimate(dst_in, np.float32(quad))
+        tf.estimate(dst, np.float32(quad))
         out = warp(rgb, tf, output_shape=(H, W), order=1, mode="edge", preserve_range=True).astype(np.uint8)
+    ix, iy = int(inset * W), int(inset * H)  # crop the dark paper rim without rescaling
+    out = np.ascontiguousarray(out[iy:H - iy, ix:W - ix])
     if out.shape[0] > out.shape[1]:
         out = np.ascontiguousarray(np.rot90(out))
     return out

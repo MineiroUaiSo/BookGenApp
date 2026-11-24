@@ -65,13 +65,8 @@ def estimate_pitch(profile: np.ndarray, min_pitch: float = 3.0):
     hs = {p: ac[p] for p in pk}
     hmax = max(hs.values())
     L = next(p for p in pk if hs[p] >= 0.4 * hmax)
-    # is L actually the 5 mm pitch with faint small lines? look for a peak near L/5
-    l5 = L / 5.0
-    if l5 >= min_pitch:
-        lo, hi = int(np.floor(l5 * 0.9)), int(np.ceil(l5 * 1.1)) + 1
-        seg = ac[lo:hi]
-        if len(seg) and seg.max() >= 0.15 * ac[L] and seg.argmax() not in (0, len(seg) - 1):
-            L = lo + int(seg.argmax())
+    # N = number of pitches across the profile: 1 mm pitch -> N >~ 100 (a page is >100 mm), 5 mm pitch -> N <~ 65.
+    bold = len(x) / L < 80
     # refine: regression on detected line positions
     p0 = float(L)
     sm = ndi.gaussian_filter1d(x, max(0.6, p0 / 12))
@@ -94,7 +89,7 @@ def estimate_pitch(profile: np.ndarray, min_pitch: float = 3.0):
         conf = float(min(1.0, ac[L] / 0.5))
     else:
         conf = float(min(1.0, ac[L] / 0.5)) * 0.5
-    return pitch, conf
+    return (pitch / 5.0 if bold else pitch), conf
 
 
 def detect_grid(norm: np.ndarray, ink: np.ndarray):
