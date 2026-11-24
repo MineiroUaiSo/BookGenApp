@@ -5,7 +5,7 @@ import type {
 export const API_BASE: string =
   (import.meta.env?.VITE_API_BASE as string | undefined) ?? "http://localhost:8000/api";
 
-export interface Health { status: string; ai_available: boolean; models: Record<string, string> }
+export interface Health { status: string; ai_available: boolean; models: Record<string, string>; degraded?: string[] }
 export interface UploadItem { file: File; path?: string }
 
 export class ApiError extends Error {
