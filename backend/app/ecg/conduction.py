@@ -50,6 +50,12 @@ def conduction_timeline(gm: GlobalMeasurements, waves: list[Wave],
         qrs = (pr, pr + gm.qrs_ms)
         p = (0.0, gm.p_duration_ms or 90.0) if gm.pr_ms else None
         t = (qrs[1] + 60, gm.qt_ms + (qrs[0]) if gm.qt_ms else qrs[1] + 280)
+    if qrs is not None and p is not None and not af and gm.pr_ms and gm.qrs_ms:
+        # E2: the global QRS (earliest onset -> latest offset over leads) is wider than the per-lead median span;
+        # keep the timeline consistent with the reported PR/QRS
+        qrs = (p[0] + gm.pr_ms, p[0] + gm.pr_ms + gm.qrs_ms)
+        if t is not None and gm.qt_ms:
+            t = (t[0], qrs[0] + gm.qt_ms)
     qon, qoff = qrs
     if p is None or af:
         r = np.median([w.peak_ms for w in beat if w.kind == WaveKind.QRS and w.peak_ms is not None] or [qon + 40])
