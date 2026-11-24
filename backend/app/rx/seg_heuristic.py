@@ -4,6 +4,9 @@ Orientation convention for frontal chest: standard display, patient's RIGHT on i
 """
 from __future__ import annotations
 
+import hashlib
+import time
+from collections import OrderedDict
 from typing import Optional
 
 import numpy as np
@@ -11,6 +14,7 @@ from scipy import ndimage as ndi
 from skimage.feature import hessian_matrix
 from skimage.filters import gaussian, sato, threshold_multiotsu, threshold_otsu
 from skimage.measure import label, regionprops
+from skimage.transform import resize
 from skimage.morphology import closing as _closing, convex_hull_image, disk, opening as _opening
 
 
@@ -97,17 +101,65 @@ def _lung_thresholds(s: np.ndarray) -> list[Optional[float]]:
     return out
 
 
-def find_lung_pair(s: np.ndarray) -> Optional[dict]:
-    """Return {'img_left': mask, 'img_right': mask, 't': thr} or None.
+LUNG_SEARCH_PX = 384          # morphology runs at this size on the long side; masks are rescaled back
+LUNG_MAX_TRIES = 9            # (threshold, opening-radius) attempts per image; a cap of 3 lost ~0.014 lung Dice on JSRT
+LUNG_TIME_BUDGET_S = 1.0      # CPU-time budget per image (checked between attempts; process time keeps it load-independent)
+_LUNG_CACHE_SIZE = 8
+_lung_cache: "OrderedDict[tuple, Optional[dict]]" = OrderedDict()
 
-    Tries the classic Otsu pass first; if no plausible lung pair comes out (low contrast, lungs fused to the
-    outside air through the arms/lateral skin, burned-in text), retries with lower thresholds and larger openings."""
-    for k, (thr, rf) in enumerate([(t_, r_) for r_ in (0.006, 0.015, 0.025) for t_ in _lung_thresholds(s)]):
+
+def _lung_key(s: np.ndarray) -> tuple:
+    """Cheap content key (shape + hash of a decimated copy) so a recycled id() can never hit a stale entry."""
+    sample = np.ascontiguousarray(s[::16, ::16])
+    return (s.shape, hashlib.blake2b(sample.tobytes(), digest_size=8).digest())
+
+
+def _upscale_pair(pair: dict, shape: tuple[int, int]) -> dict:
+    out = dict(pair)
+    for k in ("img_left", "img_right"):
+        out[k] = resize(pair[k].astype(np.uint8), shape, order=0, preserve_range=True, anti_aliasing=False) > 0
+    return out
+
+
+def _search_lung_pair(s: np.ndarray) -> Optional[dict]:
+    t_start = time.process_time()
+    attempts = [(t_, r_) for r_ in (0.006, 0.015, 0.025) for t_ in _lung_thresholds(s)][:LUNG_MAX_TRIES]
+    for k, (thr, rf) in enumerate(attempts):
+        if k > 0 and time.process_time() - t_start > LUNG_TIME_BUDGET_S:
+            break
         cands, lab, t = dark_components(s, thr=thr, r_frac=rf)
         pair = _pair_from(s, cands, lab, t, strict=k > 0)
         if pair is not None:
             return pair
     return None
+
+
+def find_lung_pair(s: np.ndarray) -> Optional[dict]:
+    """Return {'img_left': mask, 'img_right': mask, 't': thr} or None.
+
+    Tries the classic Otsu pass first; if no plausible lung pair comes out (low contrast, lungs fused to the
+    outside air through the arms/lateral skin, burned-in text), retries with lower thresholds and larger openings.
+    The search runs on a reduced copy (LUNG_SEARCH_PX), is capped at LUNG_MAX_TRIES attempts and LUNG_TIME_BUDGET_S of CPU time,
+    and the result (including a negative one) is memoised per image in a small LRU, because view detection and
+    segmentation both ask for it."""
+    key = _lung_key(s)
+    if key in _lung_cache:
+        _lung_cache.move_to_end(key)
+        return _lung_cache[key]
+    H, W = s.shape
+    scale = max(H, W) / LUNG_SEARCH_PX
+    if scale > 1.0:
+        small = resize(s, (max(8, int(round(H / scale))), max(8, int(round(W / scale)))),
+                       order=1, anti_aliasing=True).astype(s.dtype)
+        pair = _search_lung_pair(small)
+        if pair is not None:
+            pair = _upscale_pair(pair, (H, W))
+    else:
+        pair = _search_lung_pair(s)
+    _lung_cache[key] = pair
+    while len(_lung_cache) > _LUNG_CACHE_SIZE:
+        _lung_cache.popitem(last=False)
+    return pair
 
 
 def _pair_from(s: np.ndarray, cands, lab, t: float, strict: bool = False) -> Optional[dict]:
