@@ -521,6 +521,25 @@ def build_findings(c):
                       ["T: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} {tinv[l]*10:.1f} mm" for l in lds),
                        "limiar: T <= -1 mm em 2 derivações contíguas"] + caution, [R_UDMI, R_SBC, R_GOLD], 0.5))
 
+    # ---- pacemaker (spike detected on the raw signal): the paced QRS invalidates the morphology rules
+    pc = c.get("paced")
+    if pc:
+        vent = pc["type"] in ("ventricular", "dual")
+        drop = ("ecg.sinus_rhythm", "ecg.within_normal_limits")
+        if vent:
+            drop += ("ecg.st_elevation_", "ecg.st_depression_", "ecg.pathologic_q_", "ecg.t_inversion_", "ecg.lbbb",
+                     "ecg.rbbb", "ecg.irbbb", "ecg.ilbbb", "ecg.ivcd", "ecg.secondary_repolarization", "ecg.lafb",
+                     "ecg.lpfb", "ecg.left_axis", "ecg.right_axis", "ecg.lvh", "ecg.rvh", "ecg.preexcitation",
+                     "ecg.long_qt", "ecg.short_qt")
+        out = [f for f in out if not f.code.startswith(drop)]
+        kind_pt = {"ventricular": "ventricular", "atrial": "atrial", "dual": "atrioventricular"}[pc["type"]]
+        ev = [f"{pc['n_spikes']} espículas estreitas (<= 6 ms) multiderivação no sinal bruto",
+              f"espícula precede o QRS em ~{pc['delay_ms']:.0f} ms"]
+        if vent:
+            ev.append("QRS alargado estimulado: critérios de isquemia/bloqueio de ramo não aplicáveis")
+        out.append(_f("ecg.paced_rhythm", f"Ritmo de marca-passo {kind_pt} (sugestivo)", "abnormal", ev,
+                      [R_AHA], 0.45 if pc.get("relaxed") else 0.7))
+
     # Isolated borderline observations (SBC 2022 "limítrofe"/variants) do not make an ECG abnormal.
     abn = [f for f in out if f.severity in ("abnormal", "critical")]
     if not abn:

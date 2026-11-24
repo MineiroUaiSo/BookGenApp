@@ -23,6 +23,9 @@ from ..conduction import conduction_timeline
 from .delineate import delineate_beat
 from .leads import ALL_LEADS, derive_missing, normalize
 from .measure import MEDIAN_PRE_MS, build_median, measure_median
+from .ectopy import beat_correlations, ectopic_beats, rr_irregularity_excl
+from .pacing import (RELAXED, STRICT, blank_spikes, classify_pacing, detect_spikes, is_paced_timing,
+                     spike_timing)
 from .preprocess import noise_sigma, preprocess
 from .rhythm import av_analysis, detect_p_series, ectopy_pattern, flutter_features, rr_irregularity, rr_stats
 from .rpeaks import detect_r_peaks
@@ -127,6 +130,7 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     for l, q in (signal.quality or {}).items():
         if q < 0.5:
             warnings.append(f"Qualidade do sinal baixa na derivação {l} ({q:.2f}).")
+    spikes = detect_spikes(X, fs, **STRICT) if valid is None else None   # RAW signal, before the 150 Hz low-pass
     amp, dlt, info = preprocess(X, fs)
     if info["mains"]:
         warnings.append(f"Interferência de rede {info['mains']:.0f} Hz detectada e filtrada.")
@@ -134,6 +138,21 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     peaks, ref = detect_r_peaks(amp, fs)
     if len(peaks) < 2:
         return _minimal(signal, study_id, warnings + ["Menos de 2 complexos QRS detectados; análise não realizada."])
+    pace_info = None
+    if spikes is not None:
+        for relaxed in (False, True):
+            sp_ = detect_spikes(X, fs, **RELAXED) if relaxed else spikes
+            tm = spike_timing(sp_["idx"], peaks, fs)
+            if is_paced_timing(tm, frac_min=0.8 if relaxed else 0.6, sd_max=8.0 if relaxed else 12.0):
+                pace_info = dict(spikes=sp_["idx"], timing=tm, relaxed=relaxed)
+                break
+        if pace_info is not None:   # blank the stimuli so the low-pass/delineation do not see a fake QRS onset
+            X = blank_spikes(X, pace_info["spikes"], fs)
+            amp, dlt, info = preprocess(X, fs)
+            noise = noise_sigma(amp)
+            peaks, ref = detect_r_peaks(amp, fs)
+            if len(peaks) < 2:
+                return _minimal(signal, study_id, warnings + ["Menos de 2 complexos QRS detectados; análise não realizada."])
     if len(peaks) < 4:
         warnings.append("Poucos batimentos detectados (<4): análise de ritmo limitada.")
     pk_ms = peaks * 1000.0 / fs
@@ -199,10 +218,18 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     li2 = leads.index(pl_)
     p_series = detect_p_series(dlt[li2], fs, beat_info, noise[li2])
     av = av_analysis(p_series, [b["qrs_on"] * 1000.0 / fs for b in beat_info], fs)
+    ectopic = ectopic_beats(pk_ms, beat_correlations(amp, peaks, fs, ref))   # PVC/PAC: excluded from the AF test
+    irr = rr_irregularity_excl(pk_ms, ectopic) if ectopic.any() else rr_irregularity(pk_ms)
     ctx = dict(gm=gm, lm=L, bd=mbd, fs=fs, hr=gm.heart_rate_bpm, cv=cv, rmssd=rmssd, p_present=p_present,
                sinus_p=sinus_p, frac_p=frac_p, av=av, age=age, sex=sex,
-               irr=rr_irregularity(pk_ms), ectopy=ectopy_pattern(pk_ms),
-               flutter=flutter_features(dlt[li2], fs, beat_info))
+               irr=irr, ectopy=ectopy_pattern(pk_ms), n_ectopic=int(ectopic.sum()),
+               flutter=flutter_features(dlt[li2], fs, beat_info), paced=None)
+    if pace_info is not None:
+        ptype = classify_pacing(pace_info["timing"], gm.qrs_ms, pace_info["spikes"], peaks, fs)
+        if ptype and (not pace_info["relaxed"] or (gm.qrs_ms or 0) >= 120.0):
+            ctx["paced"] = dict(type=ptype, n_spikes=pace_info["timing"]["n_spikes"],
+                                delay_ms=float(np.median(pace_info["timing"]["delays_ms"])),
+                                relaxed=pace_info["relaxed"])
     gm.rhythm, ctx["rhythm_kind"] = classify_rhythm(ctx)
     if ctx["rhythm_kind"] in ("af", "flutter"):
         gm.p_duration_ms = gm.pr_ms = gm.p_axis_deg = None
