@@ -32,6 +32,6 @@ FA PPV 0.760 / sens 0.814 (TP127 FP40 FN29); PACE PPV 0.946 / sens 0.614 (TP35 F
 - BASE_CV_MAX 0.12: sens 0.804 por ganho marginal. Mantido 0.08.
 
 ## Pendencias
-- 17/43 PACE sem deteccao: 8 sem espicula visivel a 500 Hz (amplitude < 0.05 mV), outros com espicula em < 40% dos batimentos ou atraso ~0 ms.
+- 17/43 PACE sem deteccao: ~10 sem espicula visivel a 500 Hz (amplitude < 0.05 mV), outros com espicula em < 40% dos batimentos ou atraso ~0 ms.
 - FP de FA restantes: ~6 flutter (AFLT), ~10 bigeminismo/PAC com RR alternante, 4 registros PACE sem espicula.
 - Commit 0de23b4 importa ectopy.py que so entra em 95999bb (commit intermediario nao importavel isoladamente).
