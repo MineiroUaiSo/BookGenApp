@@ -145,6 +145,8 @@ def render_instance(instance_id: str, wc=None, ww=None, gray: bool = True):
     kind = meta.get("kind")
     if kind == "dicom":
         ds = load_dicom(path)
+        if "PixelData" not in ds:
+            raise ValueError(f"instance {instance_id} has no pixel data (waveform?)")
         return render_to_uint8(ds, wc, ww), ds, kind
     if kind == "image":
         return open_image(path, gray=gray), None, kind

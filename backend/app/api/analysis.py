@@ -93,9 +93,11 @@ def ecg_analyze(study_id: str, body: Optional[ECGRequest] = None, ai: bool = Fal
         raise HTTPException(422, str(e))
     if ai:
         try:
-            from app.llm import ai_available, ecg_report
+            from app.llm import ai_available
 
             if ai_available():
+                from app.llm import ecg_report
+
                 result.ai = ecg_report(result, png)
             else:
                 result.ai = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ausente).")
@@ -153,9 +155,11 @@ def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False
                         recon3d_available=_has_biplane(images))
     if ai:
         try:
-            from app.llm import ai_available, rx_report
+            from app.llm import ai_available
 
             if ai_available():
+                from app.llm import rx_report
+
                 result.ai = rx_report(result)
             else:
                 result.ai = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ausente).")
