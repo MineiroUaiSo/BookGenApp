@@ -1,0 +1,278 @@
+{
+ "seed": 20261124,
+ "note": "ids públicos congelados (sem imagens); ECG: PTB-XL strat_fold 1-8; RX: JSRT/IU dev. Listas em ordem round-robin por classe: qualquer prefixo é estratificado.",
+ "ecg": [
+  {
+   "id": "ptbxl-00001",
+   "cls": "normal"
+  },
+  {
+   "id": "ptbxl-07489",
+   "cls": "FA"
+  },
+  {
+   "id": "ptbxl-04359",
+   "cls": "BAV"
+  },
+  {
+   "id": "ptbxl-07485",
+   "cls": "BRE"
+  },
+  {
+   "id": "ptbxl-00428",
+   "cls": "BRD"
+  },
+  {
+   "id": "ptbxl-01463",
+   "cls": "IAM"
+  },
+  {
+   "id": "ptbxl-03247",
+   "cls": "HVE"
+  },
+  {
+   "id": "ptbxl-00840",
+   "cls": "QT longo"
+  },
+  {
+   "id": "ptbxl-01389",
+   "cls": "normal"
+  },
+  {
+   "id": "ptbxl-13217",
+   "cls": "BAV"
+  },
+  {
+   "id": "ptbxl-08610",
+   "cls": "BRE"
+  },
+  {
+   "id": "ptbxl-02493",
+   "cls": "BRD"
+  },
+  {
+   "id": "ptbxl-12678",
+   "cls": "IAM"
+  },
+  {
+   "id": "ptbxl-13309",
+   "cls": "HVE"
+  },
+  {
+   "id": "ptbxl-10109",
+   "cls": "QT longo"
+  },
+  {
+   "id": "ptbxl-03929",
+   "cls": "normal"
+  },
+  {
+   "id": "ptbxl-13433",
+   "cls": "BAV"
+  },
+  {
+   "id": "ptbxl-08714",
+   "cls": "BRE"
+  },
+  {
+   "id": "ptbxl-21368",
+   "cls": "BRD"
+  },
+  {
+   "id": "ptbxl-20077",
+   "cls": "IAM"
+  },
+  {
+   "id": "ptbxl-21487",
+   "cls": "HVE"
+  },
+  {
+   "id": "ptbxl-20022",
+   "cls": "QT longo"
+  },
+  {
+   "id": "ptbxl-15946",
+   "cls": "normal"
+  },
+  {
+   "id": "ptbxl-16970",
+   "cls": "BAV"
+  },
+  {
+   "id": "ptbxl-08163",
+   "cls": "BRE"
+  },
+  {
+   "id": "ptbxl-21439",
+   "cls": "IAM"
+  },
+  {
+   "id": "ptbxl-16356",
+   "cls": "normal"
+  },
+  {
+   "id": "ptbxl-08911",
+   "cls": "BAV"
+  },
+  {
+   "id": "ptbxl-18286",
+   "cls": "normal"
+  },
+  {
+   "id": "ptbxl-18101",
+   "cls": "BAV"
+  }
+ ],
+ "rx": [
+  {
+   "source": "jsrt_masks",
+   "id": "JPCLN022",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR2663_IM-1144-0",
+   "cls": "iu:normal"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCLN023",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR927_IM-2425-0",
+   "cls": "iu:normal"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCNN030",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR3516_IM-1715-0",
+   "cls": "iu:normal"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCLN092",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR1616_IM-0399-0",
+   "cls": "iu:normal"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCNN065",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR322_IM-1521-0",
+   "cls": "iu:normal"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCLN056",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR2545_IM-1054-0",
+   "cls": "iu:normal"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCNN007",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR1153_IM-0104-0",
+   "cls": "iu:normal"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCNN036",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR2909_IM-1313-0",
+   "cls": "iu:achado"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCLN117",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR1246_IM-0167-0",
+   "cls": "iu:achado"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCLN078",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR1923_IM-0598-0",
+   "cls": "iu:achado"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCLN093",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR1146_IM-0098-0",
+   "cls": "iu:achado"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCNN049",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR2762_IM-1208-0",
+   "cls": "iu:achado"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCNN075",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR631_IM-2212-0",
+   "cls": "iu:achado"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCLN094",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR3961_IM-2026-0",
+   "cls": "iu:achado"
+  },
+  {
+   "source": "jsrt_masks",
+   "id": "JPCLN095",
+   "cls": "jsrt:achado"
+  },
+  {
+   "source": "iu_xray",
+   "id": "CXR3529_IM-1725-0",
+   "cls": "iu:achado"
+  }
+ ]
+}
