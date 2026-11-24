@@ -184,13 +184,26 @@ def rotate_image(rgb: np.ndarray, deg: float) -> np.ndarray:
 
 def rectify(rgb: np.ndarray):
     """Returns (rectified rgb, info dict)."""
-    info = {"quad": None, "skew_deg": 0.0}
+    info = {"quad": None, "skew_deg": 0.0, "homography": None, "homography_params": None,
+            "homography_reason": None}
     quad = find_paper_quad(rgb)
     if quad is not None:
         rgb = warp_quad(rgb, quad)
         info["quad"] = quad.tolist()
+    if cv2 is not None:  # perspective left after the paper quad (or the whole keystone when the sheet fills the frame)
+        from . import perspective
+        try:
+            H, hinfo = perspective.fit_grid_homography(rgb)
+        except Exception:  # pragma: no cover - never let the refinement break digitisation
+            H, hinfo = None, {"reason": "error"}
+        info["homography_reason"] = hinfo.get("reason")
+        if H is not None:
+            rgb = perspective.apply_homography(rgb, H)
+            info["homography"] = H.tolist()
+            info["homography_params"] = hinfo.get("params")
     ang = estimate_skew_deg(rgb)
-    info["skew_deg"] = ang
+    # total rotation removed, in the estimate_skew_deg convention (the homography's rotation has the opposite sign)
+    info["skew_deg"] = ang - (info["homography_params"][0] if info["homography_params"] else 0.0)
     # estimate_skew rotates the *content* by `ang` to align; apply same convention
     rgb = rotate_image(rgb, ang)
     return rgb, info
