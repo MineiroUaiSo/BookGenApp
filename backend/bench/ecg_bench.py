@@ -553,13 +553,12 @@ SPLIT = "all"   # --split dev|test|all: PTB-XL strat_fold 1-8 = dev, 9-10 = offi
 
 
 def ptbxl_fold_map() -> dict[str, int]:
-    import csv
-    p = DATA_ROOT / "ptbxl" / "ptbxl_database.csv"
-    if not p.exists():
-        return {}
-    with p.open(encoding="utf-8") as f:
-        return {f"ptbxl-{int(float(r['ecg_id']))}": int(float(r["strat_fold"])) for r in csv.DictReader(f)
-                if r.get("strat_fold")}
+    out = {}
+    for r in read_manifest("ptbxl"):
+        fo = (r.get("extra") or {}).get("strat_fold")
+        if fo not in (None, ""):
+            out[r["id"]] = int(float(fo))
+    return out
 
 
 def in_split(rid: str, split: str, folds: dict[str, int]) -> bool:

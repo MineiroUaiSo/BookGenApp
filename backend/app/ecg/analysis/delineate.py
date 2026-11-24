@@ -15,8 +15,10 @@ from scipy.signal import find_peaks
 
 TANGENT_T = True
 P50_K = 2.5
-G_THR = 0.03
-LEAD_THR = 0.04
+G_THR = 0.02
+LEAD_THR = 0.05
+T_SIG = 0.15
+T_Q = 1.0
 
 
 @dataclass
@@ -392,8 +394,9 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
     tl = [(l, d_.t) for l, d_ in bd.leads.items() if d_.t is not None]
     if tl:
         mx = max(abs(t.amp) for _, t in tl)
-        sig = [t for _, t in tl if abs(t.amp) >= 0.6 * mx]
-        bd.t_off = max(t.offset for t in sig)
+        sig = [t for _, t in tl if abs(t.amp) >= T_SIG * mx]
+        offs = sorted(t.offset for t in sig)
+        bd.t_off = int(round(float(np.quantile(offs, T_Q)))) if T_Q < 1 else offs[-1]
     t_ref = max(t.extra.get("off_thr", t.offset) for t in sig) if tl else None
     t_ref = t_ref if t_ref is not None else off + int(0.3 * rr_loc * fs / 1000)
     for li, lead in enumerate(leads):

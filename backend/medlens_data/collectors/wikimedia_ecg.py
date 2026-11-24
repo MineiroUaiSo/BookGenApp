@@ -35,6 +35,9 @@ BAD_TEXT = re.compile(r"diagram|schematic|cartoon|illustration|drawing|simulat|a
                       r"electrode placement|lead placement|synthetic|generated|mockup", re.I)
 FREE_OK = re.compile(r"^(cc0|public domain|pd\b|pd-|no restrictions|cc[- ]by(?![- ]?(nc|nd))|cc[- ]by[- ]sa|"
                      r"gfdl|attribution)", re.I)
+KEEP_CAT = re.compile(r"ecg|ekg|electrocardiogra|arrhythm|fibrillation|flutter|block|tachycardia|bradycardia|"
+                      r"infarct|brugada|\bqt\b|wpw|wolff|ventricular|atrial|pericarditis|hypertroph|ischa?emi|"
+                      r"hyperkal|hypokal|hypocalc|cardiomyopath|syndrome|rhythm|extrasystol|repolari|pacing|paced", re.I)
 MIN_W = 1000
 MAX_W = 3000
 
@@ -212,7 +215,7 @@ class Crawler:
                 files[m["title"]] = m["pageid"]
             if dep < depth:
                 for sc in self.members(cat, "subcat"):
-                    if not SKIP_CAT.search(sc["title"]):
+                    if not SKIP_CAT.search(sc["title"]) and KEEP_CAT.search(sc["title"]):
                         frontier.append((sc["title"], dep + 1))
             print(f"cat {cat} d{dep}: files={len(files)} queue={len(frontier)}", flush=True)
         (self.out / "categories_seen.json").write_text(json.dumps(sorted(seen), indent=0))

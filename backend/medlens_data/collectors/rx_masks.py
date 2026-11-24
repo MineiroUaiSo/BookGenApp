@@ -8,7 +8,7 @@ us.aws.cdn.hf.co is denied by the egress proxy, so HF-only mirrors cannot be fet
                 manual contour points (right/left lung, heart, right/left clavicle) rasterised here.
   montgomery    Montgomery County CXR set (NLM official zip from openi.nlm.nih.gov, 138 native-res images + lung
                 masks) + heart & clavicle masks (Brioso et al., Zenodo 8108809, CC BY 4.0).
-  shenzhen      Shenzhen CXR images (NLM zip, fetched member-wise by HTTP Range) + lung masks (Stirenko et al.,
+  shenzhen      (patient side NOT assignable: image-side names + union 'lungs') Shenzhen CXR images (NLM zip, fetched member-wise by HTTP Range) + lung masks (Stirenko et al.,
                 CC BY-NC-SA 4.0) from the Zenodo 14059288 mirror (only the 395 masks that exist there).
   rx_masks_other  PAX-Ray++ (Zenodo 23627483, CC BY-NC 4.0): synthetic frontal + LATERAL radiographs projected from
                 CT, with dense masks (ribs, trachea, clavicles, heart, lungs ...); test split only.
@@ -373,7 +373,7 @@ def build_montgomery(official_zip: Path, mont_raw: Path, source: str = "montgome
 
 def build_shenzhen(zen_dir: Path, img_dir: Path, source: str = "shenzhen") -> list[Record]:
     """Shenzhen CXR images (fetch_shenzhen_images output, down-scaled) + Stirenko lung masks (Zenodo mirror).
-    The mirror's masks are one combined mask per image: split into patient-right (image-left) / patient-left."""
+    The mirror's masks are one combined mask per image: split by image side (patient side unknown, see note)."""
     d = source_dir(source)
     mz = zipfile.ZipFile(next(zen_dir.glob("train_masks-*.zip")))
     spec = _lic("shenzhen")
@@ -389,8 +389,11 @@ def build_shenzhen(zen_dir: Path, img_dir: Path, source: str = "shenzhen") -> li
         lung = _resize_mask(binarize(np.asarray(Image.open(io.BytesIO(raw)))), im.size)
         shutil.copyfile(png, d / "images" / png.name)
         a, b = split_left_right(lung)
+        # NOTE: Shenzhen images are NOT consistently oriented (visual check: some show the 'L' marker on the image
+        # left, i.e. mirrored vs. the usual display), and there is no heart mask to tell. Patient side therefore
+        # cannot be assigned safely -> image-side names + side-agnostic union; score 'lungs' or match both ways.
         masks = {}
-        for nm, mm in (("right_lung", a), ("left_lung", b)):
+        for nm, mm in (("lung_image_left", a), ("lung_image_right", b), ("lungs", lung)):
             if mm.any():
                 rel = f"masks/{base}/{nm}.png"; save_mask(mm, d / rel); masks[nm] = rel
         tb = base.endswith("_1")
@@ -400,8 +403,8 @@ def build_shenzhen(zen_dir: Path, img_dir: Path, source: str = "shenzhen") -> li
             url="https://openi.nlm.nih.gov/imgs/collections/ChinaSet_AllFiles.zip; https://zenodo.org/records/14059288",
             license=spec[0], attribution=spec[1], labels=["rx.tuberculosis"] if tb else ["rx.normal"], view="PA",
             group=base, extra={"masks": masks, "image_size": list(im.size), "orig_size": meta.get("orig_size"),
-                               "orientation": "patient right = image left (assumed; masks split by image side)",
-                               "mask_source": "manual lung masks (Stirenko et al. 2018), left/right split by connected component"}))
+                               "orientation": "UNRELIABLE patient side: some images are mirrored; use 'lungs' or side-agnostic matching",
+                               "mask_source": "manual lung masks (Stirenko et al. 2018), split by image side (connected components)"}))
     write_manifest(source, recs)
     return recs
 

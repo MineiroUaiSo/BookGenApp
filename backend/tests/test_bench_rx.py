@@ -111,3 +111,23 @@ def test_iu_task_and_report(tmp_path, monkeypatch):
     assert r["recon"]["attempted"]
     B.build_report(tmp_path / "rx.md")
     assert "IU X-ray" in (tmp_path / "rx.md").read_text()
+
+
+def test_cap_task_and_report(tmp_path, monkeypatch):
+    root = tmp_path / "ds"
+    src = root / "europepmc_rx"
+    src.mkdir(parents=True)
+    img, _ = pa_phantom(256)
+    Image.fromarray(img).save(src / "c.png")
+    rec = {"id": "c", "source": "europepmc_rx", "modality": "RX", "kind": "image", "path": "c.png", "url": "", "license": "cc",
+           "view": None, "group": None, "labels": [], "caption": "PA chest radiograph shows cardiomegaly. No pneumothorax.",
+           "extra": {}, "quality": {}}
+    (src / "manifest.jsonl").write_text(json.dumps(rec) + "\n")
+    import medlens_data
+    monkeypatch.setattr(medlens_data, "DATA_ROOT", root)
+    monkeypatch.setenv("MEDLENS_BENCH_DIR", str(tmp_path / "bench"))
+    assert B.run_kind("cap", ["heur"], None, 1, 256) == 1
+    r = list(B.load_cache("cap").values())[0]
+    assert r["ok"] and r["gt_labels"] == ["cardiomegaly"] and r["hints"]["view"] == "frontal"
+    B.build_report(tmp_path / "rx.md")
+    assert "Imagens com legenda" in (tmp_path / "rx.md").read_text()
