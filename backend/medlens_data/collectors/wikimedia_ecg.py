@@ -223,10 +223,9 @@ class Crawler:
         return files
 
     def imageinfos(self, titles: list[str]):
-        for i in range(0, len(titles), 40):
-            chunk = titles[i:i + 40]
-            d = self.api(titles="|".join(chunk), prop="imageinfo", iiprop="url|size|mime|extmetadata",
-                         iiurlwidth=str(MAX_W))
+        for i in range(0, len(titles), 20):
+            chunk = titles[i:i + 20]
+            d = self.api(titles="|".join(chunk), prop="imageinfo", iiprop="url|size|mime|extmetadata")
             for p in d.get("query", {}).get("pages", {}).values():
                 yield p
 
@@ -248,8 +247,14 @@ def run(max_files: int | None = None, depth: int = 3) -> None:
             rejects.write(json.dumps({"title": page.get("title"), "why": why}) + "\n")
             continue
         ii = page["imageinfo"][0]
-        big = ii["width"] > MAX_W and ii.get("thumburl")
-        url = ii["thumburl"] if big else ii["url"]
+        big = False
+        url = ii["url"]
+        if ii["width"] > MAX_W:  # huge original: ask for a 3000 px rendition instead
+            t = cr.api(titles=page["title"], prop="imageinfo", iiprop="url", iiurlwidth=str(MAX_W))
+            tp = next(iter(t["query"]["pages"].values()))
+            tu = (tp.get("imageinfo") or [{}])[0].get("thumburl")
+            if tu:
+                big, url = True, tu
         ext = ".png" if ii["mime"] == "image/png" and not big else (".jpg" if big or ii["mime"] == "image/jpeg" else ".png")
         if big and ii["mime"] == "image/png":
             ext = ".png"
