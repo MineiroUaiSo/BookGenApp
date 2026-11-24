@@ -51,16 +51,18 @@ def _clean(mask: np.ndarray, r: int) -> np.ndarray:
     return bopen(m, disk(max(1, r // 2)))
 
 
-def dark_components(s: np.ndarray, min_area_frac: float = 0.015):
-    """Dark, non-border-connected, central components. Returns (list of regionprops, lab, threshold)."""
+def dark_components(s: np.ndarray, min_area_frac: float = 0.015, thr: Optional[float] = None, r_frac: float = 0.006):
+    """Dark, non-border-connected, central components. Returns (list of regionprops, lab, threshold).
+
+    thr: fixed threshold (default: Otsu of the central crop); r_frac: opening radius as a fraction of the image side."""
     H, W = s.shape
     y0, y1, x0, x1 = int(.05 * H), int(.95 * H), int(.08 * W), int(.92 * W)
     crop = s[y0:y1, x0:x1]
     if crop.std() < 1e-4:
         return [], None, 0.0
-    t = threshold_otsu(crop)
+    t = threshold_otsu(crop) if thr is None else thr
     dark = s < t
-    r = max(1, int(round(0.006 * max(H, W))))
+    r = max(1, int(round(r_frac * max(H, W))))
     dark = bopen(dark, disk(r))
     lab = label(dark)
     cands = []
@@ -79,17 +81,45 @@ def dark_components(s: np.ndarray, min_area_frac: float = 0.015):
     return cands, lab, float(t)
 
 
-def find_lung_pair(s: np.ndarray) -> Optional[dict]:
-    """Return {'img_left': mask, 'img_right': mask, 't': thr} or None."""
+def _lung_thresholds(s: np.ndarray) -> list[Optional[float]]:
+    """Candidate thresholds: Otsu (None) first, then the lowest multi-Otsu class boundary (lungs are the darkest
+    non-air tissue; plain Otsu lumps them with the air/background in low-contrast portable films)."""
     H, W = s.shape
-    cands, lab, t = dark_components(s)
+    crop = s[int(.05 * H):int(.95 * H), int(.08 * W):int(.92 * W)]
+    out: list[Optional[float]] = [None]
+    if crop.std() < 1e-4:
+        return out
+    try:
+        t0 = float(threshold_multiotsu(crop, 3)[0])
+        out += [t0, 0.9 * t0]
+    except Exception:
+        pass
+    return out
+
+
+def find_lung_pair(s: np.ndarray) -> Optional[dict]:
+    """Return {'img_left': mask, 'img_right': mask, 't': thr} or None.
+
+    Tries the classic Otsu pass first; if no plausible lung pair comes out (low contrast, lungs fused to the
+    outside air through the arms/lateral skin, burned-in text), retries with lower thresholds and larger openings."""
+    for k, (thr, rf) in enumerate([(t_, r_) for r_ in (0.006, 0.015, 0.025) for t_ in _lung_thresholds(s)]):
+        cands, lab, t = dark_components(s, thr=thr, r_frac=rf)
+        pair = _pair_from(s, cands, lab, t, strict=k > 0)
+        if pair is not None:
+            return pair
+    return None
+
+
+def _pair_from(s: np.ndarray, cands, lab, t: float, strict: bool = False) -> Optional[dict]:
+    H, W = s.shape
     if not cands:
         return None
     r = max(2, int(round(0.01 * max(H, W))))
     first = cands[0]
     second = None
     for c in cands[1:]:
-        if abs(c.centroid[1] - first.centroid[1]) >= 0.15 * W and c.area >= 0.25 * first.area:
+        if (abs(c.centroid[1] - first.centroid[1]) >= 0.15 * W and c.area >= 0.25 * first.area
+                and (not strict or abs(c.centroid[0] - first.centroid[0]) < 0.2 * H)):
             second = c
             break
     if second is not None:
@@ -187,6 +217,13 @@ def segment_chest_frontal(s: np.ndarray, lungs: Optional[dict] = None) -> Option
     heart[int(y0 + 0.88 * Hl):] = False       # below this the gap includes cardiophrenic/subdiaphragmatic spaces
     heart = bopen(heart, disk(max(1, int(0.004 * W))))
     heart = _largest(heart) if heart.any() else heart
+    if not heart.any() and valid.any():
+        # fallback (hazy/small lung masks): take the inter-lung gap over the lower half of the rows where both lungs exist
+        vy = np.nonzero(valid)[0]
+        h2 = gap.copy()
+        h2[:vy[len(vy) // 2]] = False
+        h2[int(y0 + 0.88 * Hl):] = False
+        heart = _largest(h2) if h2.any() else h2
     med = gap.copy()
     med[heart_top:] = False
     med[: max(0, int(y0 - 0.04 * Hl))] = False

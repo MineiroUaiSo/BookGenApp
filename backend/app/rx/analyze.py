@@ -103,6 +103,21 @@ def _structures(masks, full_shape, scale, spacing, origin, order=None) -> list[S
     return out
 
 
+# structures each pipeline can actually segment (anything else is "não suportado", never scored/reported as Dice 0).
+# PSPNet ChestX-Det has no sternum/ribs class; lateral heuristics have no aorta/clavicle/scapula.
+_FRONTAL_HEUR = {"right_lung", "left_lung", "lungs", "heart", "mediastinum", "spine", "trachea", "aorta", "ribs"}
+_LATERAL = {"lung_field", "lungs", "heart", "diaphragm", "spine", "sternum", "trachea"}
+
+
+def supported_structures(mode: str, view_class: str = "frontal") -> set[str]:
+    """mode: 'model' | 'heur'; view_class: 'frontal' | 'lateral'. Keys the pipeline is able to produce."""
+    if view_class == "lateral":
+        return set(_LATERAL)
+    if mode == "model":
+        return set(seg_model.PSP_KEYS.values()) | {"lungs"}
+    return set(_FRONTAL_HEUR)
+
+
 _ORDER = ["right_lung", "left_lung", "lung_field", "right_hilum", "left_hilum", "heart", "aorta", "mediastinum",
           "trachea", "spine", "right_clavicle", "left_clavicle", "right_scapula", "left_scapula", "ribs", "sternum",
           "diaphragm", "right_diaphragm", "left_diaphragm", "bowel_gas", "pelvis_bones", "bones"]

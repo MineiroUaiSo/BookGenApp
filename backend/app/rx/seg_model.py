@@ -52,6 +52,30 @@ def _get(name: str, factory):
     return _state[name]
 
 
+def _device() -> str:
+    """'mps' when available (Apple silicon, ~10x faster, numerically equivalent: max |dp| ~2e-6, 0 mask pixels differ);
+    else 'cpu'. MEDLENS_RX_DEVICE=cpu|mps overrides. A failing MPS run falls back to CPU (see psp_probs)."""
+    if "device" in _state:
+        return _state["device"]
+    want = os.environ.get("MEDLENS_RX_DEVICE", "auto").lower()
+    dev = "cpu"
+    if want in ("auto", "mps"):
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                dev = "mps"
+        except Exception:  # pragma: no cover
+            pass
+    if os.environ.get("MEDLENS_RX_THREADS"):
+        try:
+            import torch
+            torch.set_num_threads(max(1, int(os.environ["MEDLENS_RX_THREADS"])))
+        except Exception:  # pragma: no cover
+            pass
+    _state["device"] = dev
+    return dev
+
+
 def _psp():
     def f():
         xrv = _xrv()
@@ -59,6 +83,12 @@ def _psp():
             return None
         m = xrv.baseline_models.chestx_det.PSPNet()
         m.eval()
+        if _device() == "mps":
+            try:
+                m = m.to("mps")
+            except Exception as e:  # pragma: no cover
+                log.warning("PSPNet MPS unavailable, CPU: %s", e)
+                _state["device"] = "cpu"
         return m
     return _get("psp", f)
 
@@ -96,8 +126,17 @@ def psp_probs(work: np.ndarray) -> Optional[np.ndarray]:
         img = resize(work, (512, 512), anti_aliasing=True, order=1).astype(np.float32)
         x = xrv.datasets.normalize((img * 255).astype(np.float32), 255)
         t = torch.from_numpy(x)[None, None].float()
-        with torch.no_grad():
-            out = model(t)[0].numpy()
+        try:
+            with torch.no_grad():
+                out = model(t.to(_device()))[0].cpu().numpy()
+        except Exception as e:  # pragma: no cover - MPS op/driver problem: retry once on CPU
+            if _device() == "cpu":
+                raise
+            log.warning("PSPNet on %s failed (%s); falling back to CPU", _device(), e)
+            _state["device"] = "cpu"
+            model.to("cpu")
+            with torch.no_grad():
+                out = model(t)[0].numpy()
         return (1.0 / (1.0 + np.exp(-out))).astype(np.float32)
     except Exception as e:  # pragma: no cover
         log.warning("PSPNet inference failed: %s", e)
