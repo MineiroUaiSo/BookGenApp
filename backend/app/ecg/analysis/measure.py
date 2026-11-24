@@ -93,11 +93,15 @@ def measure_median(bd, med_amp, med_dlt, fs, leads, rr_mean_ms, rr_sd_ms):
         if ld.t is not None:
             m.t_amplitude_mv = ld.t.amp
             m.qt_ms = float((ld.t.offset - ld.qrs_on) * ms)
+        # J point per lead: lead-specific QRS end clamped to the global one +-20 ms
+        tol = int(round(20 / ms))
+        off_l = min(max(ld.qrs_off, off - tol), off + tol)
+        st_ref = ld.st_base if ld.st_base is not None else ld.base
         for attr, d in (("st_j_mv", 0), ("st_j60_mv", 60), ("st_j80_mv", 80)):
-            k = off + int(round(d / ms))
+            k = off_l + int(round(d / ms))
             if k < len(xd) - 3:
                 w = max(1, int(round(4 / ms)))
-                setattr(m, attr, float(np.mean(xd[max(0, k - w):k + w + 1]) - ld.base))
+                setattr(m, attr, float(np.mean(xd[max(0, k - w):k + w + 1]) - st_ref))
         lms.append(m)
         if lead in LIMB:
             if bd.p_on is not None and ld.p is not None:

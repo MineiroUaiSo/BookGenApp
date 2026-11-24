@@ -64,6 +64,18 @@ IRBBB_MIN_QRS = 100        # AHA 2009: incomplete RBBB 110-119 ms (adults); 100-
 Q_DUR_MS, Q_DUR_V23_MS, Q_AMP_MV, Q_RATIO, Q_RATIO_MIN_MV = 30, 20, 0.1, 0.25, 0.2   # AHA 2009 Part VI / UDMI-4
 STD_MV = 0.05            # UDMI-4 / AHA 2009 Part VI: >=0.5 mm (0.05 mV) horizontal or downsloping, 2 contiguous leads
 STE_MV, STE_V23_MV = 0.1, 0.2
+
+
+def ste_threshold_mv(lead, age=None, sex=None):
+    """UDMI-4 STE threshold at the J point (mV). V2-V3: men <40 y 0.25, men >=40 y 0.20, women 0.15;
+    other leads 0.10. Unknown sex (or unknown age in men) -> the pre-existing conservative 0.20 mV."""
+    if lead not in ("V2", "V3"):
+        return STE_MV
+    if sex == "F":
+        return 0.15
+    if sex == "M" and age is not None:
+        return 0.25 if age < 40 else 0.20
+    return STE_V23_MV
 TINV_MV = 0.1
 LVH_R56_MV = 2.6          # R V5/V6 > 26 mm (Minnesota 3.1 / AHA 2009 Part V)
 LBBB_V1_NEG_RATIO = 2.0
@@ -443,8 +455,8 @@ def build_findings(c):
     for l, m in L.items():
         if l == "aVR" or m.st_j_mv is None:
             continue
-        thr = STE_V23_MV if l in ("V2", "V3") else STE_MV
-        if m.st_j_mv >= thr:
+        thr = ste_threshold_mv(l, c.get("age"), c.get("sex"))
+        if m.st_j_mv >= thr - 1e-9:
             ste[l] = m.st_j_mv
         j60, j80 = m.st_j60_mv, m.st_j80_mv
         # horizontal/downsloping depression: J+60 (and J+80 when available) below -STD_MV, ST not rising
@@ -464,9 +476,9 @@ def build_findings(c):
     if any(f.code == "ecg.lvh" for f in out):
         caution.append("pode ser secundário à sobrecarga ventricular")
     for name, lds in territories(list(ste)):
-        out.append(_f("ecg.st_elevation_" + name, f"Supradesnivelamento do segmento ST ({name}: {pl(lds)})",
+        out.append(_f("ecg.st_elevation_" + name, f"Supradesnivelamento do segmento ST sugestivo ({name}: {pl(lds)})",
                       "critical", [f"ST em J: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} +{ste[l]*10:.1f} mm" for l in lds),
-                                   "limiar UDMI-4: >=1 mm (V2-V3: >=2 mm sem distinção de sexo/idade)"] + caution,
+                                   "sugestivo; limiar UDMI-4: >=1 mm (V2-V3: homem <40 a >=2,5 mm, homem >=40 a >=2 mm, mulher >=1,5 mm; sexo/idade desconhecidos: >=2 mm)"] + caution,
                       [R_UDMI, R_SBC], 0.6))
     for name, lds in territories(list(std)):
         out.append(_f("ecg.st_depression_" + name, f"Infradesnivelamento do segmento ST ({name}: {pl(lds)})",

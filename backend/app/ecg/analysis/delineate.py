@@ -54,6 +54,7 @@ class LeadDel:
     t: Optional[WaveSeg] = None
     u: Optional[WaveSeg] = None
     noise: float = 0.0
+    st_base: Optional[float] = None   # isoelectric reference for ST (PR segment / TP fallback); None -> base
 
 
 @dataclass
@@ -312,8 +313,6 @@ def detect_p(y, fs, lo, hi, noise):
         return None
     ys = _smooth(y, fs, 12)
     seg = ys[lo:hi + 1]
-    # linear detrend over window borders removes residual T-tail slope
-    seg = seg - np.linspace(seg[:3].mean(), seg[-3:].mean(), len(seg)) * 0.0
     prom = max(P_PROM, P_NK * noise)
     pk_p, pr_p = find_peaks(seg, prominence=prom)
     pk_n, pr_n = find_peaks(-seg, prominence=prom)
@@ -367,6 +366,36 @@ def detect_p(y, fs, lo, hi, noise):
             morph = "bifásica (+/-)" if sg > 0 else "bifásica (-/+)"
         return WaveSeg("P", on, pk, off, amp, morph, extra)
     return None
+
+
+def _min_var_window(y, lo, hi, fs, min_ms=40, max_ms=60):
+    """Median of the lowest-variance window (40-60 ms) inside y[lo:hi]; None if the region is too short."""
+    lo = max(0, lo)
+    hi = min(len(y), hi)
+    wmin = max(3, int(round(min_ms * fs / 1000)))
+    if hi - lo < wmin:
+        return None
+    w = min(hi - lo, int(round(max_ms * fs / 1000)))
+    best, bv = None, None
+    step = max(1, int(round(fs / 1000)))
+    for s in range(lo, hi - w + 1, step):
+        seg = y[s:s + w]
+        v = float(np.var(seg))
+        if bv is None or v < bv:
+            bv, best = v, float(np.median(seg))
+    return best
+
+
+def pr_baseline(y, fs, on, p_on, p_off, tp_lo):
+    """ST reference: lowest-variance 40-60 ms window of the PR segment (P end -> QRS onset); fallback TP segment
+    of the previous beat (tp_lo -> P onset / QRS onset). None when neither region fits a window."""
+    guard = max(1, int(round(0.004 * fs)))
+    if p_off is not None:
+        b = _min_var_window(y, p_off + guard, on - guard, fs)
+        if b is not None:
+            return b
+    tp_hi = (p_on if p_on is not None else on - int(0.2 * fs)) - guard
+    return _min_var_window(y, tp_lo, tp_hi, fs, min_ms=30)
 
 
 def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms, detect_p_waves=True):
@@ -430,6 +459,9 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
             prev_t = t_ref - int(rr_prev_ms * fs / 1000) if rr_prev_ms else 0
             plo = max(0, prev_t + int(0.02 * fs), on - int(0.5 * fs))
             ld.p = detect_p(yd, fs, plo, on - int(0.01 * fs), ld.noise)
+        p_on_l = ld.p.onset if ld.p is not None else None
+        p_off_l = ld.p.offset if ld.p is not None else None
+        ld.st_base = pr_baseline(seg_del[li], fs, on, p_on_l, p_off_l, plo)
     pl = [(l, d_.p) for l, d_ in bd.leads.items() if d_.p is not None]
     if pl:
         mx = max(abs(p.amp) for _, p in pl)
