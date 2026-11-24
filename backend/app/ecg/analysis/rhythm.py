@@ -100,7 +100,77 @@ def detect_p_series(x, fs, beats, noise):
     return sorted(out)
 
 
-def av_analysis(p_ms, beats_ms, fs):
+def atrial_residual(x, fs, beats):
+    """Lead trace with the QRS-T complex cancelled: each beat window (QRS onset - 20 ms ... T end + 30 ms, cut at the
+    next QRS) is replaced by its difference to the least-squares scaled median QRS-T template, QRS samples are
+    interpolated. P waves that fall inside a T wave (fast rates) or are not conducted stay in the residual.
+    Returns the residual array or None when fewer than 4 usable beats."""
+    x = np.asarray(x, float)
+    n = len(x)
+    pre = int(0.02 * fs)
+    wins = []
+    for i, b in enumerate(beats):
+        s = max(0, b["qrs_on"] - pre)
+        t_end = b.get("t_off") or (b["qrs_off"] + int(0.3 * fs))
+        e = min(n - 1, t_end + int(0.03 * fs))
+        if i + 1 < len(beats):
+            e = min(e, beats[i + 1]["qrs_on"] - pre - 1)
+        if e - s > int(0.1 * fs):
+            wins.append((s, e, b))
+    if len(wins) < 4:
+        return None
+    full = [(s, e) for s, e, _ in wins]
+    ln = int(np.median([e - s for s, e in full]))
+    stack = [x[s:s + ln] for s, e in full if e - s >= ln and s + ln <= n]
+    if len(stack) < 3:
+        return None
+    tpl = np.median(np.array(stack), axis=0)
+    inside = np.zeros(n, bool)
+    for s, e, _ in wins:
+        inside[s:e + 1] = True
+    base = float(np.median(x[~inside])) if (~inside).sum() > 0.05 * n else float(np.median(x))
+    y = x - base
+    for s, e, b in wins:
+        m = min(e - s + 1, ln)
+        t = tpl[:m] - tpl[:m].mean()
+        seg = y[s:s + m]
+        den = float(t @ t)
+        a = float(np.clip((t @ (seg - seg.mean())) / den, 0.0, 3.0)) if den > 0 else 0.0
+        y[s:s + m] = seg - seg.mean() - a * t
+        if e + 1 > s + m:
+            y[s + m:e + 1] -= float(np.mean(y[s + m:e + 1]))
+    for b in beats:
+        lo, hi = max(0, b["qrs_on"] - int(0.01 * fs)), min(n - 1, b["qrs_off"] + int(0.02 * fs))
+        if hi > lo:
+            y[lo:hi + 1] = np.linspace(y[lo], y[hi], hi - lo + 1)
+    return y - uniform_filter1d(y, max(3, int(0.6 * fs)))
+
+
+def detect_p_series_resid(x, fs, beats, noise):
+    """P-like bumps in the QRS-T-cancelled trace (see atrial_residual), including blocked P and P inside the T
+    wave. Returns peak times in ms."""
+    y = atrial_residual(x, fs, beats)
+    if y is None:
+        return []
+    ys = uniform_filter1d(y, max(1, int(0.012 * fs)))
+    pk, _ = find_peaks(ys, prominence=max(0.02, 4 * noise), width=(int(0.02 * fs), int(0.16 * fs)), rel_height=0.5)
+    return [k * 1000.0 / fs for k in pk]
+
+
+def av_analysis(p_ms, beats_ms, fs, p_alt=None):
+    """AV analysis on the P series; when that finds no conduction pattern, retried on the QRS-T-cancelled series
+    p_alt (blocked P / P inside the T wave). The P->QRS consistency always comes from the primary series."""
+    res = _av_core(p_ms, beats_ms, fs)
+    if p_alt is not None and res.get("type") is None:
+        r2 = _av_core(p_alt, beats_ms, fs)
+        if r2.get("type"):
+            r2.update({k: res[k] for k in ("p_frac", "pr_sd", "pr_med")})
+            r2["alt"] = True
+            return r2
+    return res
+
+
+def _av_core(p_ms, beats_ms, fs):
     """p_ms: P peak times; beats_ms: list of qrs_on times (ms). Returns dict or None."""
     p = np.asarray(p_ms, float)
     q = np.asarray(beats_ms, float)
