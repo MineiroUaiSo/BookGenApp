@@ -9,7 +9,7 @@ from skimage.measure import label
 
 from ..schemas import BodyRegion, RXImageAnalysis, RXMeasurement, RXView, Structure
 from . import measure, seg_heuristic as H, seg_model, view as V
-from ._common import autocrop, build_structure, encode_png_b64, normalize_polarity, to_work
+from ._common import autocrop, build_structure, encode_png_b64, normalize_polarity, polarity_margin, to_work
 
 # heuristic masks are unreliable on real films (Dice 0.07-0.24): cap confidence low
 HEUR_CONF = {"right_lung": .25, "left_lung": .25, "lung_field": .25, "heart": .2, "spine": .2, "trachea": .15,
@@ -33,6 +33,22 @@ def _as_u8(img) -> np.ndarray:
         a = ((a - lo) / (hi - lo) * 255.0) if hi > lo else np.zeros_like(a)
         a = a.astype(np.uint8)
     return a
+
+
+def _model_prefers_inverted(img: np.ndarray) -> bool:
+    """True if the chest model finds a more plausible thorax in the inverted image (lungs + heart area)."""
+    def score(a):
+        c, _ = autocrop(a)
+        w, _ = to_work(c)
+        pr = seg_model.psp_probs(w)
+        if pr is None:
+            return None
+        f = V.model_features(pr)
+        return f["lungs"] + 3.0 * f["heart"]
+    s0, s1 = score(img), score((255 - img).astype(np.uint8))
+    if s0 is None or s1 is None:
+        return polarity_margin(img) > 0.12
+    return s1 > s0 + 0.02
 
 
 def _tag_polarity(ds: Any) -> bool:
@@ -94,14 +110,22 @@ _ORDER = ["right_lung", "left_lung", "lung_field", "right_hilum", "left_hilum", 
 
 def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, use_model: Optional[bool] = None) -> RXImageAnalysis:
     img = _as_u8(img_uint8)
-    img, inverted = normalize_polarity(img) if not _tag_polarity(ds) else (img, False)
+    allow_model = seg_model.models_enabled() if use_model is None else use_model
+    inverted = False
+    if not _tag_polarity(ds):
+        m = polarity_margin(img)
+        if m > 0.05 and allow_model:
+            inverted = _model_prefers_inverted(img)       # arbitrate with the chest model (rare, +1 PSP pass)
+        elif m > 0.12:
+            inverted = True
+        if inverted:
+            img = (255 - img).astype(np.uint8)
     Hh, Ww = img.shape
     spacing = _spacing(ds, Hh, Ww)
     # trim flat borders/letterbox (e.g. a chest film padded with black) so detection and models see the body
     imgc, (cy0, cx0) = autocrop(img)
     work, scale = to_work(imgc)
     s = H.smooth(work)
-    allow_model = seg_model.models_enabled() if use_model is None else use_model
     info = V.detect_view_region(s, ds, work=work, use_model=allow_model)
     if info.get("rot"):
         # the image was found lying on its side / upside down: work on (and return) the upright image

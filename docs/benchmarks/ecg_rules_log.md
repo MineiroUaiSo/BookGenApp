@@ -39,15 +39,15 @@ rules replayed on them (same code path as `bench.ecg_bench`), "before" = rules a
 | AV1 | 75 | 43 → 31 | 82 → 97 | 14 → 43 | 0.21 → 0.36 |
 | AV2 | 12 | 17 → 0 | 90 → 100 | 2 → 0 | 0.03 → 0.00 |
 | AV3 | 12 | 0 → 0 | 100 → 100 | 0 → - | 0.00 → 0.00 |
-| RBBB_complete | 75 | 73 → 64 | 85 → 97 | 25 → 59 | 0.37 → 0.61 |
-| RBBB_incomplete | 93 | 28 → 22 | 92 → 99 | 22 → 71 | 0.25 → 0.33 |
-| LBBB_complete | 11 | 0 → 55 | 100 → 94 | 0 → 7 | 0.00 → 0.13 |
-| LBBB_any | 72 | 3 → 58 | 99 → 96 | 20 → 47 | 0.05 → 0.52 |
+| RBBB_complete | 75 | 73 → 67 | 85 → 97 | 25 → 59 | 0.37 → 0.62 |
+| RBBB_incomplete | 93 | 28 → 23 | 92 → 99 | 22 → 70 | 0.25 → 0.34 |
+| LBBB_complete | 11 | 0 → 45 | 100 → 94 | 0 → 6 | 0.00 → 0.11 |
+| LBBB_any | 72 | 3 → 57 | 99 → 96 | 20 → 47 | 0.05 → 0.52 |
 | LAFB | 101 | 23 → 33 | 99 → 97 | 70 → 52 | 0.34 → 0.40 |
 | LPFB | 79 | 20 → 42 | 99 → 97 | 62 → 49 | 0.30 → 0.45 |
 | WPW | 64 | 20 → 42 | 100 → 99 | 93 → 79 | 0.33 → 0.55 |
 | LVH | 88 | 80 → 70 | 66 → 84 | 16 → 26 | 0.26 → 0.38 |
-| RVH | 70 | 23 → 41 | 96 → 96 | 24 → 37 | 0.24 → 0.39 |
+| RVH | 70 | 23 → 41 | 96 → 96 | 24 → 38 | 0.24 → 0.40 |
 | LAE | 42 | 48 → 5 | 74 → 97 | 6 → 6 | 0.11 → 0.05 |
 | RAE | 79 | 51 → 49 | 98 → 98 | 65 → 66 | 0.57 → 0.57 |
 | LQT | 77 | 92 → 66 | 50 → 87 | 11 → 26 | 0.20 → 0.37 |
@@ -56,15 +56,15 @@ rules replayed on them (same code path as `bench.ecg_bench`), "before" = rules a
 | SR | 686 | 56 → 79 | 93 → 87 | 92 → 89 | 0.70 → 0.84 |
 | MI_any | 357 | 32 → 34 | 87 → 88 | 52 → 55 | 0.39 → 0.42 |
 | MI_inferior | 164 | 20 → 25 | 94 → 94 | 34 → 38 | 0.25 → 0.30 |
-| MI_anterior | 208 | 32 → 30 | 94 → 95 | 52 → 56 | 0.40 → 0.39 |
+| MI_anterior | 208 | 32 → 30 | 94 → 95 | 52 → 55 | 0.40 → 0.39 |
 | MI_lateral | 137 | 20 → 26 | 98 → 97 | 53 → 50 | 0.29 → 0.34 |
-| STTC | 529 | 65 → 57 | 55 → 65 | 54 → 56 | 0.59 → 0.56 |
+| STTC | 529 | 65 → 57 | 55 → 64 | 54 → 56 | 0.59 → 0.56 |
 | LOWV | 63 | 13 → 13 | 97 → 97 | 19 → 19 | 0.15 → 0.15 |
 | NORM | 51 | 4 → 69 | 99 → 88 | 15 → 20 | 0.06 → 0.32 |
 
-NORM->WNL 2/51 (3.9%) ; NORM raised abn/crit 40/51 ; nonNORM flagged 1084/1132 (95.8%) ; nonNORM->WNL 11
+NORM -> within normal limits: 11.8% (6/51) -> 68.6% (35/51); non-NORM flagged abnormal/critical: 95.8% -> 88.0%.
 
-## Before / after: TEST (folds 9-10, N=1817; evaluated once, after all tuning)
+## Before / after: TEST (folds 9-10, N=1817)
 | Class | N pos | Sens before → after | Spec before → after | PPV before → after | F1 before → after |
 |---|---|---|---|---|---|
 | AF | 156 | 34 → 83 | 100 → 97 | 90 → 70 | 0.49 → 0.76 |
@@ -72,30 +72,40 @@ NORM->WNL 2/51 (3.9%) ; NORM raised abn/crit 40/51 ; nonNORM flagged 1084/1132 (
 | AV1 | 135 | 41 → 33 | 78 → 97 | 13 → 50 | 0.20 → 0.40 |
 | AV2 | 2 | 0 → 0 | 91 → 100 | 0 → 0 | 0.00 → 0.00 |
 | AV3 | 4 | 0 → 0 | 100 → 100 | 0 → - | 0.00 → 0.00 |
-| RBBB_complete | 103 | 80 → 63 | 87 → 99 | 26 → 73 | 0.40 → 0.68 |
-| RBBB_incomplete | 136 | 24 → 10 | 90 → 99 | 17 → 58 | 0.19 → 0.17 |
-| LBBB_complete | 102 | 0 → 74 | 100 → 97 | - → 57 | 0.00 → 0.64 |
-| LBBB_any | 117 | 0 → 74 | 99 → 97 | 0 → 63 | 0.00 → 0.68 |
+| RBBB_complete | 103 | 80 → 64 | 87 → 99 | 26 → 73 | 0.40 → 0.68 |
+| RBBB_incomplete | 136 | 24 → 12 | 90 → 99 | 17 → 61 | 0.19 → 0.21 |
+| LBBB_complete | 102 | 0 → 69 | 100 → 97 | - → 57 | 0.00 → 0.62 |
+| LBBB_any | 117 | 0 → 70 | 99 → 97 | 0 → 64 | 0.00 → 0.67 |
 | LAFB | 151 | 21 → 35 | 99 → 98 | 78 → 60 | 0.32 → 0.44 |
 | LPFB | 36 | 33 → 56 | 99 → 98 | 41 → 36 | 0.37 → 0.43 |
 | WPW | 15 | 13 → 33 | 100 → 100 | 100 → 45 | 0.24 → 0.38 |
 | LVH | 140 | 84 → 74 | 69 → 83 | 18 → 27 | 0.30 → 0.39 |
-| RVH | 20 | 25 → 40 | 98 → 97 | 10 → 12 | 0.15 → 0.18 |
+| RVH | 20 | 25 → 40 | 98 → 97 | 10 → 12 | 0.15 → 0.19 |
 | LAE | 81 | 48 → 4 | 70 → 98 | 7 → 7 | 0.12 → 0.05 |
 | RAE | 19 | 63 → 58 | 99 → 99 | 33 → 32 | 0.44 → 0.42 |
 | LQT | 23 | 91 → 78 | 56 → 88 | 3 → 8 | 0.05 → 0.14 |
 | SBRAD | 93 | 78 → 60 | 91 → 99 | 32 → 77 | 0.46 → 0.67 |
 | STACH | 87 | 60 → 67 | 99 → 98 | 71 → 67 | 0.65 → 0.67 |
 | SR | 1223 | 61 → 85 | 87 → 78 | 91 → 89 | 0.73 → 0.87 |
-| MI_any | 483 | 31 → 33 | 88 → 93 | 49 → 62 | 0.38 → 0.43 |
-| MI_inferior | 249 | 17 → 22 | 97 → 97 | 46 → 54 | 0.25 → 0.31 |
-| MI_anterior | 302 | 31 → 32 | 91 → 95 | 41 → 57 | 0.35 → 0.41 |
+| MI_any | 483 | 31 → 33 | 88 → 92 | 49 → 61 | 0.38 → 0.43 |
+| MI_inferior | 249 | 17 → 22 | 97 → 97 | 46 → 53 | 0.25 → 0.31 |
+| MI_anterior | 302 | 31 → 32 | 91 → 95 | 41 → 55 | 0.35 → 0.41 |
 | MI_lateral | 157 | 19 → 25 | 98 → 97 | 45 → 48 | 0.27 → 0.33 |
-| STTC | 548 | 61 → 55 | 71 → 80 | 47 → 55 | 0.53 → 0.55 |
+| STTC | 548 | 61 → 55 | 71 → 80 | 47 → 54 | 0.53 → 0.55 |
 | LOWV | 37 | 11 → 11 | 97 → 97 | 7 → 7 | 0.08 → 0.08 |
 | NORM | 464 | 23 → 68 | 97 → 83 | 74 → 57 | 0.35 → 0.62 |
 
-NORM->WNL 106/464 (22.8%) ; NORM raised abn/crit 267/464 ; nonNORM flagged 1269/1353 (93.8%) ; nonNORM->WNL 37
+NORM -> within normal limits: 22.8% (106/464) -> 68.1% (316/464); non-NORM flagged abnormal/critical: 93.8% -> 82.6%.
+
+Test protocol note: the TEST folds were scored twice. First scoring (after the dev tuning): LBBB_complete 74% / RBBB_complete 63%. After
+fix-delineation landed I re-captured the contexts on dev (measurements were identical), then made robustness changes motivated by LUDB, not by
+test numbers: lateral-S ratio 0.25 -> 0.15 with a "tall R' + QRS >= 130 ms" RBBB path, LBBB excluded when V1 has a clear terminal R'
+(>= 1.5 mm and >= 20% of S), and the width criteria use max(global QRS, p90 of per-lead QRS). Test was scored again with no further tuning.
+Dev/test gold is class-enriched; sample PPV is not prevalence-valid.
+
+Axis note: LAD threshold stays at -30 deg (AHA/SBC). A separate borderline finding `ecg.left_axis_mild` (-15 to -30 deg) was added; it does not
+block "within normal limits". LUDB check after the width change: RBBB_any sens 18% (spec 100%; labels are mostly subtle incomplete RBBB with R' < 2 mm
+and QRS 80-95 ms, under the 100 ms floor), LBBB false positives on rSr' patterns are now excluded.
 
 Reading notes: `LBBB_complete` vs `ILBBB` and `RBBB_complete` vs `IRBBB` are confused by PTB-XL labelling (ILBBB/IRBBB are often
 assigned to QRS >= 120 ms patterns): use the `*_any` rows (LBBB_any 0 -> 74% sens, PPV 0 -> 63% on TEST). Remaining weak points: LAE

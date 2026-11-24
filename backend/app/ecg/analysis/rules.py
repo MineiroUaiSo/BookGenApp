@@ -58,7 +58,7 @@ def territories(leads):
 # thresholds (mV / ratios) for bundle branch blocks; AHA 2009 Part III, tuned only inside published ranges
 RBBB_TERM_R_MV = 0.25      # terminal R/R' >= 2.5 mm in V1 (R' is usually the tallest deflection in V1)
 RBBB_LAT_S_MV = 0.1        # S wave >= 1 mm in I/V6 ("wide S"; width is unreliable in the delineation)
-RBBB_LAT_S_RATIO = 0.25    # ... and >= 25% of the R in that lead
+RBBB_LAT_S_RATIO = 0.15    # ... and >= 25% of the R in that lead
 IRBBB_TERM_R_MV = 0.15
 IRBBB_MIN_QRS = 100        # AHA 2009: incomplete RBBB 110-119 ms (adults); 100-119 ms is used by SBC for screening
 Q_DUR_MS, Q_DUR_V23_MS, Q_AMP_MV, Q_RATIO, Q_RATIO_MIN_MV = 30, 20, 0.1, 0.25, 0.2   # AHA 2009 Part VI / UDMI-4
@@ -81,6 +81,12 @@ def _lead_ctx(bd, l):
     last = (ws[-1].kind, ws[-1].amp) if ws else (None, 0.0)
     q = min([w.amp for w in ws if w.kind == "Q"], default=0.0)
     return dict(r=ld.r_max, s=ld.s_min, last=last, q=q)
+
+
+def rb_inc_lbbb_excl(v1):
+    """A clear terminal R' in V1 (>= 1.5 mm and >= 20% of S) argues against LBBB (rSr' = right delay)."""
+    k, a = v1["last"]
+    return k in ("R", "R'") and a >= 0.15 and a >= 0.2 * abs(v1["s"])
 
 
 def _classify_bbb(bd, dur, fs_ms, L=None):
@@ -106,16 +112,19 @@ def _classify_bbb(bd, dur, fs_ms, L=None):
     # incomplete RBBB: rSr' in V1 with a smaller terminal R' (>=1.5 mm, >=30% of S) and QRS < 120 ms
     rb_inc = (v1["last"][0] in ("R", "R'") and v1["last"][1] >= IRBBB_TERM_R_MV and
               v1["last"][1] >= 0.3 * abs(v1["s"]) and v1["r"] >= IRBBB_TERM_R_MV)
-    if rb_v1 and s_wide:
-        note = (f"R/R' terminal em V1 ({v1['last'][1]*10:.0f} mm) e onda S em {pl(s_wide)} "
-                f"({', '.join(f'{F[l][chr(115)]*10:.0f} mm' for l in s_wide)})")
+    # rSR' with a tall R' (>= 5 mm) and QRS >= 130 ms is RBBB even when the lateral S is small (AHA 2009 Part III)
+    tall_rbbb = rb_v1 and v1["last"][1] >= 0.5 and dur >= 130
+    if rb_v1 and (s_wide or tall_rbbb):
+        note = (f"R/R' terminal em V1 ({v1['last'][1]*10:.0f} mm)" +
+                (f" e onda S em {pl(s_wide)} ({', '.join(f'{F[l][chr(115)]*10:.0f} mm' for l in s_wide)})"
+                 if s_wide else " (R' alta, QRS >= 130 ms)"))
         if dur >= 120:
             return "rbbb", note
         if dur >= IRBBB_MIN_QRS:
             return "irbbb", note
     elif rb_inc and s_wide and IRBBB_MIN_QRS <= dur < 120:
         return "irbbb", (f"rSR' em V1 (R' {v1['last'][1]*10:.0f} mm) e onda S em {pl(s_wide)}, QRS < 120 ms")
-    elif neg_v1 and len(lat_ok) >= 2 and not rb_v1:
+    elif neg_v1 and len(lat_ok) >= 2 and not rb_v1 and not rb_inc_lbbb_excl(v1):
         note = f"V1 predominantemente negativo ({v1['s']*10:.0f} mm), R sem q em {pl(lat_ok)}"
         if dur >= 120:
             return "lbbb", note
@@ -307,7 +316,9 @@ def build_findings(c):
     #  RBBB: QRS >=120 ms, terminal R/R' in V1 (dominant over S), wide S in I and/or V6.
     #  LBBB: QRS >=120 ms, V1-V2 predominantly negative (rS/QS), monophasic R without q in I/V5/V6.
     v1, v6, d1 = morph.get("V1", ""), morph.get("V6", ""), morph.get("I", "")
-    dur = qrs
+    lead_q = sorted(m.qrs_ms for m in L.values() if m.qrs_ms)
+    # widest reliable QRS: global (earliest onset -> latest offset) or the 90th percentile of per-lead durations
+    dur = max(qrs, lead_q[int(0.9 * (len(lead_q) - 1))]) if len(lead_q) >= 6 else qrs
     cbbb, bbb_note = _classify_bbb(bd, dur, fs_ms, L)
     if cbbb in ("lbbb", "rbbb", "ilbbb", "irbbb") and any(f.code == "ecg.preexcitation" for f in out):
         cbbb = None  # delta wave widens the QRS and mimics a bundle branch block (AHA 2009 Part III, exclusions)

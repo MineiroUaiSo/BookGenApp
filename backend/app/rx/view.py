@@ -185,7 +185,11 @@ def detect_view_region(s, ds: Any = None, work=None, use_model: bool = False, al
         if use_model and prob is not None:
             # model says: not a chest. Use the heuristics only to tell abdomen / extremity / other.
             hk, why = H.classify_region_heuristic(s)
-            if hk in ("chest_frontal", "chest_lateral"):
+            weak_lat = (feats["lungs"] >= 0.02 and feats["spine"] < LATERAL_SPINE_MAX
+                        and feats["heart"] < FRONTAL_HEART_MIN)
+            if hk == "chest_lateral" and weak_lat:
+                why = "campo pulmonar único (heurística) com evidência fraca do modelo: perfil"
+            elif hk in ("chest_frontal", "chest_lateral"):
                 hk, why = "other", "indeterminado (modelo torácico não encontrou tórax)"
             kind = hk
             notes.append(f"região estimada pela imagem: {why}")

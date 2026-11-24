@@ -143,19 +143,24 @@ def autocrop(img_u8: np.ndarray, min_trim: float = 0.06):
     return img_u8[y0:y1, x0:x1], (y0, x0)
 
 
-def normalize_polarity(img_u8: np.ndarray, ring_thr: float = 0.05) -> tuple[np.ndarray, bool]:
-    """Detect inverted polarity (MONOCHROME1-like PNG/JPG: air/background bright). In radiographs the outer ring
-    of the (autocropped) image, mostly air and soft tissue, is darker than the centre (spine/mediastinum/bone).
-    Empirically (JSRT, Montgomery, IU, synthetic DRRs) ring-minus-centre is <= -0.01 for normal and >= 0.01 for
-    inverted images; we invert only when clearly positive. Returns (image, was_inverted)."""
+def polarity_margin(img_u8: np.ndarray) -> float:
+    """median(outer ring) - median(centre) on the autocropped image, in 0..1. Radiographs normally have a darker
+    ring (air/soft tissue) than centre (spine/mediastinum/bone): margin <= ~0 normal, clearly > 0 suggests an
+    inverted (MONOCHROME1-like) PNG/JPG. Overlaps slightly at the low end (2/53 normal JSRT/Montgomery > 0.05),
+    so callers arbitrate small margins with the chest model."""
     c, _ = autocrop(img_u8)
     f = c[::4, ::4].astype(np.float32) / 255.0
     H, W = f.shape
     if H < 16 or W < 16:
-        return img_u8, False
+        return 0.0
     ring = np.concatenate([f[:max(1, int(.06 * H))].ravel(), f[:, :max(1, int(.06 * W))].ravel(),
                            f[:, -max(1, int(.06 * W)):].ravel()])
     centre = f[int(.1 * H):int(.9 * H), int(.1 * W):int(.9 * W)]
-    if float(np.median(ring)) - float(np.median(centre)) > ring_thr:
+    return float(np.median(ring)) - float(np.median(centre))
+
+
+def normalize_polarity(img_u8: np.ndarray, thr: float = 0.12) -> tuple[np.ndarray, bool]:
+    """Model-free polarity fix: invert only when the margin is clearly positive (> thr)."""
+    if polarity_margin(img_u8) > thr:
         return (255 - img_u8).astype(np.uint8), True
     return img_u8, False
