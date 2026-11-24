@@ -143,7 +143,7 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
         for relaxed in (False, True):
             sp_ = detect_spikes(X, fs, **RELAXED) if relaxed else spikes
             tm = spike_timing(sp_["idx"], peaks, fs)
-            if is_paced_timing(tm, frac_min=0.8 if relaxed else 0.6, sd_max=8.0 if relaxed else 12.0):
+            if is_paced_timing(tm, frac_min=0.6 if relaxed else 0.4, sd_max=15.0 if relaxed else 20.0):
                 pace_info = dict(spikes=sp_["idx"], timing=tm, relaxed=relaxed)
                 break
         if pace_info is not None:   # blank the stimuli so the low-pass/delineation do not see a fake QRS onset

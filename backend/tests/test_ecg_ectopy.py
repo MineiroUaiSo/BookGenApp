@@ -23,8 +23,13 @@ def test_ectopic_mask_flags_premature_low_correlation_beat():
     assert ectopic_beats(pk, corr).tolist() == [False] * 4 + [True] + [False] * 4
 
 
-def test_ectopic_mask_ignores_premature_beat_with_same_morphology_without_pause():
-    pk = _peaks([800, 800, 800, 560, 800, 800, 800, 800])
+def test_isolated_premature_beat_on_regular_base_is_ectopic_even_with_same_morphology():
+    pk = _peaks([800, 800, 800, 560, 800, 800, 800, 800])   # PAC: same QRS, premature, regular base
+    assert ectopic_beats(pk, np.ones(len(pk))).tolist() == [False] * 4 + [True] + [False] * 4
+
+
+def test_premature_beats_on_irregular_base_are_not_excluded():
+    pk = _peaks([800, 620, 1000, 560, 900, 700, 1100, 580, 950])
     assert not ectopic_beats(pk, np.ones(len(pk))).any()
 
 

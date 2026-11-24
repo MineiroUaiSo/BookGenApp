@@ -12,11 +12,11 @@ import numpy as np
 from scipy.signal import find_peaks, sosfiltfilt, butter
 
 HP_HZ = 100.0
-STRICT = dict(k_sigma=10.0, min_mv=0.05, min_leads=3)
-RELAXED = dict(k_sigma=5.0, min_mv=0.02, min_leads=3)
+STRICT = dict(k_sigma=10.0, min_mv=0.05, min_leads=8)    # stimulus appears in nearly all leads at once
+RELAXED = dict(k_sigma=5.0, min_mv=0.02, min_leads=8)
 MAX_WIDTH_MS = 6.0
-LOOKBACK_MS = 250.0
-VENT_DELAY_MS = 90.0     # spike -> R peak up to this = ventricular capture (wide QRS)
+LOOKBACK_MS = 300.0
+VENT_DELAY_MS = 150.0    # spike -> R peak up to this = ventricular capture (wide QRS: R peak is late)
 MIN_QRS_PACED_MS = 100.0
 
 
@@ -72,7 +72,7 @@ def spike_timing(spikes_idx: np.ndarray, r_idx: np.ndarray, fs: float) -> dict:
                 sd_ms=float(np.std(delays)) if len(delays) >= 2 else float("inf"))
 
 
-def is_paced_timing(t: dict, frac_min: float = 0.6, sd_max: float = 12.0, ratio_max: float = 3.0) -> bool:
+def is_paced_timing(t: dict, frac_min: float = 0.4, sd_max: float = 20.0, ratio_max: float = 1.5) -> bool:
     """Spikes are real pacing only if most beats are preceded by one at a stable delay and there are not
     many more spikes than beats (artifact bursts)."""
     return bool(t["n_spikes"] >= 2 and len(t["delays_ms"]) >= 2 and t["frac"] >= frac_min
@@ -88,10 +88,10 @@ def classify_pacing(t: dict, qrs_ms: float | None, spikes_idx: np.ndarray, r_idx
         c = rt - s[(s <= rt + 10.0) & (s >= rt - LOOKBACK_MS)]
         if (c <= VENT_DELAY_MS).any():
             near_v += 1
-        if ((c > 110.0) & (c <= LOOKBACK_MS)).any():
+        if ((c > VENT_DELAY_MS) & (c <= LOOKBACK_MS)).any():
             near_a += 1
     nb = max(1, len(r))
-    v, a = near_v / nb >= 0.6, near_a / nb >= 0.6
+    v, a = near_v / nb >= 0.4, near_a / nb >= 0.4
     wide = qrs_ms is not None and qrs_ms >= MIN_QRS_PACED_MS
     if v and a:
         return "dual"

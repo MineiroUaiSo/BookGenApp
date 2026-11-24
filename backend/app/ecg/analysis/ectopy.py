@@ -13,6 +13,7 @@ import numpy as np
 PREMATURE = 0.80
 CORR_MAX = 0.90
 WIN_MS = 120.0
+BASE_CV_MAX = 0.08   # CV of the remaining RR series for an isolated-premature-beat explanation
 
 
 def beat_correlations(amp: np.ndarray, peaks: np.ndarray, fs: float, ref: int) -> np.ndarray:
@@ -55,6 +56,13 @@ def ectopic_beats(peaks_ms, corr: np.ndarray) -> np.ndarray:
             mask[i] = True
         elif post is not None and pre < 0.7 * med and pre + post >= 1.8 * med:   # compensatory pause
             mask[i] = True
+    # isolated premature beats (any morphology, e.g. PAC) on an otherwise regular rhythm: AF has no regular base
+    short = [i for i in range(1, len(pk)) if rr[i - 1] < PREMATURE * med]
+    if short and not mask.any() and len(short) <= max(3, len(rr) // 3):
+        drop = set(short) | {i + 1 for i in short if i + 1 < len(pk)}   # beat i ends interval i-1
+        rest = np.array([rr[i - 1] for i in range(1, len(pk)) if i not in drop and i - 1 not in {j - 1 for j in short}])
+        if len(rest) >= 3 and rest.std() / rest.mean() < BASE_CV_MAX:
+            mask[short] = True
     return mask
 
 
