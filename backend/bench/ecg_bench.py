@@ -312,6 +312,7 @@ GOLD_SCP = {
 }
 # AF_AFL is predicted by the AF rule or the spectral flutter rule
 PRED["AF_AFL"] = lambda c: "ecg.atrial_fibrillation" in c or "ecg.atrial_flutter" in c
+PRED["STE_acute"] = PRED["STE"]   # same prediction, scored against the infarction_stadium1-based gold
 CLASS_DESC = {
     "AF": "atrial fibrillation (AFIB)", "AF_AFL": "AF or flutter (AFIB+AFLT)", "AV1": "1st-degree AV block (1AVB)",
     "AV2": "2nd-degree AV block (2AVB)", "AV3": "3rd-degree AV block (3AVB)",
@@ -322,7 +323,7 @@ CLASS_DESC = {
     "RAE": "right atrial enlargement", "LQT": "long QT (LNGQT)", "SBRAD": "sinus bradycardia", "STACH": "sinus tachycardia",
     "SR": "sinus rhythm", "MI_any": "any MI (Q waves or ST elevation)", "MI_inferior": "inferior MI (IMI etc.)",
     "MI_anterior": "anterior/anteroseptal MI", "MI_lateral": "lateral MI", "STTC": "ST/T change (any)",
-    "STE": "ST elevation (STE_)", "STD": "ST depression (STD_)", "LOWV": "low voltage (LVOLT)", "NORM": "NORM",
+    "STE": "ST elevation (STE_)", "STE_acute": "ST elevation vs acute-MI gold (MI + stadium I/I-II)", "STD": "ST depression (STD_)", "LOWV": "low voltage (LVOLT)", "NORM": "NORM",
     "PACE": "pacemaker rhythm (PACE)",
 }
 
@@ -350,9 +351,19 @@ def parse_scp(rec: dict) -> dict[str, float]:
     return out
 
 
-def gold_classes(scp: dict[str, float]) -> set[str]:
+ACUTE_STADIUMS = ("Stadium I", "Stadium I-II")   # PTB-XL infarction_stadium1 values meaning an acute/early infarct (ST elevation expected)
+
+
+def gold_classes(scp: dict[str, float], stadium: Optional[str] = None) -> set[str]:
+    """Gold classes of one record. A code is positive when its likelihood is >= 50 or 0 (non-diagnostic statements).
+
+    STE_acute (extra gold, R2): any MI code in the scp_codes AND infarction_stadium1 in ACUTE_STADIUMS. The old STE gold
+    (scp statement STE_) is kept unchanged; STE_ is annotated inconsistently in PTB-XL, STE_acute is the coherent one."""
     pos = {k for k, v in scp.items() if v >= 50 or v == 0}
-    return {c for c, codes in GOLD_SCP.items() if pos & codes}
+    out = {c for c, codes in GOLD_SCP.items() if pos & codes}
+    if (pos & _MI) and str(stadium or "").strip() in ACUTE_STADIUMS:
+        out.add("STE_acute")
+    return out
 
 
 def ptbxl_task(rec: dict) -> dict:
@@ -375,6 +386,7 @@ def ptbxl_task(rec: dict) -> dict:
             "n_beats": len(an.r_peaks_ms), "warnings": len(an.warnings), "t_load_s": round(t1 - t0, 3),
             "t_analyze_s": round(t2 - t1, 3), "scp": parse_scp(rec),
             "axis": (rec.get("extra") or {}).get("heart_axis"),
+            "stadium1": (rec.get("extra") or {}).get("infarction_stadium1"),
             "age": (rec.get("extra") or {}).get("age"), "sex": (rec.get("extra") or {}).get("sex")}
 
 
@@ -920,8 +932,22 @@ def ptbxl_prevalence() -> dict[str, float]:
     with p.open(encoding="utf-8") as f:
         for r in csv.DictReader(f):
             n += 1
-            cnt.update(gold_classes(parse_scp({"extra": {"scp_codes": r.get("scp_codes", "")}})))
+            cnt.update(gold_classes(parse_scp({"extra": {"scp_codes": r.get("scp_codes", "")}}), r.get("infarction_stadium1")))
     return {c: v / n for c, v in cnt.items()} if n else {}
+
+
+_STADIUM: dict[str, str] = {}
+
+
+def _stadium_lookup() -> dict[str, str]:
+    """rid -> infarction_stadium1 from the PTB-XL database csv (fallback for caches written before the field was stored)."""
+    if not _STADIUM:
+        try:
+            for r in ptbxl_large.load_database(ptbxl_large.database_csv(DATA_ROOT)):
+                _STADIUM[ptbxl_large.rid_of(r)] = r.get("infarction_stadium1", "")
+        except FileNotFoundError:
+            _STADIUM["__none__"] = ""
+    return _STADIUM
 
 
 def report_ptbxl(res: dict[str, dict]) -> tuple[str, dict]:
@@ -932,7 +958,7 @@ def report_ptbxl(res: dict[str, dict]) -> tuple[str, dict]:
     recs = []
     for r in ok:
         d = r["data"]
-        recs.append({"id": r["id"], "gold": gold_classes(d["scp"]), "scp": d["scp"], "codes": {f["code"] for f in d["findings"]},
+        recs.append({"id": r["id"], "gold": gold_classes(d["scp"], d.get("stadium1") or _stadium_lookup().get(r["id"])), "scp": d["scp"], "codes": {f["code"] for f in d["findings"]},
                      "sev": {f["code"]: f["sev"] for f in d["findings"]}, "gm": d["gm"], "axis": d.get("axis")})
     N = len(recs)
     rows, worst_rows, conf_rows = [], [], []
@@ -1022,7 +1048,9 @@ def report_ptbxl(res: dict[str, dict]) -> tuple[str, dict]:
     body = (f"{N} records analysed ({len(bad)} failed). Timing: {_timing(ok)}. Ground truth = SCP statements in PTB-XL "
             "(a code counts as positive when likelihood >= 50 or 0 for non-diagnostic statements; all other records are "
             "negatives, so **specificity/PPV are lower bounds because absent statements are not proof of absence** and "
-            "labels are known to be noisy). The collector's PTB-XL subset is **class-enriched** (not the natural prevalence), so "
+            "labels are known to be noisy). **STE_ is annotated inconsistently in PTB-XL, so STE is scored against two golds: STE_ (statement, "
+            "kept) and STE_acute = any MI statement with infarction_stadium1 in {'Stadium I', 'Stadium I-II'} (same prediction).** "
+            "The collector's PTB-XL subset is **class-enriched** (not the natural prevalence), so "
             "sample PPV is not prevalence-valid: the extra column re-computes PPV from sensitivity/specificity at the natural prevalence "
             "in the full ptbxl_database.csv (an approximation). Rare classes have wide CIs.\n\n"
             "### Per-class performance\n\n" + t1 +
