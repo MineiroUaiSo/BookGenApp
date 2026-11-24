@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..schemas import BodyRegion, Finding, Reference, RXImageAnalysis, RXMeasurement, RXView
+from . import calibration as CAL
 
 REF_FELSON = Reference(id="felson_2025", source="Felson's Principles of Chest Roentgenology — silhueta cardiomediastinal, diafragma e pleura",
                        note="critérios clássicos de tamanho cardíaco (ICT) e contornos")
@@ -163,12 +164,44 @@ def _frontal_findings(img: RXImageAnalysis, tag: str) -> list[Finding]:
                            severity="borderline", evidence=issues, references=[REF_SQUIRE], confidence=0.4))
 
     # model scores (auxiliary)
-    flagged = sorted(((k, v) for k, v in img.model_scores.items() if k in PATHO_PT and v >= model_threshold(k)),
-                     key=lambda kv: -kv[1])[:5]
-    for k, v in flagged:
-        out.append(Finding(code=f"rx.model.{k.lower().replace(' ', '_')}", label=f"Sugestivo de {PATHO_PT[k]} (escore do modelo)",
-                           severity="borderline", evidence=[f"DenseNet121 (torchxrayvision, 'all') escore = {v:.2f}; sinal auxiliar não calibrado, nunca laudo"],
-                           references=[REF_TXRV], confidence=round(min(0.6, v * 0.6), 2), origin="model"))
+    out.extend(_model_findings(img))
+    return out
+
+
+def _model_findings(img: RXImageAnalysis) -> list[Finding]:
+    """Model-score findings. With a calibration curve: zones 'sugestivo' / 'indeterminado' on the calibrated probability
+    ('não sugerido' emits nothing). Without one: legacy raw score >= per-pathology threshold (unchanged behaviour)."""
+    out: list[Finding] = []
+    cands = []
+    for k, v in img.model_scores.items():
+        if k not in PATHO_PT:
+            continue
+        z = CAL.zone(k, v)
+        if z is None:
+            if v >= model_threshold(k):
+                cands.append((k, v, CAL.ZONE_SUGGESTIVE, None))
+        elif z != CAL.ZONE_NOT_SUGGESTED:
+            cands.append((k, v, z, CAL.calibrated_probability(k, v)))
+    for k, v, z, p in sorted(cands, key=lambda c: -c[1])[:5]:
+        slug = k.lower().replace(" ", "_")
+        thin = k in CAL.INSUFFICIENT_EVIDENCE
+        note = ["evidência insuficiente para este achado no desenvolvimento (poucos positivos): nunca afastar nem confirmar só por este escore"] if thin else []
+        if p is None:
+            out.append(Finding(code=f"rx.model.{slug}", label=f"Sugestivo de {PATHO_PT[k]} (escore do modelo)",
+                               severity="borderline",
+                               evidence=[f"DenseNet121 (torchxrayvision, 'all') escore = {v:.2f}; sinal auxiliar não calibrado, nunca laudo"] + note,
+                               references=[REF_TXRV], confidence=round(min(0.6, v * 0.6), 2), origin="model"))
+        elif z == CAL.ZONE_SUGGESTIVE:
+            out.append(Finding(code=f"rx.model.{slug}", label=f"Sugestivo de {PATHO_PT[k]} (probabilidade calibrada ≈ {p:.0%})",
+                               severity="borderline",
+                               evidence=[f"DenseNet121 (torchxrayvision, 'all'): escore {v:.2f} -> probabilidade calibrada ≈ {p:.0%} (curva isotônica ajustada em dev IU, otimista); sinal auxiliar, nunca laudo"] + note,
+                               references=[REF_TXRV], confidence=round(min(0.6, p), 2), origin="model"))
+        else:
+            out.append(Finding(code=f"rx.model_indeterminate.{slug}",
+                               label=f"Indeterminado para {PATHO_PT[k]} (probabilidade calibrada ≈ {p:.0%}); o escore não permite sugerir nem afastar o achado",
+                               severity="borderline",
+                               evidence=[f"DenseNet121 (torchxrayvision, 'all'): escore {v:.2f} na faixa intermediária entre sensibilidade ≈ 95% e especificidade ≈ 90% em dev; correlacionar clinicamente"] + note,
+                               references=[REF_TXRV], confidence=round(min(0.3, p), 2), origin="model"))
     return out
 
 

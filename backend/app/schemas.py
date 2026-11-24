@@ -247,7 +247,9 @@ class RXImageAnalysis(BaseModel):
     pixel_spacing_mm: Optional[list[float]] = None
     structures: list[Structure] = []
     measurements: list[RXMeasurement] = []
-    model_scores: dict[str, float] = {}      # auxiliary pathology probabilities
+    model_scores: dict[str, float] = {}      # auxiliary pathology scores (raw TorchXRayVision output, uncalibrated)
+    model_probs: dict[str, float] = {}       # isotonic-calibrated probability (only pathologies with a calibration curve)
+    model_zones: dict[str, str] = {}         # nao_sugerido | indeterminado | sugestivo (same pathologies as model_probs)
     quality: dict[str, str] = {}             # rotação, inspiração, penetração
 
 

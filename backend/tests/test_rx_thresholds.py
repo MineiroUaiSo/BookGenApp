@@ -8,6 +8,12 @@ from app.rx import findings as F
 from bench import tune_rx_thresholds as T
 
 
+@pytest.fixture(autouse=True)
+def _no_calibration(monkeypatch):
+    from app.rx import calibration
+    monkeypatch.setattr(calibration, "_CALIB", {})   # legacy threshold behaviour under test here
+
+
 def _rows(n_pos=40, n_neg=60, seed=0, patho="Effusion"):
     rng = np.random.default_rng(seed)
     rows = []

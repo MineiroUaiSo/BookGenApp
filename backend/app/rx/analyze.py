@@ -9,6 +9,7 @@ from skimage.measure import label
 
 from ..schemas import BodyRegion, RXImageAnalysis, RXMeasurement, RXView, Structure
 from . import measure, seg_heuristic as H, seg_model, view as V
+from .calibration import calibrate_scores
 from ._common import autocrop, build_structure, encode_png_b64, normalize_polarity, polarity_margin, to_work
 
 # heuristic masks are unreliable on real films (Dice 0.07-0.24): cap confidence low
@@ -278,7 +279,9 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
     if notes:
         quality["observações"] = "; ".join(notes)
 
+    probs, zones = calibrate_scores(scores)
     return RXImageAnalysis(
         instance_id=instance_id, view=view, region=region, image_png_b64=encode_png_b64(img),
         width=Ww, height=Hh, pixel_spacing_mm=list(spacing) if spacing else None,
-        structures=structures, measurements=measurements, model_scores=scores, quality=quality)
+        structures=structures, measurements=measurements, model_scores=scores,
+        model_probs=probs, model_zones=zones, quality=quality)
