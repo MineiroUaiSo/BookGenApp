@@ -143,7 +143,8 @@ _ORDER = ["right_lung", "left_lung", "lung_field", "right_hilum", "left_hilum", 
           "diaphragm", "right_diaphragm", "left_diaphragm", "bowel_gas", "pelvis_bones", "bones"]
 
 
-def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, use_model: Optional[bool] = None) -> RXImageAnalysis:
+def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, use_model: Optional[bool] = None,
+                  region_override: Optional[BodyRegion] = None) -> RXImageAnalysis:
     img = _as_u8(img_uint8)
     # PHI em pixels: mascara texto queimado ANTES de qualquer heurística/segmentação e do PNG enviado à IA externa
     burned = BurnedTextResult(tag=burned_in_tag(ds))
@@ -165,7 +166,7 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
     imgc, (cy0, cx0) = autocrop(img)
     work, scale = to_work(imgc)
     s = H.smooth(work)
-    info = V.detect_view_region(s, ds, work=work, use_model=allow_model)
+    info = V.detect_view_region(s, ds, work=work, use_model=allow_model, forced_region=region_override)
     if info.get("rot"):
         # the image was found lying on its side / upside down: work on (and return) the upright image
         img = np.ascontiguousarray(np.rot90(img, info["rot"]))
@@ -208,7 +209,12 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
     full = (Hh, Ww)
     seg_desc = "sem segmentação"
 
-    if kind == "chest_frontal":
+    uncertain = bool(info.get("region_uncertain"))
+    if uncertain:
+        # ambiguous region (tag disagrees with image): abstain from segmentation/measurements/findings
+        seg_desc = "análise suspensa: região incerta — confirme a região do exame"
+        quality["região"] = "INCERTA — tag DICOM e imagem divergem; confirme a região para analisar"
+    elif kind == "chest_frontal":
         masks = None
         origin = "heuristic"
         if allow_model:
@@ -303,4 +309,6 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
         width=Ww, height=Hh, pixel_spacing_mm=list(spacing) if spacing else None,
         structures=structures, measurements=measurements, model_scores=scores,
         model_probs=probs, model_zones=zones, quality=quality,
-        burned_text=burned.summary(), external_ai_blocked=burned.block_external)
+        burned_text=burned.summary(), external_ai_blocked=burned.block_external,
+        region_uncertain=uncertain, region_conflict=bool(info.get("region_conflict")),
+        tag_region=info.get("tag_region"))

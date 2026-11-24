@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.dicom.render import pixel_spacing_mm, render_instance, to_png_bytes
-from app.schemas import (AIReport, ECGAnalysis, Modality, Recon3DResult, RXAnalysis,
+from app.schemas import (AIReport, BodyRegion, ECGAnalysis, Modality, Recon3DResult, RXAnalysis,
                          RXImageAnalysis, RXView, StudyInfo)
 from app.store import store
 
@@ -22,6 +22,8 @@ class ECGRequest(BaseModel):
 
 class RXRequest(BaseModel):
     instance_ids: Optional[list[str]] = None
+    # human-confirmed region per instance id (resolves region_uncertain / a wrong DICOM tag)
+    region_overrides: Optional[dict[str, BodyRegion]] = None
 
 
 class ReconRequest(BaseModel):
@@ -107,7 +109,8 @@ def ecg_analyze(study_id: str, body: Optional[ECGRequest] = None, ai: bool = Fal
 
 
 # ------------------------------------------------------------------ RX
-def _analyze_images(study: StudyInfo, ids: list[str]) -> list[RXImageAnalysis]:
+def _analyze_images(study: StudyInfo, ids: list[str],
+                    overrides: Optional[dict[str, BodyRegion]] = None) -> list[RXImageAnalysis]:
     from app.rx import analyze_image
 
     out = []
@@ -116,7 +119,8 @@ def _analyze_images(study: StudyInfo, ids: list[str]) -> list[RXImageAnalysis]:
             arr, ds, _ = render_instance(iid, gray=True)
         except (ValueError, RuntimeError) as e:
             raise HTTPException(422, f"{iid}: {e}")
-        res = analyze_image(arr, iid, ds)
+        ov = (overrides or {}).get(iid)
+        res = analyze_image(arr, iid, ds, region_override=ov) if ov else analyze_image(arr, iid, ds)
         if res.pixel_spacing_mm is None and ds is not None:
             ps = pixel_spacing_mm(ds)
             if ps:
@@ -145,7 +149,7 @@ def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False
     study = _study(study_id)
     ids = _pick_rx_ids(study, body.instance_ids if body else None)
     try:
-        images = _analyze_images(study, ids)
+        images = _analyze_images(study, ids, body.region_overrides if body else None)
         from app.rx import study_findings
 
         findings = study_findings(images)
@@ -153,6 +157,13 @@ def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False
         raise _not_installed(e)
     result = RXAnalysis(study_id=study_id, images=images, findings=findings,
                         recon3d_available=_has_biplane(images))
+    for im in images:
+        if im.region_uncertain:
+            result.warnings.append(f"{im.instance_id}: região incerta (tag DICOM x imagem); achados suspensos até "
+                                   "confirmar a região")
+        elif im.region_conflict:
+            result.warnings.append(f"{im.instance_id}: tag DICOM diz {im.tag_region.value if im.tag_region else '?'} "
+                                   f"mas a imagem parece {im.region.value}; região corrigida pela imagem")
     if ai:
         try:
             from app.llm import ai_available

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { RXAnalysis, RXImageAnalysis, RXView } from "../../types/api";
+import type { BodyRegion, RXAnalysis, RXImageAnalysis, RXView } from "../../types/api";
 import Legend from "./Legend";
 import ViewerPane from "./ViewerPane";
 
@@ -10,9 +10,38 @@ export function imageLabel(img: RXImageAnalysis, idx: number): string {
   return img.view === "OTHER" ? `${base} ${idx + 1}` : base;
 }
 
-interface Props { analysis: RXAnalysis; apiBase: string; dicom?: boolean }
+const REGION_OPTIONS: [BodyRegion, string][] = [
+  ["chest", "Tórax"], ["abdomen", "Abdome"], ["pelvis", "Pelve"], ["spine", "Coluna"], ["extremity", "Extremidade"],
+  ["skull", "Crânio"], ["other", "Outra"],
+];
 
-export default function RXViewer({ analysis, apiBase, dicom = false }: Props) {
+interface Props {
+  analysis: RXAnalysis; apiBase: string; dicom?: boolean;
+  /** re-runs the analysis with the region chosen by the human (used when the DICOM tag and image disagree) */
+  onRegionConfirm?: (instanceId: string, region: BodyRegion) => void;
+}
+
+function RegionNotice({ img, onConfirm }: { img: RXImageAnalysis; onConfirm?: Props["onRegionConfirm"] }) {
+  const [sel, setSel] = useState<BodyRegion>(img.region);
+  if (!img.region_uncertain && !img.region_conflict) return null;
+  return (
+    <div className="error" role="alert" style={{ margin: ".5rem 0" }}>
+      {img.region_uncertain
+        ? "Região incerta: a tag DICOM e a imagem divergem. Achados suspensos até você confirmar a região."
+        : `Atenção: a tag DICOM diz ${img.tag_region ?? "?"}, mas a imagem parece ${img.region}. Região corrigida pela imagem.`}
+      {onConfirm && (
+        <label style={{ marginLeft: ".5rem" }}>Região do exame{" "}
+          <select value={sel} onChange={(e) => setSel(e.target.value as BodyRegion)} aria-label="Região do exame">
+            {REGION_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>{" "}
+          <button className="btn small" onClick={() => onConfirm(img.instance_id, sel)}>Reanalisar</button>
+        </label>
+      )}
+    </div>
+  );
+}
+
+export default function RXViewer({ analysis, apiBase, dicom = false, onRegionConfirm }: Props) {
   const images = analysis.images;
   const [tab, setTab] = useState<string>(images[0]?.instance_id ?? "");
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -107,6 +136,7 @@ export default function RXViewer({ analysis, apiBase, dicom = false }: Props) {
       {shown.map((img) => (
         <div key={img.instance_id}>
           <h3 style={{ marginTop: "1rem" }}>Medidas — {imageLabel(img, images.indexOf(img))}</h3>
+          <RegionNotice img={img} onConfirm={onRegionConfirm} />
           {Object.keys(img.quality).length > 0 && (
             <p>{Object.entries(img.quality).map(([k, v]) => (
               <span key={k} className="badge" style={{ marginRight: 4 }} title={k}>{k}: {v}</span>

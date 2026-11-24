@@ -267,6 +267,9 @@ class RXImageAnalysis(BaseModel):
     quality: dict[str, str] = {}             # rotação, inspiração, penetração
     burned_text: Optional[str] = None        # added: resultado do detector de texto queimado (PHI em pixels)
     external_ai_blocked: bool = False        # added: imagem NÃO deve ir a provedor externo de IA
+    region_uncertain: bool = False           # tag DICOM and image disagree and the model cannot settle it: abstain
+    region_conflict: bool = False            # region was corrected from the DICOM tag by the image evidence
+    tag_region: Optional[BodyRegion] = None  # region stated by the DICOM tags (before any correction)
 
 
 class RXAnalysis(BaseModel):
