@@ -108,6 +108,22 @@ def _minimal(signal, study_id, warnings):
                        warnings=warnings)
 
 
+def _rhythm_only(signal, study_id, warnings, pk_ms, rr, cv, rmssd, rr_mean):
+    """Abstention for photos whose printed grid is irregular after rectification (distorted / low quality):
+    amplitudes, intervals and ST cannot be trusted, so only heart rate and a coarse regularity label are given."""
+    from app.ecg.analysis.rules import AF_CV, AF_RMSSD
+    warnings = warnings + ["Foto com grade irregular ou distorcida: escala de tempo e amplitude não confiáveis. "
+                           "Informados apenas frequência cardíaca e regularidade do ritmo; amplitudes, intervalos "
+                           "(PR/QRS/QT) e ST não foram medidos. Refaça a foto com a folha plana e de frente."]
+    irregular = cv >= AF_CV and rmssd >= AF_RMSSD
+    gm = GlobalMeasurements(
+        heart_rate_bpm=round(60000.0 / rr_mean, 1) if rr_mean else None, rr_mean_ms=round(float(rr_mean), 1),
+        rr_sd_ms=round(float(rr.std()), 1) if len(rr) else None,
+        rhythm="Ritmo irregular (avaliar no ECG original)" if irregular else "Ritmo regular (só frequência avaliada)")
+    return ECGAnalysis(study_id=study_id, signal=signal, r_peaks_ms=[round(float(x), 2) for x in pk_ms],
+                       global_measurements=gm, warnings=warnings)
+
+
 def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
                    sex: str | None = None) -> ECGAnalysis:
     """age (years) and sex ('M'/'F') are optional; when given, voltage criteria use age/sex-aware limits."""
@@ -157,6 +173,8 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
         warnings.append("Poucos batimentos detectados (<4): análise de ritmo limitada.")
     pk_ms = peaks * 1000.0 / fs
     rr, cv, rmssd, rr_mean = rr_stats(pk_ms)
+    if (signal.calibration or {}).get("rhythm_only"):
+        return _rhythm_only(signal, study_id, warnings, pk_ms, rr, cv, rmssd, rr_mean)
     rr_sd = float(rr.std())
     rr_med = float(np.median(rr))
     sn = float(np.median(amp[ref, peaks])) / max(float(np.median(noise)), 1e-6)

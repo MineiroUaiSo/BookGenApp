@@ -5,7 +5,7 @@ import numpy as np
 
 from app.schemas import ECGSignal, SourceKind
 
-from . import geometry, grid, trace
+from . import geometry, grid, perspective, trace
 
 OUT_FS = 500.0
 
@@ -71,6 +71,10 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
         grid_conf = 0.1
         warnings.append("no grid found; scale assumed from beat period / page width")
     gr["confidence"] = grid_conf
+    grid_cv = perspective.grid_spacing_cv(*grid.grid_profiles(norm, ink0))
+    rhythm_only = grid_cv is not None and grid_cv >= perspective.GRID_CV_ABSTAIN
+    if rhythm_only:
+        warnings.append(f"grade impressa irregular após retificação (CV do espaçamento {grid_cv:.3f}): saída reduzida a FC/ritmo")
     ink = trace.remove_grid_lines(ink0, ppx, ppy)
     ink = trace.clean_ink(ink, ppx, ppy)
 
@@ -243,7 +247,9 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
         calibration={"paper_speed_mm_s": float(speed), "gain_mm_mv": float(gain),
                      "px_per_mm": float(0.5 * (ppx + ppy) / proc_scale),
                      "px_per_mm_x": float(ppx / proc_scale), "px_per_mm_y": float(ppy / proc_scale), "grid_confidence": float(gr["confidence"]),
-                     "skew_deg": float(ginfo["skew_deg"]), **calib_extra})
+                     "skew_deg": float(ginfo["skew_deg"]), **calib_extra,
+                     **({"rhythm_only": 1.0} if rhythm_only else {}),
+                     **({"grid_spacing_cv": float(grid_cv)} if grid_cv is not None else {})})
     if return_debug:
         dbg.update(layout=layout, warnings=warnings)
         return sig, dbg
