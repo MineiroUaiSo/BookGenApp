@@ -1,1 +1,11 @@
-node_modules
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+data/
+knowledge/private/
+.env
+*.egg-info/
+.pytest_cache/
+weights/
