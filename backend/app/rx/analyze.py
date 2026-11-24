@@ -87,6 +87,14 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
     s = H.smooth(work)
     allow_model = seg_model.models_enabled() if use_model is None else use_model
     info = V.detect_view_region(s, ds, work=work, use_model=allow_model)
+    if info.get("rot"):
+        # the image was found lying on its side / upside down: work on (and return) the upright image
+        img = np.ascontiguousarray(np.rot90(img, info["rot"]))
+        Hh, Ww = img.shape
+        spacing = spacing[::-1] if (spacing and info["rot"] % 2) else spacing
+        imgc, (cy0, cx0) = autocrop(img)
+        work, scale = to_work(imgc)
+        s = H.smooth(work)
     view, region, kind = info["view"], info["region"], info["kind"]
 
     structures: list[Structure] = []
@@ -156,10 +164,12 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
         if allow_model:
             scores = seg_model.pathology_scores(work)
     elif kind == "chest_lateral":
-        masks = H.segment_chest_lateral(s, V.posterior_side_from_tags(ds))
+        hint = seg_model.lung_field_from_probs(info["prob"], s.shape) if info.get("prob") is not None else None
+        masks = H.segment_chest_lateral(s, V.posterior_side_from_tags(ds), hint)
         if masks is not None:
             masks = canvas_masks(masks)
-            seg_desc = "heurística clássica (perfil) — baixa confiança"
+            seg_desc = ("campo pulmonar PSPNet + priors anatômicos (perfil) — baixa confiança" if hint is not None
+                        else "heurística clássica (perfil) — baixa confiança")
             structures = _structures(masks, full, scale, spacing, "heuristic", _ORDER)
             quality["confiabilidade"] = HEUR_WARN
             post = "direita" if int(masks["_posterior"][0]) == 1 else "esquerda"

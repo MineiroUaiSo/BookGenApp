@@ -59,7 +59,9 @@ def territories(leads):
 RBBB_TERM_R_MV = 0.25      # terminal R/R' >= 2.5 mm in V1 (R' is usually the tallest deflection in V1)
 RBBB_LAT_S_MV = 0.1        # S wave >= 1 mm in I/V6 ("wide S"; width is unreliable in the delineation)
 RBBB_LAT_S_RATIO = 0.25    # ... and >= 25% of the R in that lead
+IRBBB_TERM_R_MV = 0.15
 IRBBB_MIN_QRS = 100        # AHA 2009: incomplete RBBB 110-119 ms (adults); 100-119 ms is used by SBC for screening
+Q_DUR_MS, Q_DUR_V23_MS, Q_AMP_MV, Q_RATIO, Q_RATIO_MIN_MV = 30, 20, 0.1, 0.25, 0.2   # AHA 2009 Part VI / UDMI-4
 STD_MV = 0.05            # UDMI-4 / AHA 2009 Part VI: >=0.5 mm (0.05 mV) horizontal or downsloping, 2 contiguous leads
 STE_MV, STE_V23_MV = 0.1, 0.2
 TINV_MV = 0.1
@@ -101,6 +103,9 @@ def _classify_bbb(bd, dur, fs_ms):
     neg_v1 = abs(v1["s"]) >= LBBB_V1_NEG_RATIO * max(v1["r"], 0.05) and abs(v1["s"]) >= 0.3
     lat_ok = [l for l in ("I", "V5", "V6") if F.get(l) and F[l]["r"] >= LBBB_LAT_R_MV and
               F[l]["q"] > -LBBB_Q_MAX_MV and abs(F[l]["s"]) <= LBBB_LAT_S_RATIO * F[l]["r"]]
+    # incomplete RBBB: rSr' in V1 with a smaller terminal R' (>=1.5 mm, >=30% of S) and QRS < 120 ms
+    rb_inc = (v1["last"][0] in ("R", "R'") and v1["last"][1] >= IRBBB_TERM_R_MV and
+              v1["last"][1] >= 0.3 * abs(v1["s"]) and v1["r"] >= IRBBB_TERM_R_MV)
     if rb_v1 and s_wide:
         note = (f"R/R' terminal em V1 ({v1['last'][1]*10:.0f} mm) e onda S em {pl(s_wide)} "
                 f"({', '.join(f'{F[l][chr(115)]*10:.0f} mm' for l in s_wide)})")
@@ -108,6 +113,8 @@ def _classify_bbb(bd, dur, fs_ms):
             return "rbbb", note
         if dur >= IRBBB_MIN_QRS:
             return "irbbb", note
+    elif rb_inc and s_wide and IRBBB_MIN_QRS <= dur < 120:
+        return "irbbb", (f"rSR' em V1 (R' {v1['last'][1]*10:.0f} mm) e onda S em {pl(s_wide)}, QRS < 120 ms")
     elif neg_v1 and len(lat_ok) >= 2 and not rb_v1:
         note = f"V1 predominantemente negativo ({v1['s']*10:.0f} mm), R sem q em {pl(lat_ok)}"
         if dur >= 120:
@@ -232,15 +239,18 @@ def build_findings(c):
                           [f"PR {pr:.0f} ms (>200 ms); mediana das derivações {pr_lead:.0f} ms; "
                            f"pico P ao QRS {pk_med:.0f} ms, consistente entre batimentos"],
                           [R_SBC, R_GOLD], 0.7))
-        elif pr < 120:
+        else:
             qrs = gm.qrs_ms or 0
             esr = bd.early_slope_ratio
-            if qrs >= 110 and esr is not None and esr < 0.45:
+            # Pre-excitation (AHA 2009 Part II/III): short PR + slurred QRS upstroke (delta wave) + wide QRS. The
+            # global PR is biased long by early P onsets, so PR < 140 ms is accepted when the delta wave is
+            # clear (initial slope < 45% of the maximum slope) and QRS >= 100 ms.
+            if pr < 140 and qrs >= 100 and esr is not None and esr < 0.45:
                 out.append(_f("ecg.preexcitation", "Padrão de pré-excitação ventricular (onda delta)", "abnormal",
-                              [f"PR {pr:.0f} ms (<120)", f"QRS {qrs:.0f} ms (>=110)",
+                              [f"PR {pr:.0f} ms", f"QRS {qrs:.0f} ms (>=100)",
                                f"início do QRS lentificado (razão de velocidade inicial {esr:.2f})"],
                               [R_SBC, R_GOLD], 0.5))
-            else:
+            elif pr < 120:
                 out.append(_f("ecg.short_pr", "Intervalo PR curto", "borderline", [f"PR {pr:.0f} ms (<120)"],
                               [R_SBC, R_GOLD], 0.6))
 
@@ -358,20 +368,20 @@ def build_findings(c):
     elif weak:
         out.append(_f("ecg.lvh_voltage", "Voltagem elevada isolada (critério único limítrofe para sobrecarga "
                       "ventricular esquerda)", "borderline", weak, [R_SBC, R_GOLD], 0.35))
+    # RVH (AHA 2009 Part V): R in V1 >= 7 mm with R > S, or R/S > 1 with R >= 5 mm plus right axis > 110 deg;
+    # with complete RBBB (terminal R' mimics it) the right axis > 110 deg is also required; not scored with
+    # pre-excitation (delta wave).
     rv = []
-    if "V1" in bd.leads and c["bbb"] not in ("rbbb",):
+    if "V1" in bd.leads and not any(f.code == "ecg.preexcitation" for f in out):
         r1, s1 = bd.leads["V1"].r_max, -bd.leads["V1"].s_min
-        if r1 >= 0.7:
-            rv.append(f"R em V1 {r1*10:.0f} mm (>=7 mm)")
-        if r1 > s1 and r1 >= 0.5:
-            rv.append(f"R/S em V1 {r1/max(s1, 1e-3):.1f} (>1)")
-        s56 = max([-bd.leads[l].s_min for l in ("V5", "V6") if l in bd.leads], default=0)
-        if r1 + s56 >= 1.05:
-            rv.append(f"R V1 + S V5/V6 = {(r1+s56)*10:.0f} mm (>=10,5 mm)")
-        if ax is not None and ax > 110:
+        rbbb_ok = c["bbb"] != "rbbb" or (ax is not None and ax > 110)
+        if r1 >= 0.7 and r1 > s1 and rbbb_ok:
+            rv.append(f"R em V1 {r1*10:.0f} mm (>=7 mm) com R/S {r1/max(s1, 1e-3):.1f} (>1)")
+        elif r1 > s1 and r1 >= 0.5 and ax is not None and ax > 110:
+            rv.append(f"R/S em V1 {r1/max(s1, 1e-3):.1f} (>1), R {r1*10:.0f} mm (>=5 mm)")
             rv.append(f"eixo do QRS {ax:.0f}° (>110°)")
-    if len(rv) >= 2:
-        out.append(_f("ecg.rvh", "Sobrecarga ventricular direita", "abnormal", rv, [R_SBC, R_GOLD], 0.45))
+    if rv:
+        out.append(_f("ecg.rvh", "Sobrecarga ventricular direita", "abnormal", rv, [R_AHA, R_SBC], 0.45))
 
     # ---- QT
     # The global QT (earliest QRS onset to latest T offset over 12 leads) is biased long by one noisy T offset;
@@ -443,8 +453,11 @@ def build_findings(c):
             continue
         qa, qd = abs(m.q_amplitude_mv), m.q_duration_ms or 0
         rr_ = m.r_amplitude_mv or 0
-        isqs = (m.morphology == "QS" and l in ("V2", "V3") and qa >= 0.1)
-        if (qd >= 40 and qa >= 0.1) or (qa >= 0.25 * rr_ and qa >= 0.2) or isqs:
+        isqs = (m.morphology == "QS" and l in ("V2", "V3") and qa >= Q_AMP_MV)
+        # UDMI-4 / AHA 2009 Part VI: Q >= 30 ms and >= 1 mm (>= 20 ms in V2-V3); or QS in V2-V3. The ratio
+        # criterion (Q >= 25% of R) needs a deep Q (>= 2 mm) to avoid septal q waves.
+        qd_min = Q_DUR_V23_MS if l in ("V2", "V3") else Q_DUR_MS
+        if (qd >= qd_min and qa >= Q_AMP_MV) or (qa >= Q_RATIO * rr_ and qa >= Q_RATIO_MIN_MV) or isqs:
             qpos[l] = (qa, qd)
     for name, lds in territories(list(qpos)):
         out.append(_f("ecg.pathologic_q_" + name, f"Ondas Q patológicas ({name}: {pl(lds)})", "abnormal",
