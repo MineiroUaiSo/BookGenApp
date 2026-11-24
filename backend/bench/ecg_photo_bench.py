@@ -288,6 +288,7 @@ def _task(job: dict) -> dict:
     cal = sig.calibration or {}
     res["grid_conf"] = float(cal.get("grid_confidence", 0.0) or 0.0)
     res["n_leads"] = len(sig.leads)
+    res["abstained"] = bool(cal.get("rhythm_only"))  # photo too distorted: digitizer reports only HR/rhythm
     res["corr"] = lead_correlations(sig, truth)
     try:
         an = analyze_signal(sig, job["id"])
@@ -318,7 +319,7 @@ def _load_truth(path: str) -> dict[str, np.ndarray]:
 
 
 def is_usable(r: dict) -> bool:
-    return bool(r.get("ok") and (r.get("grid_conf") or 0) >= 0.3 and r.get("n_beats", 0) >= 2)
+    return bool(r.get("ok") and not r.get("abstained") and (r.get("grid_conf") or 0) >= 0.3 and r.get("n_beats", 0) >= 2)
 
 
 # ------------------------------------------------------------------------------------------ report
@@ -363,7 +364,10 @@ def summarize(results: list[dict]) -> dict:
     for p in PROFILES:
         rp = [r for r in results if r["profile"] == p]
         if rp:
-            by_profile[p] = {"n": len(rp), "usable_pct": round(100 * sum(map(is_usable, rp)) / len(rp), 1)}
+            cp = [_med(list(r["corr"].values())) for r in rp if r.get("ok") and r.get("corr")]
+            by_profile[p] = {"n": len(rp), "usable_pct": round(100 * sum(map(is_usable, rp)) / len(rp), 1),
+                             "median_corr": _med(cp),
+                             "abstained_pct": round(100 * sum(bool(r.get("abstained")) for r in rp) / len(rp), 1)}
     by_stratum = {}
     for s in STRATA:
         rs = [r for r in results if r["stratum"] == s]
@@ -371,6 +375,8 @@ def summarize(results: list[dict]) -> dict:
             by_stratum[s] = {"n": len(rs), "usable_pct": round(100 * sum(map(is_usable, rs)) / len(rs), 1)}
     return {
         "n": n, "usable": len(usable), "usable_pct": round(100 * len(usable) / max(1, n), 1),
+        "abstained": sum(bool(r.get("abstained")) for r in results),
+        "abstained_pct": round(100 * sum(bool(r.get("abstained")) for r in results) / max(1, n), 1),
         "exceptions": len(exc), "causes": causes.most_common(),
         "median_corr_overall": _med(all_corr), "median_corr_per_lead": {k: _med(v) for k, v in sorted(per_lead.items())},
         "median_abs_err_ms": {k: _med(v) for k, v in err.items()}, "n_err": {k: len(v) for k, v in err.items()},
@@ -380,12 +386,15 @@ def summarize(results: list[dict]) -> dict:
 
 def render_report(s: dict, tag: str) -> str:
     L = [f"# ECG photo bench (tag {tag})", "",
-         f"- N = {s['n']}; usable = {s['usable']} ({s['usable_pct']}%); exceptions = {s['exceptions']}",
+         f"- N = {s['n']}; usable = {s['usable']} ({s['usable_pct']}%); exceptions = {s['exceptions']}; "
+         f"abstained (HR/rhythm only, counted as not usable) = {s['abstained']} ({s['abstained_pct']}%)",
          f"- median Pearson (median over leads, per image): {s['median_corr_overall']}", "",
          "## Exceptions by cause", ""]
     L += [f"- {c} x{k}" for c, k in s["causes"]] or ["- none"]
     L += ["", "## Usable by profile / stratum", ""]
-    L += [f"- {k}: {v['usable_pct']}% (n={v['n']})" for k, v in {**s["by_profile"], **s["by_stratum"]}.items()]
+    L += [f"- {k}: {v['usable_pct']}% (n={v['n']})" + (f", median Pearson {v['median_corr']:.3f}, abstained {v['abstained_pct']}%"
+                                                     if v.get("median_corr") is not None else "")
+          for k, v in {**s["by_profile"], **s["by_stratum"]}.items()]
     L += ["", "## Median Pearson per lead", ""]
     L += [f"- {k}: {None if v is None else round(v, 3)}" for k, v in s["median_corr_per_lead"].items()]
     L += ["", "## Median abs error (ms) vs truth signal, usable images", ""]

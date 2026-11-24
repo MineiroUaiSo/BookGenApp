@@ -118,3 +118,38 @@ def fit_grid_homography(rgb: np.ndarray):
 def apply_homography(rgb: np.ndarray, H: np.ndarray) -> np.ndarray:
     h, w = rgb.shape[:2]
     return cv2.warpPerspective(rgb, H, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+
+
+
+GRID_CV_ABSTAIN = 0.09  # calibrated on PTB-XL dev renders (R2): ~2.5% of images lie above it
+
+
+def _spacing_cv(profile: np.ndarray) -> float | None:
+    """CV of the spacing between consecutive printed grid lines along one axis (None when too few lines)."""
+    from scipy.signal import find_peaks
+    from .grid import _autocorr
+    x = profile.astype(np.float64)
+    x = x - ndi.gaussian_filter1d(x, 40, mode="nearest")
+    m = max(5, int(0.02 * len(x)))
+    x[:m] = 0
+    x[-m:] = 0
+    ac = _autocorr(x)
+    pk, _ = find_peaks(ac[: len(x) // 2], height=0.03)
+    pk = [q for q in pk if q >= 3]
+    if not pk:
+        return None
+    hs = {q: ac[q] for q in pk}
+    hmax = max(hs.values())
+    pitch = next(q for q in pk if hs[q] >= 0.4 * hmax)
+    sm = ndi.gaussian_filter1d(x, max(0.6, pitch / 12))
+    pos, _ = find_peaks(sm, distance=max(2, int(0.6 * pitch)), prominence=0.15 * np.std(sm) + 1e-9)
+    if len(pos) < 8:
+        return None
+    d = np.diff(pos).astype(np.float64)
+    return float(d.std() / d.mean())
+
+
+def grid_spacing_cv(px: np.ndarray, py: np.ndarray) -> float | None:
+    """Worst (max) spacing CV over the two grid axes; None if either axis cannot be measured."""
+    cv = [_spacing_cv(px), _spacing_cv(py)]
+    return None if any(v is None for v in cv) else float(max(cv))
