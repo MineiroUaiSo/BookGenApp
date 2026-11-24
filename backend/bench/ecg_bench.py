@@ -32,8 +32,9 @@ BACKEND = Path(__file__).resolve().parents[1]
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
-from bench import splits  # noqa: E402
-from bench.report import fmt, pct, table, wilson, write_markdown  # noqa: E402
+from bench import ptbxl_large, splits  # noqa: E402
+from bench.report import (bootstrap_binary_ci, bootstrap_prop_ci, fmt, fmt_ci, pct, table, wilson,  # noqa: E402
+                          write_markdown)
 
 REPO = BACKEND.parent
 DATA_ROOT = Path(os.environ.get("MEDLENS_DATASETS", REPO / "data" / "datasets"))
@@ -311,6 +312,7 @@ GOLD_SCP = {
 }
 # AF_AFL is predicted by the AF rule or the spectral flutter rule
 PRED["AF_AFL"] = lambda c: "ecg.atrial_fibrillation" in c or "ecg.atrial_flutter" in c
+PRED["STE_acute"] = PRED["STE"]   # same prediction, scored against the infarction_stadium1-based gold
 CLASS_DESC = {
     "AF": "atrial fibrillation (AFIB)", "AF_AFL": "AF or flutter (AFIB+AFLT)", "AV1": "1st-degree AV block (1AVB)",
     "AV2": "2nd-degree AV block (2AVB)", "AV3": "3rd-degree AV block (3AVB)",
@@ -321,7 +323,7 @@ CLASS_DESC = {
     "RAE": "right atrial enlargement", "LQT": "long QT (LNGQT)", "SBRAD": "sinus bradycardia", "STACH": "sinus tachycardia",
     "SR": "sinus rhythm", "MI_any": "any MI (Q waves or ST elevation)", "MI_inferior": "inferior MI (IMI etc.)",
     "MI_anterior": "anterior/anteroseptal MI", "MI_lateral": "lateral MI", "STTC": "ST/T change (any)",
-    "STE": "ST elevation (STE_)", "STD": "ST depression (STD_)", "LOWV": "low voltage (LVOLT)", "NORM": "NORM",
+    "STE": "ST elevation (STE_)", "STE_acute": "ST elevation vs acute-MI gold (MI + stadium I/I-II)", "STD": "ST depression (STD_)", "LOWV": "low voltage (LVOLT)", "NORM": "NORM",
     "PACE": "pacemaker rhythm (PACE)",
 }
 
@@ -349,9 +351,19 @@ def parse_scp(rec: dict) -> dict[str, float]:
     return out
 
 
-def gold_classes(scp: dict[str, float]) -> set[str]:
+ACUTE_STADIUMS = ("Stadium I", "Stadium I-II")   # PTB-XL infarction_stadium1 values meaning an acute/early infarct (ST elevation expected)
+
+
+def gold_classes(scp: dict[str, float], stadium: Optional[str] = None) -> set[str]:
+    """Gold classes of one record. A code is positive when its likelihood is >= 50 or 0 (non-diagnostic statements).
+
+    STE_acute (extra gold, R2): any MI code in the scp_codes AND infarction_stadium1 in ACUTE_STADIUMS. The old STE gold
+    (scp statement STE_) is kept unchanged; STE_ is annotated inconsistently in PTB-XL, STE_acute is the coherent one."""
     pos = {k for k, v in scp.items() if v >= 50 or v == 0}
-    return {c for c, codes in GOLD_SCP.items() if pos & codes}
+    out = {c for c, codes in GOLD_SCP.items() if pos & codes}
+    if (pos & _MI) and str(stadium or "").strip() in ACUTE_STADIUMS:
+        out.add("STE_acute")
+    return out
 
 
 def ptbxl_task(rec: dict) -> dict:
@@ -374,6 +386,8 @@ def ptbxl_task(rec: dict) -> dict:
             "n_beats": len(an.r_peaks_ms), "warnings": len(an.warnings), "t_load_s": round(t1 - t0, 3),
             "t_analyze_s": round(t2 - t1, 3), "scp": parse_scp(rec),
             "axis": (rec.get("extra") or {}).get("heart_axis"),
+            "stadium1": (rec.get("extra") or {}).get("infarction_stadium1"),
+            "stj_mv": {m.lead: _num(m.st_j_mv) for m in an.lead_measurements},   # ST at the J point per lead, mV (R2: vs PTB-XL+ 12SL)
             "age": (rec.get("extra") or {}).get("age"), "sex": (rec.get("extra") or {}).get("sex")}
 
 
@@ -632,8 +646,13 @@ CACHE_TAG = ""   # set by --tag: separate cache file, report printed to stdout, 
 SPLIT = "all"   # --split dev|test|all: PTB-XL strat_fold 1-8 = dev, 9-10 = official test folds
 
 
+SET = "default"  # --set large: frozen class-enriched PTB-XL dev sample (bench/lists/ptbxl_large_dev.json, PTB-XL 1.0.3 full)
+
+
 def ptbxl_fold_map() -> dict[str, int]:
     out = {}
+    if SET == "large":
+        out.update({k: int(v) for k, v in ptbxl_large.load_list()["ids"].items()})
     for r in read_manifest("ptbxl"):
         fo = (r.get("extra") or {}).get("strat_fold")
         if fo not in (None, ""):
@@ -685,7 +704,7 @@ def load_cache(source: str) -> dict[str, dict]:
 
 
 def run_source(source: str, limit: Optional[int], workers: int, force: bool) -> int:
-    recs = read_manifest(source)
+    recs = ptbxl_large.large_dev_records(DATA_ROOT) if (SET == "large" and source == "ptbxl") else read_manifest(source)
     recs = [r for r in recs if source != "ptbxl" or r.get("kind", "signal") != "image"]
     if source in IMAGE_SOURCES:
         recs = [r for r in recs if r.get("kind", "image") == "image"]
@@ -893,8 +912,7 @@ def _prf(tp, fp, fn, tn):
 def _ci(k, n):
     if n <= 0:
         return "-"
-    lo, hi = wilson(k, n)
-    return f"{100 * k / n:.0f} [{max(0, 100 * lo):.0f}-{100 * hi:.0f}]"
+    return fmt_ci(*bootstrap_prop_ci(k, n))
 
 
 def axis_class(a):
@@ -915,8 +933,22 @@ def ptbxl_prevalence() -> dict[str, float]:
     with p.open(encoding="utf-8") as f:
         for r in csv.DictReader(f):
             n += 1
-            cnt.update(gold_classes(parse_scp({"extra": {"scp_codes": r.get("scp_codes", "")}})))
+            cnt.update(gold_classes(parse_scp({"extra": {"scp_codes": r.get("scp_codes", "")}}), r.get("infarction_stadium1")))
     return {c: v / n for c, v in cnt.items()} if n else {}
+
+
+_STADIUM: dict[str, str] = {}
+
+
+def _stadium_lookup() -> dict[str, str]:
+    """rid -> infarction_stadium1 from the PTB-XL database csv (fallback for caches written before the field was stored)."""
+    if not _STADIUM:
+        try:
+            for r in ptbxl_large.load_database(ptbxl_large.database_csv(DATA_ROOT)):
+                _STADIUM[ptbxl_large.rid_of(r)] = r.get("infarction_stadium1", "")
+        except FileNotFoundError:
+            _STADIUM["__none__"] = ""
+    return _STADIUM
 
 
 def report_ptbxl(res: dict[str, dict]) -> tuple[str, dict]:
@@ -927,7 +959,7 @@ def report_ptbxl(res: dict[str, dict]) -> tuple[str, dict]:
     recs = []
     for r in ok:
         d = r["data"]
-        recs.append({"id": r["id"], "gold": gold_classes(d["scp"]), "scp": d["scp"], "codes": {f["code"] for f in d["findings"]},
+        recs.append({"id": r["id"], "gold": gold_classes(d["scp"], d.get("stadium1") or _stadium_lookup().get(r["id"])), "scp": d["scp"], "codes": {f["code"] for f in d["findings"]},
                      "sev": {f["code"]: f["sev"] for f in d["findings"]}, "gm": d["gm"], "axis": d.get("axis")})
     N = len(recs)
     rows, worst_rows, conf_rows = [], [], []
@@ -962,16 +994,17 @@ def report_ptbxl(res: dict[str, dict]) -> tuple[str, dict]:
         adj = "-"
         if pv and se == se and sp == sp and (se * pv + (1 - sp) * (1 - pv)) > 0:
             adj = f"{100 * se * pv / (se * pv + (1 - sp) * (1 - pv)):.0f} (prev {100 * pv:.1f}%)"
-        rows.append([c, CLASS_DESC[c], npos, tp, fp, _ci(tp, npos), _ci(tn, tn + fp), _ci(tp, tp + fp),
-                     adj, fmt(f1, 2)])
+        bs = bootstrap_binary_ci(tp, fp, fn, tn)
+        rows.append([c, CLASS_DESC[c], npos, tp, fp, fmt_ci(*bs["sens"]), fmt_ci(*bs["spec"]), fmt_ci(*bs["ppv"]),
+                     fmt_ci(*bs["acc"]), adj, fmt(f1, 2)])
         head[c] = (se, sp, ppv, f1, npos)
         if npos + fp:
             top_fp = ", ".join(f"{k}:{v}" for k, v in fp_gold.most_common(4)) or "-"
             top_fn = ", ".join(f"{k}:{v}" for k, v in fn_pred.most_common(4)) or "-"
             conf_rows.append([c, f"FP gold labels -> {top_fp}", f"FN our findings -> {top_fn}"])
             worst_rows.append([c, ", ".join(fps[:5]) or "-", ", ".join(fns[:5]) or "-"])
-    t1 = table(rows, ["Class", "Meaning", "N pos", "TP", "FP", "Sens % [95% CI]", "Spec % [95% CI]",
-                      "PPV % [95% CI] (this sample)", "PPV % at full-PTB-XL prevalence", "F1"])
+    t1 = table(rows, ["Class", "Meaning", "N pos", "TP", "FP", "Sens [IC95% bootstrap]", "Spec [IC95%]",
+                      "PPV [IC95%] (this sample)", "Acc [IC95%]", "PPV % at full-PTB-XL prevalence", "F1"])
     # NORM agreement
     norm = [r for r in recs if "NORM" in r["gold"]]
     abn = [r for r in recs if "NORM" not in r["gold"]]
@@ -1016,7 +1049,9 @@ def report_ptbxl(res: dict[str, dict]) -> tuple[str, dict]:
     body = (f"{N} records analysed ({len(bad)} failed). Timing: {_timing(ok)}. Ground truth = SCP statements in PTB-XL "
             "(a code counts as positive when likelihood >= 50 or 0 for non-diagnostic statements; all other records are "
             "negatives, so **specificity/PPV are lower bounds because absent statements are not proof of absence** and "
-            "labels are known to be noisy). The collector's PTB-XL subset is **class-enriched** (not the natural prevalence), so "
+            "labels are known to be noisy). **STE_ is annotated inconsistently in PTB-XL, so STE is scored against two golds: STE_ (statement, "
+            "kept) and STE_acute = any MI statement with infarction_stadium1 in {'Stadium I', 'Stadium I-II'} (same prediction).** "
+            "The collector's PTB-XL subset is **class-enriched** (not the natural prevalence), so "
             "sample PPV is not prevalence-valid: the extra column re-computes PPV from sensitivity/specificity at the natural prevalence "
             "in the full ptbxl_database.csv (an approximation). Rare classes have wide CIs.\n\n"
             "### Per-class performance\n\n" + t1 +
@@ -1187,21 +1222,29 @@ def _write(head: str, sections) -> Path:
 # ---------------------------------------------------------------------------------------------
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--source", default="all", choices=["ludb", "qtdb", "ptbxl", "images", "all", *IMAGE_SOURCES])
+    ap.add_argument("--source", default="all", choices=["ludb", "qtdb", "ptbxl", "images", "all", "code_test", *IMAGE_SOURCES])
+    ap.add_argument("--i-know-this-is-the-final-external-test", action="store_true", dest="final_ext",
+                    help="required (and usable ONCE, marker data/bench/ecg/code_test.RUN) for --source code_test, the final external test")
     ap.add_argument("--limit", type=int, default=None, help="max records per source (seeded random sample)")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--force", action="store_true", help="ignore the cache and recompute")
     ap.add_argument("--report-only", action="store_true")
     ap.add_argument("--split", default="all", choices=["all", "dev", "test"],
                     help="PTB-XL split by strat_fold: dev = folds 1-8, test = folds 9-10 (official test folds)")
+    ap.add_argument("--set", default="default", choices=["default", "large"], dest="pset",
+                    help="PTB-XL record set: default = collector manifest (3000 records); large = frozen class-enriched DEV sample "
+                         "(bench/lists/ptbxl_large_dev.json, folds 1-8 only, needs datasets/ptbxl_full); use with --split dev")
     ap.add_argument("--records", default=None, help="restrict to numeric id range A-B (inclusive), e.g. 1-160 (LUDB dev) / 161-200 (test)")
     ap.add_argument("--tag", default="", help="cache-file suffix; with --tag only the LUDB table is printed and docs are not rewritten")
     ap.add_argument("--litfl-split", default="all", choices=["all", "dev", "test"],
                     help="LITFL images: deterministic page-level split (dev ~70%%, test ~30%%); prints the image report to stdout "
                          "and leaves docs/benchmarks/ecg.md untouched")
     a = ap.parse_args(argv)
-    global CACHE_TAG, RECORD_RANGE, SPLIT, LITFL_SPLIT
+    global CACHE_TAG, RECORD_RANGE, SPLIT, LITFL_SPLIT, SET
     SPLIT = a.split
+    SET = a.pset
+    if SET == "large" and SPLIT != "dev":
+        ap.error("--set large is a DEV sample: use --split dev (folds 9-10 are BURNED and never listed)")
     LITFL_SPLIT = a.litfl_split
     if LITFL_SPLIT != "all" and not a.tag:
         a.tag = f"_split_{LITFL_SPLIT}"
@@ -1209,6 +1252,13 @@ def main(argv=None) -> int:
         lo, hi = a.records.split("-")
         RECORD_RANGE = (int(lo), int(hi))
     CACHE_TAG = a.tag
+    if a.source == "code_test":   # guarded one-shot external test (bench/code_test.py); never part of "all"
+        from bench import code_test
+        try:
+            return code_test.run_final(a.final_ext, a.workers, OUT_ROOT, head="")
+        except code_test.FinalTestGuardError as e:
+            print(f"REFUSED: {e}", file=sys.stderr)
+            return 2
     srcs = {"all": ["ludb", "ptbxl", *IMAGE_SOURCES], "images": IMAGE_SOURCES}.get(a.source, [a.source])
     if not a.report_only:
         for s in srcs:

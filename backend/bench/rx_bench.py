@@ -70,6 +70,13 @@ def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return max(0.0, c - h), min(1.0, c + h)
 
 
+def _boot_ci(k: int, n: int) -> tuple[float, float]:
+    """95% bootstrap CI (2000 resamples, fixed seed) of a proportion k/n; shared implementation in bench.report."""
+    from bench.report import bootstrap_prop_ci
+    _, lo, hi = bootstrap_prop_ci(k, n)
+    return lo, hi
+
+
 def auc_score(y: np.ndarray, s: np.ndarray) -> float:
     y = np.asarray(y).astype(bool)
     s = np.asarray(s, dtype=float)
@@ -89,22 +96,15 @@ def auc_score(y: np.ndarray, s: np.ndarray) -> float:
     return float((ranks[y].sum() - n1 * (n1 + 1) / 2) / (n1 * n0))
 
 
-def auc_ci(y, s, n_boot: int = 500, seed: int = 0) -> tuple[float, float, float]:
+def auc_ci(y, s, n_boot: int = 2000, seed: int = 20261124) -> tuple[float, float, float]:
     y = np.asarray(y).astype(bool)
     s = np.asarray(s, dtype=float)
     a = auc_score(y, s)
     if math.isnan(a):
         return a, a, a
-    rng = np.random.default_rng(seed)
-    vals = []
-    for _ in range(n_boot):
-        idx = rng.integers(0, len(y), len(y))
-        v = auc_score(y[idx], s[idx])
-        if not math.isnan(v):
-            vals.append(v)
-    if not vals:
-        return a, float("nan"), float("nan")
-    return a, float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))
+    from bench.report import bootstrap_ci  # shared bootstrap (2000 resamples, fixed seed, study-level)
+    _, lo, hi = bootstrap_ci(auc_score, y, s, n_boot=n_boot, seed=seed)
+    return a, lo, hi
 
 
 def binary_stats(y: list[bool], p: list[bool]) -> dict:
@@ -614,9 +614,8 @@ def _mean_ci(vals: list[float]) -> tuple[float, float, float]:
     m = float(a.mean())
     if len(a) < 2:
         return m, m, m
-    rng = np.random.default_rng(0)
-    bs = [rng.choice(a, len(a)).mean() for _ in range(300)]
-    return m, float(np.percentile(bs, 2.5)), float(np.percentile(bs, 97.5))
+    from bench.report import bootstrap_mean_ci  # shared bootstrap (2000 resamples, fixed seed)
+    return bootstrap_mean_ci(a)
 
 
 def seg_tables(rows: list[dict]) -> tuple[str, dict, list]:
@@ -703,7 +702,7 @@ def _timing(rows: list[dict], label: str) -> list:
 
 
 def iu_eval(rows: list[dict]) -> tuple[str, dict, list]:
-    from bench.report import table
+    from bench.report import bootstrap_binary_ci, bootstrap_prop_ci, fmt_ci, table
     head: dict = {}
     sec = []
     ok = [r for r in rows if r.get("ok")]
@@ -720,17 +719,17 @@ def iu_eval(rows: list[dict]) -> tuple[str, dict, list]:
             cm[(g, p)] += 1
         n = len(imgs)
         k = cm[("frontal", "frontal")] + cm[("lateral", "lateral")]
-        lo, hi = wilson(k, n)
+        lo, hi = _boot_ci(k, n)
         head[("iu_view", f"{mode}, GT {vsrc_f}")] = (k / n, lo, hi, n)
         wrong = [(sid, i["id"], i["gt_view"], i["auto_view"]) for sid, i in imgs
                  if view_class(i["gt_view"]) != ("frontal" if i["auto_view"] in ("PA", "AP") else "lateral" if i["auto_view"] == "LATERAL" else "other")]
-        sec.append(f"**{mode}, GT view_source={vsrc_f}**: acurácia frontal/perfil {k}/{n} = {k / n:.3f} (IC95% {lo:.3f}–{hi:.3f}). Matriz (verdade→previsto): "
+        sec.append(f"**{mode}, GT view_source={vsrc_f}**: acurácia frontal/perfil {k}/{n} = {k / n:.3f} (IC95% bootstrap {fmt_ci(k / n, *bootstrap_prop_ci(k, n)[1:])}). Matriz (verdade→previsto): "
                    + ", ".join(f"{g}→{p}: {c}" for (g, p), c in sorted(cm.items()))
                    + (". Erros: " + ", ".join(f"`{w[1]}` (GT {w[2]}, previsto {w[3]})" for w in wrong[:8]) if wrong else ""))
         pa_ap = Counter(i["auto_view"] for _, i in imgs if view_class(i["gt_view"]) == "frontal")
         reg = Counter(i["auto_region"] for _, i in imgs)
         sec.append(f"  Região detectada sem tags ({vsrc_f}): " + ", ".join(f"{a}={b}" for a, b in sorted(reg.items())))
-        head[("iu_region_chest", f"GT {vsrc_f}")] = (reg["chest"] / n, *wilson(reg["chest"], n), n)
+        head[("iu_region_chest", f"GT {vsrc_f}")] = (reg["chest"] / n, *_boot_ci(reg["chest"], n), n)
         sec.append(f"  Distribuição PA/AP previstas nos frontais ({mode}/{vsrc_f}): " + ", ".join(f"{a}={b}" for a, b in sorted(pa_ap.items())))
     view_txt = "\n\n".join(sec)
 
@@ -787,18 +786,19 @@ def iu_eval(rows: list[dict]) -> tuple[str, dict, list]:
                     continue
                 p = [bool(bfn(r)) for r in rs]
                 st = binary_stats(y, p)
-                cell = lambda kn: (f"{kn[0] / kn[1]:.2f} [{wilson(*kn)[0]:.2f}, {wilson(*kn)[1]:.2f}]" if kn[1] else "-")
+                bs = bootstrap_binary_ci(st["tp"], st["fp"], st["fn"], st["tn"])  # study-level bootstrap, 2000 resamples
+                cell = lambda key: fmt_ci(*bs[key])
                 auc_txt = "-"
-                if sfn is not None:
+                if sfn is not None:  # (AUC cell: bootstrap too)
                     sc = [sfn(r) for r in rs]
                     sel = [j for j, v in enumerate(sc) if v is not None]
                     if sel:
                         a, lo, hi = auc_ci([y[j] for j in sel], [sc[j] for j in sel])
-                        auc_txt = f"{a:.3f} [{lo:.3f}, {hi:.3f}]"
+                        auc_txt = fmt_ci(a, lo, hi, nd=3, percent=False)
                         head[("iu_auc", tgt, name, mode)] = (a, lo, hi, len(sel), sum(y[j] for j in sel))
                 head[("iu_find", tgt, name, mode)] = (st["sens"], st["spec"], st["ppv"], st["n"], sum(y))
-                trs.append([tgt, name, mode, st["n"], f"{sum(y)} ({100 * sum(y) / len(y):.0f}%)", cell(st["sens"]), cell(st["spec"]),
-                            cell(st["ppv"]), auc_txt])
+                trs.append([tgt, name, mode, st["n"], f"{sum(y)} ({100 * sum(y) / len(y):.0f}%)", cell("sens"), cell("spec"),
+                            cell("ppv"), auc_txt])
     find_txt = table(trs, ["alvo", "preditor", "caminho", "N estudos", "positivos GT", "sensibilidade [IC95%]",
                            "especificidade [IC95%]", "VPP [IC95%]", "AUC [IC95%]"]) if trs else "_Sem estudos IU com rótulos de laudo._"
 
@@ -810,11 +810,11 @@ def iu_eval(rows: list[dict]) -> tuple[str, dict, list]:
         if not rr:
             continue
         k = sum(1 for x in rr if x[2].get("ok"))
-        lo, hi = wilson(k, len(rr))
+        lo, hi = _boot_ci(k, len(rr))
         ts = [x[2]["t"] for x in rr if x[2].get("ok")]
         head[("recon", mode)] = (k / len(rr), lo, hi, len(rr))
         fails = [f"`{x[0]}` ({x[2].get('error', 'vazio')[:60]})" for x in rr if not x[2].get("ok")][:6]
-        rtxt.append(f"**{mode}**: sucesso {k}/{len(rr)} = {k / len(rr):.3f} (IC95% {lo:.3f}–{hi:.3f}); tempo médio {np.mean(ts) if ts else float('nan'):.1f} s, "
+        rtxt.append(f"**{mode}**: sucesso {k}/{len(rr)} = {fmt_ci(*bootstrap_prop_ci(k, len(rr)))} (IC95% bootstrap); tempo médio {np.mean(ts) if ts else float('nan'):.1f} s, "
                     f"p95 {np.percentile(ts, 95) if ts else float('nan'):.1f} s; malhas média {np.mean([x[2].get('n_meshes', 0) for x in rr if x[2].get('ok')] or [0]):.1f}."
                     + (" Falhas: " + ", ".join(fails) if fails else ""))
     # timing rows
@@ -866,13 +866,14 @@ def cap_eval(rows: list[dict]) -> tuple[str, dict]:
                 return "frontal" if r["view"] in ("PA", "AP") else "lateral" if r["view"] == "LATERAL" else "other"
             v_ok = [r for r in hv if vpred(r) == r["hints"]["view"]]
             fr = len(fail) / len(rs)
-            lo, hi = wilson(len(fail), len(rs))
+            lo, hi = _boot_ci(len(fail), len(rs))
             head[("cap_fail", src, mode)] = (fr, lo, hi, len(rs))
             if hk:
-                head[("cap_region", src, mode)] = (len(reg_ok) / len(hk), *wilson(len(reg_ok), len(hk)), len(hk))
+                head[("cap_region", src, mode)] = (len(reg_ok) / len(hk), *_boot_ci(len(reg_ok), len(hk)), len(hk))
             if hv:
-                head[("cap_view", src, mode)] = (len(v_ok) / len(hv), *wilson(len(v_ok), len(hv)), len(hv))
-            c = lambda a, b: f"{a}/{b} = {a / b:.2f} [{wilson(a, b)[0]:.2f}, {wilson(a, b)[1]:.2f}]" if b else "-"
+                head[("cap_view", src, mode)] = (len(v_ok) / len(hv), *_boot_ci(len(v_ok), len(hv)), len(hv))
+            from bench.report import bootstrap_prop_ci, fmt_ci
+            c = lambda a, b: f"{a}/{b} = {fmt_ci(*bootstrap_prop_ci(a, b))}" if b else "-"
             trs.append([src, mode, len(rs), f"{len(fail)} ({fr:.1%})", f"{len(nochest_seg)}", c(len(reg_ok), len(hk)), c(len(v_ok), len(hv))])
             miss = [f"`{r['id']}` (legenda: {r['hints']['region']}, previsto: {r['region']})" for r in hk if r not in reg_ok][:6]
             mv = [f"`{r['id']}` (legenda: {r['hints']['view']}, previsto: {r['view']})" for r in hv if r not in v_ok][:6]
@@ -940,8 +941,8 @@ def build_report(path: Optional[Path] = None) -> Path:
             ch_ = sum(r["auto_region"] == "chest" for r in rs)
             fr_ = sum(r["auto_region"] == "chest" and r["auto_view"] in ("PA", "AP", "LATERAL") for r in rs)
             gtl = [r for r in rs if view_class(r.get("view")) == "lateral"]
-            det.append([src, len(rs), f"{ch_}/{len(rs)} = {ch_ / len(rs):.3f} [{wilson(ch_, len(rs))[0]:.3f}, {wilson(ch_, len(rs))[1]:.3f}]", f"{fr_}/{len(rs)}"])
-            headline.append([f"Região=tórax sem tags ({src})", "fração [IC95%]", len(rs), f"{ch_ / len(rs):.3f} [{wilson(ch_, len(rs))[0]:.3f}, {wilson(ch_, len(rs))[1]:.3f}]"])
+            det.append([src, len(rs), f"{ch_}/{len(rs)} = {ch_ / len(rs):.3f} [{_boot_ci(ch_, len(rs))[0]:.3f}, {_boot_ci(ch_, len(rs))[1]:.3f}]", f"{fr_}/{len(rs)}"])
+            headline.append([f"Região=tórax sem tags ({src})", "fração [IC95%]", len(rs), f"{ch_ / len(rs):.3f} [{_boot_ci(ch_, len(rs))[0]:.3f}, {_boot_ci(ch_, len(rs))[1]:.3f}]"])
         if det:
             sections.append(("Detecção de região sem tags (imagens de tórax)", table(det, ["fonte", "N", "região=tórax [IC95%]", "tórax com incidência reconhecida"])))
         ct, ch = ctr_section(seg)

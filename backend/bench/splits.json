@@ -75,6 +75,25 @@
       "id_regex": "[\\w.-]+_(?:frontal|lateral)",
       "test": "all",
       "note": "PAX-Ray++: only the OFFICIAL test partition is downloaded (paxray_test.json); it is test-only."
+    },
+    "code_test": {
+      "modality": "ECG",
+      "method": "external_test",
+      "id_regex": "codetest-\\d{4}",
+      "test": "all",
+      "note": "CODE-test (Ribeiro 2020, 827 patients): FINAL external test, never used for tuning; run once with --i-know-this-is-the-final-external-test (marker data/bench/ecg/code_test.RUN). Prepared, not run."
+    }
+  },
+  "lists": {
+    "ptbxl_large_dev": {
+      "file": "lists/ptbxl_large_dev.json",
+      "source": "ptbxl",
+      "split": "dev",
+      "folds": [
+        1,
+        8
+      ],
+      "note": "Frozen class-enriched PTB-XL DEV sample for the R2 evaluation base (seed 20261124; NORM>=400; rare classes enriched). Only strat_fold 1-8; folds 9-10 stay BURNED and are never listed. Built by bench/ptbxl_large.py from PTB-XL 1.0.3 ptbxl_database.csv; used with bench.ecg_bench --source ptbxl --split dev --set large."
     }
   }
 }
