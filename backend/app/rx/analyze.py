@@ -38,12 +38,12 @@ def _as_u8(img) -> np.ndarray:
     return a
 
 
-def _model_prefers_inverted(img: np.ndarray) -> bool:
+def _model_prefers_inverted(img: np.ndarray, use_model: Optional[bool] = None) -> bool:
     """True if the chest model finds a more plausible thorax in the inverted image (lungs + heart area)."""
     def score(a):
         c, _ = autocrop(a)
         w, _ = to_work(c)
-        pr = seg_model.psp_probs(w)
+        pr = seg_model.psp_probs(w, use_model)
         if pr is None:
             return None
         f = V.model_features(pr)
@@ -145,7 +145,7 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
     if not _tag_polarity(ds):
         m = polarity_margin(img)
         if m > 0.05 and allow_model:
-            inverted = _model_prefers_inverted(img)       # arbitrate with the chest model (rare, +1 PSP pass)
+            inverted = _model_prefers_inverted(img, True)       # arbitrate with the chest model (rare, +1 PSP pass)
         elif m > 0.12:
             inverted = True
         if inverted:
@@ -203,7 +203,7 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
         masks = None
         origin = "heuristic"
         if allow_model:
-            masks = seg_model.segment_chest_model(work, info.get("prob"))
+            masks = seg_model.segment_chest_model(work, info.get("prob"), True)
             if masks is not None:
                 origin = "model"
         if masks is None:
@@ -237,7 +237,7 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
                 if not allow_model:
                     quality["confiabilidade"] += " Modelo de segmentação indisponível/desligado."
         if allow_model:
-            scores = seg_model.pathology_scores(work)
+            scores = seg_model.pathology_scores(work, True)
     elif kind == "chest_lateral":
         hint = seg_model.lung_field_from_probs(info["prob"], s.shape) if info.get("prob") is not None else None
         masks = H.segment_chest_lateral(s, V.posterior_side_from_tags(ds), hint)
