@@ -33,6 +33,9 @@ export interface AIReport {
   disagreements_with_measurements: string[];
   limitations: string[];
   disclaimer: string;
+  laudo?: Record<string, unknown> | null;
+  laudo_markdown?: string;
+  laudo_curto?: string;
 }
 
 export interface SeriesInfo {

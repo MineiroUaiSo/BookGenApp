@@ -73,6 +73,9 @@ class AIReport(BaseModel):
     disclaimer: str = (
         "Rascunho gerado por IA para apoio à decisão. Não substitui laudo médico."
     )
+    laudo: Optional[dict] = None             # laudo estruturado de ECG (app/llm/laudo.py), campo novo
+    laudo_markdown: str = ""                 # laudo completo em markdown copiável
+    laudo_curto: str = ""                    # versão de 1 parágrafo para prontuário
 
 
 # ---------------------------------------------------------------- study / ingest

@@ -22,6 +22,12 @@ def _isolated_store(tmp_path, monkeypatch):
     return store
 
 
+@pytest.fixture(autouse=True)
+def _no_laudo_by_default(monkeypatch):
+    """O laudo (3a chamada de LLM) só roda nos testes que o pedem; evita consumir respostas de FakeClient."""
+    monkeypatch.setenv("MEDLENS_LAUDO", "0")
+
+
 @pytest.fixture
 def client():
     from app.main import app

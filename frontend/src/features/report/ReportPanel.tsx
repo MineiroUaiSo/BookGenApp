@@ -91,6 +91,22 @@ export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested
       {ai?.available ? (
         <>
           {ai.model && <p className="hint">Gerado por IA ({ai.model})</p>}
+          {ai.laudo_markdown ? (
+            <>
+              <h3>Laudo estruturado (rascunho)</h3>
+              <pre className="desc" style={{ whiteSpace: "pre-wrap" }}>{ai.laudo_markdown}</pre>
+              {ai.laudo_curto && (
+                <>
+                  <h4>Versão curta para prontuário</h4>
+                  <p className="desc">{ai.laudo_curto}</p>
+                </>
+              )}
+              <div className="btn-row no-print">
+                <button className="btn small" onClick={() => navigator.clipboard?.writeText(ai.laudo_markdown ?? "")}>Copiar laudo (markdown)</button>
+                {ai.laudo_curto && <button className="btn small" onClick={() => navigator.clipboard?.writeText(ai.laudo_curto ?? "")}>Copiar versão curta</button>}
+              </div>
+            </>
+          ) : null}
           <h3>Descrição minuciosa</h3>
           <p className="desc">{ai.description || "—"}</p>
 

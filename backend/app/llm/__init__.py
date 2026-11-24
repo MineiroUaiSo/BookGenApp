@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -10,6 +12,7 @@ from ..knowledge import (format_items, format_references, known_reference_ids, l
                          select_relevant)
 from ..schemas import AIReport, ECGAnalysis, RXAnalysis
 from . import client as _client
+from . import laudo as laudo_mod
 from .client import ai_available, model_name  # noqa: F401  (API pública)
 from .render import render_ecg_plot, rx_image_png, rx_overlay_png
 from .schema import output_schema, to_report
@@ -164,7 +167,35 @@ def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str,
         return AIReport(available=False, model=model, limitations=[msg])
 
 
-def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None) -> AIReport:
+def laudo_enabled() -> bool:
+    return os.environ.get("MEDLENS_LAUDO", "1") != "0"
+
+
+def _laudo_call(system: str, user: str) -> str:
+    c = _client
+    text, _, _ = c.run_resilient(c.make_client(), [{"type": "text", "text": system}],
+                                 [{"role": "user", "content": user}], c.MAX_TOKENS_LAUDO,
+                                 schema=laudo_mod.output_schema())
+    return text
+
+
+def ecg_laudo_fields(summary: dict, *, printed_header: Optional[dict] = None, sexo: Optional[str] = None,
+                     call: Optional[laudo_mod.LLMCall] = None) -> dict:
+    """Campos novos do AIReport (laudo, laudo_markdown, laudo_curto); {} se falhar (nunca derruba o relatório)."""
+    try:
+        susp = next((w for w in summary.get("avisos") or [] if re.search(r"suspeit|diverg", str(w), re.I)), None)
+        prepared = laudo_mod.prepare_summary(summary, printed_header=printed_header, sexo=sexo,
+                                             digitalizacao_suspeita=susp)
+        lau = laudo_mod.generate_laudo(prepared, call or _laudo_call)
+        return {"laudo": lau.model_dump(), "laudo_markdown": laudo_mod.render_markdown(lau),
+                "laudo_curto": laudo_mod.render_short(lau)}
+    except Exception:
+        log.exception("laudo failure")
+        return {}
+
+
+def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None, *, printed_header: Optional[dict] = None,
+               sexo: Optional[str] = None) -> AIReport:
     if not ai_available():
         return unavailable()
     images: list[tuple[str, bytes]] = []
@@ -179,6 +210,10 @@ def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None) -> AIRe
     rep = _two_stage("ecg", images, ctx, summary, analysis.findings)
     if not images and rep.available:
         rep.limitations.append("Sem imagem do traçado; análise baseada somente nas medidas.")
+    if rep.available and laudo_enabled():
+        extra = ecg_laudo_fields(summary, printed_header=printed_header, sexo=sexo)
+        if extra:
+            rep = rep.model_copy(update=extra)
     return rep
 
 
