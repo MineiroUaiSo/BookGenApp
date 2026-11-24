@@ -52,13 +52,13 @@ def upsample_mask(mask: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
 def encode_mask(mask_full: np.ndarray) -> str:
     im = Image.fromarray((mask_full.astype(np.uint8)) * 255, mode="L")
     buf = io.BytesIO()
-    im.save(buf, format="PNG", optimize=True)
+    im.save(buf, format="PNG", compress_level=3)   # optimize=True cost ~25 ms/mask for ~no size gain
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
 def encode_png_b64(img_u8: np.ndarray) -> str:
     buf = io.BytesIO()
-    Image.fromarray(img_u8).save(buf, format="PNG")
+    Image.fromarray(img_u8).save(buf, format="PNG", compress_level=3)
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 

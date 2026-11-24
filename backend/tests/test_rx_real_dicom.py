@@ -53,3 +53,28 @@ def test_abdomen_region(path):
     ds, img = _load(path)
     a = analyze_image(img, "t", ds, use_model=False)
     assert a.region == BodyRegion.ABDOMEN
+
+
+@pytest.mark.skipif(not CHEST, reason="sem tórax de exemplo")
+def test_psp_device_cpu_equivalent_to_default(monkeypatch):
+    """R6: MPS (when present) is numerically equivalent to CPU: same masks."""
+    import numpy as np
+    from app.rx._common import autocrop, to_work
+    from app.rx.analyze import _as_u8
+    if seg_model._xrv() is None:
+        pytest.skip("torchxrayvision indisponível")
+    ds, img = _load(CHEST[0])
+    work, _ = to_work(autocrop(_as_u8(img))[0])
+    saved = dict(seg_model._state)
+    try:
+        outs = []
+        for dev in ("cpu", "auto"):
+            monkeypatch.setenv("MEDLENS_RX_DEVICE", dev)
+            monkeypatch.setenv("MEDLENS_RX_MODELS", "1")
+            seg_model._state.clear()
+            outs.append(seg_model.psp_probs(work))
+    finally:
+        seg_model._state.clear()
+        seg_model._state.update(saved)
+    assert np.abs(outs[0] - outs[1]).max() < 1e-3
+    assert ((outs[0] > .5) != (outs[1] > .5)).mean() < 1e-4
