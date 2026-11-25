@@ -17,6 +17,7 @@ def test_rx_lexico_termos_proibidos_sao_detectados(texto):
     "Modelo auxiliar: possível derrame pleural (probabilidade calibrada ≈ 0,70); escore de modelo; não confirma nem afasta.",
     "Modelo auxiliar: indeterminado para consolidação; não permite afirmar nem afastar.",
     "Pleura: não avaliado nesta análise automática.",
+    "Diafragma: ar livre subdiafragmático não avaliado nesta análise automática.",
     "Índice cardiotorácico medido 0,46, dentro da faixa de referência (limite clássico 0,50 em PA).",
 ])
 def test_rx_lexico_frases_molde_nao_tem_termo_proibido(texto):

@@ -26,8 +26,8 @@ GRAUS_PERMITIDOS: dict[Nivel, frozenset[str]] = {
 PROIBIDOS = re.compile(
     r"\bnormal(?:is|idade)?\b|sem altera[cç][oõ]es|dentro d[aeo]s? normalidade|\bafasta\w*|\bdescarta\w*|"
     r"aus[eê]ncia de|\blivres?\b|diagn[oó]stico de|\bconfirma\w*", re.IGNORECASE)
-# frases-molde legítimas que contêm palavra proibida só para NEGAR o poder do modelo
-_ISENTAS = re.compile(r"n[aã]o confirma nem afasta|nem afastar|n[aã]o confirma", re.IGNORECASE)
+# frases-molde legítimas que contêm palavra proibida: negar o poder do modelo; "ar livre" é o nome do sinal (pneumoperitônio)
+_ISENTAS = re.compile(r"n[aã]o confirma nem afasta|nem afastar|n[aã]o confirma|\bar livre\b", re.IGNORECASE)
 _FAIXA_REF = re.compile(r"dentro d[aeo]s? faixa de refer[eê]ncia", re.IGNORECASE)
 _MEDIDA = re.compile(r"\bmedid[ao]s?\b|faixa de refer[eê]ncia", re.IGNORECASE)
 
