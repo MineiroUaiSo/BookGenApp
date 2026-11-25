@@ -33,9 +33,9 @@ def test_ict_modelo_alto_pa_usa_rotulo_d2():
     assert fs[0].label == "Sugere aumento da silhueta cardíaca (ICT > 0,50 em PA)"
 
 
-def test_ict_modelo_normal_continua_normal():
-    fs = _ict_codes(_img(0.40))
-    assert len(fs) == 1 and fs[0].code == "rx.cardiothoracic_ratio_normal" and fs[0].severity == "normal"
+def test_ict_modelo_baixo_nao_gera_achado_normal():
+    """H1: ICT de modelo <= 0,50 tem incerteza (±0,05) e tende a subestimar: nao afirma coracao normal."""
+    assert _ict_codes(_img(0.40)) == []
 
 
 def test_ict_cxas_conta_como_modelo():
@@ -50,7 +50,6 @@ def test_nenhum_rotulo_contem_cardiomegalia_com_parentese():
                     assert "Cardiomegalia (" not in f.label
 
 
-def test_ict_049_modelo_sem_faixa_cinzenta_segue_normal():
-    """D-C sem resposta do dono: nao cria faixa limitrofe; 0,49 continua <= 0,50 (normal)."""
-    fs = _ict_codes(_img(0.49))
-    assert [f.code for f in fs] == ["rx.cardiothoracic_ratio_normal"]
+def test_ict_049_modelo_sem_faixa_cinzenta_e_sem_achado():
+    """D-C sem resposta do dono: nao cria faixa limitrofe; 0,49 nao vira achado nem 'normal' (H1)."""
+    assert _ict_codes(_img(0.49)) == []

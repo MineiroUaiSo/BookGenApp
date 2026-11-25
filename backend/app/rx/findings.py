@@ -97,7 +97,8 @@ def _frontal_findings(img: RXImageAnalysis, tag: str) -> list[Finding]:
     if ctr is not None and _ict_from_model(img):   # ICT de segmentacao heuristica nao vira achado (R7)
         v = float(ctr.value)
         c = _origin_conf(img, "heart", 0.7, 0.45)
-        ev = [f"índice cardiotorácico = {v:.2f} (incidência {vname}{tag})"]
+        ev = [f"índice cardiotorácico = {v:.2f} (incidência {vname}{tag})",
+              "ICT de modelo com incerteza de ±0,05; a máscara do coração pode estar subestimada"]
         if v > 0.50:
             if ap:
                 out.append(Finding(code="rx.cardiomegaly", label="Aumento da silhueta cardíaca (ICT > 0,50) — incidência AP magnifica o coração",
@@ -107,9 +108,8 @@ def _frontal_findings(img: RXImageAnalysis, tag: str) -> list[Finding]:
                 out.append(Finding(code="rx.cardiomegaly", label="Sugere aumento da silhueta cardíaca (ICT > 0,50 em PA)",
                                    severity="abnormal" if v >= 0.55 else "borderline",
                                    evidence=ev, references=[REF_FELSON, REF_SQUIRE], confidence=c))
-        else:
-            out.append(Finding(code="rx.cardiothoracic_ratio_normal", label="Índice cardiotorácico dentro do limite (≤ 0,50)",
-                               severity="normal", evidence=ev, references=[REF_FELSON], confidence=c))
+        # ICT <= 0,50 de modelo NAO vira achado "normal": a medida tem incerteza (±0,05) e tende a subestimar; ela segue
+        # na ficha/laudo com a ressalva, sem afirmar coracao normal nem excluir cardiomegalia (H1).
 
     mw, mr = _m(img, "mediastinal_width"), _val(img, "mediastinal_width_ratio")
     if mr is not None:

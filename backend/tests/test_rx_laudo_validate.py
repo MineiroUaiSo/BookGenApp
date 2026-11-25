@@ -41,7 +41,6 @@ LEGITIMAS = [
     ("Índice cardiotorácico medido 0,46.", [ICT]),
     ("ICT de 0,46 em incidência PA.", [ICT]),
     ("Medida compatível com a faixa de referência: ICT 0,46.", [ICT]),
-    ("Não há cardiomegalia pelo ICT medido 0,46.", [ICT]),
     ("Largura do mediastino medida 40% da largura torácica, acima do limiar local (heurística local, sem fonte primária; correlacionar).", [MED]),
     ("Mediastino com largura medida de 40%, acima do limiar local.", [MED]),
     ("Desvio traqueal medido +6,0% da largura torácica, acima do limiar local (heurística local).", [TRA]),
@@ -73,6 +72,7 @@ LEGITIMAS = [
 ILEGITIMAS = [
     ("Derrame pleural à direita.", []),
     ("Cardiomegalia.", []),
+    ("Não há cardiomegalia pelo ICT medido 0,46.", [ICT]),
     ("Consolidação no lobo inferior direito com broncograma aéreo.", []),
     ("Nódulo pulmonar de 12 mm.", []),
     ("Fratura do 6º arco costal.", []),

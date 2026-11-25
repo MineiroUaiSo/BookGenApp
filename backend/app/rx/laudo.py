@@ -117,8 +117,10 @@ def _frase_fato(x) -> tuple[str, Nivel]:
                     Nivel.REGRA)
         if regra:
             return (f"Índice cardiotorácico medido {_n(v)}, acima de 0,50: sugere aumento da silhueta cardíaca "
-                    "(critério de acurácia limitada; correlacionar).", Nivel.REGRA)
-        return f"Índice cardiotorácico medido {_n(v)} (limite clássico 0,50 em PA).", Nivel.MEDIDO
+                    "(critério de acurácia limitada; correlacionar). Medida com incerteza de ±0,05; pode estar "
+                    "subestimada.", Nivel.REGRA)
+        return (f"Índice cardiotorácico medido {_n(v)}, com incerteza (±0,05; pode estar subestimado): "
+                "não exclui aumento da silhueta cardíaca.", Nivel.MEDIDO)
     base = {
         "mediastino_largura_pct": f"Largura do mediastino medida {_n(v, 0)}% da largura torácica",
         "mediastino_largura_mm": f"Largura do mediastino medida {_n(v, 0)} mm",

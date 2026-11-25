@@ -86,7 +86,7 @@ def test_cardiomegaly_finding_only_when_large():
     assert cb and cb[0].severity in ("borderline", "abnormal") and cb[0].references
     assert cb[0].references[0].id == "felson_2025"
     assert not [f for f in fs if f.code == "rx.cardiomegaly"]
-    assert any(f.severity == "normal" for f in fs)
+    assert not [f for f in fs if f.severity == "normal" and "cardio" in f.code]   # H1: ICT baixo nao afirma coracao normal
 
 
 def test_ap_tag_softens_cardiomegaly():

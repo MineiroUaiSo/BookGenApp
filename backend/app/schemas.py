@@ -249,6 +249,7 @@ class RXMeasurement(BaseModel):
     unit: Optional[str] = None
     normal_range: Optional[str] = None
     drawing: list[list[float]] = []          # line segments to overlay [[x0,y0,x1,y1],...]
+    limitations: list[str] = []              # incerteza/limitações declaradas da medida
 
 
 class RXImageAnalysis(BaseModel):

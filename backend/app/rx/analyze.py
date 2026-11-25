@@ -240,7 +240,7 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
             masks = canvas_masks(masks)
             s_full = to_canvas(s)
             structures = _structures(masks, full, scale, spacing, origin, _ORDER)
-            measurements, ex = measure.measure_frontal(masks, conv, view.value)
+            measurements, ex = measure.measure_frontal(masks, conv, view.value, origin=origin)
             if origin == "heuristic":
                 measurements = _distrust_heuristic_ctr(measurements, ex, quality)
             quality.update(measure.quality_frontal(s_full, masks, ex))
