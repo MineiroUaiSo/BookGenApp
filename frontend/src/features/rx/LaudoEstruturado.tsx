@@ -5,6 +5,8 @@ import type { FraseLaudo, LaudoRX, NivelLaudo, SecaoLaudo } from "../../types/ap
 const ROTULO_NIVEL: Record<NivelLaudo, string> = {
   MEDIDO: "MEDIDO", REGRA: "REGRA", SUGERIDO_MODELO: "SUGERIDO MODELO", NAO_AVALIADO: "NAO AVALIADO", QUALIDADE: "QUALIDADE",
 };
+/** Alvo de toque mínimo de 44 px (global.css é do lote U1; sem edição de estilo global aqui). */
+const ALVO_TOQUE = { minHeight: 44 } as const;
 const ARMAZENAMENTO = "medlens.laudo_rx.comunicacao";
 
 function guardar(chave: string, valor: string): void {
@@ -46,8 +48,8 @@ function Parecer({ secao, studyId, enviarVoto }: { secao: SecaoLaudo; studyId?: 
   };
   return (
     <span className="feedback no-print" role="group" aria-label={`Parecer sobre ${secao.titulo}`}>
-      <button type="button" className="btn small" aria-pressed={voto === "agree"} onClick={() => votar("agree")}>Concordo</button>{" "}
-      <button type="button" className="btn small" aria-pressed={voto === "disagree"} onClick={() => votar("disagree")}>Discordo</button>
+      <button type="button" className="btn small" style={ALVO_TOQUE} aria-pressed={voto === "agree"} onClick={() => votar("agree")}>Concordo</button>{" "}
+      <button type="button" className="btn small" style={ALVO_TOQUE} aria-pressed={voto === "disagree"} onClick={() => votar("disagree")}>Discordo</button>
     </span>
   );
 }
@@ -107,7 +109,7 @@ export default function LaudoEstruturado({ laudo, studyId, markdown = "", enviar
           comentario={comentarios[s.id] ?? ""} onComentario={(v) => setComentarios((c) => ({ ...c, [s.id]: v }))} />
       ))}
       {markdown && (
-        <button type="button" className="btn small no-print" onClick={copiar}>{copiado ? "Copiado" : "Copiar laudo"}</button>
+        <button type="button" className="btn small no-print" style={ALVO_TOQUE} onClick={copiar}>{copiado ? "Copiado" : "Copiar laudo"}</button>
       )}
       <label className="laudo-comunicacao no-print">
         <span>Comunicação não rotineira</span>
