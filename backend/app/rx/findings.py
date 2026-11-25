@@ -19,7 +19,7 @@ REF_TXRV = Reference(id="xrv_cohen_2022", source="Cohen JP et al. TorchXRayVisio
                      note="escore auxiliar de modelo; não é laudo")
 
 PATHO_PT = {
-    "Atelectasis": "atelectasia", "Consolidation": "consolidação", "Infiltration": "infiltrado",
+    "Atelectasis": "atelectasia", "Consolidation": "consolidação", "Infiltration": "opacidade",
     "Pneumothorax": "pneumotórax", "Edema": "edema pulmonar", "Emphysema": "enfisema",
     "Fibrosis": "fibrose", "Effusion": "derrame pleural", "Pneumonia": "pneumonia",
     "Pleural_Thickening": "espessamento pleural", "Cardiomegaly": "cardiomegalia", "Nodule": "nódulo pulmonar",
