@@ -157,7 +157,7 @@ def detect_p_series_resid(x, fs, beats, noise):
     return [k * 1000.0 / fs for k in pk]
 
 
-def av_analysis(p_ms, beats_ms, fs, p_alt=None):
+def av_analysis(p_ms, beats_ms, fs, p_alt=None, p_grid=None, grid_info=None):
     """AV analysis on the P series; when that finds no conduction pattern, retried on the QRS-T-cancelled series
     p_alt (blocked P / P inside the T wave). The P->QRS consistency always comes from the primary series."""
     res = _av_core(p_ms, beats_ms, fs)
@@ -167,6 +167,14 @@ def av_analysis(p_ms, beats_ms, fs, p_alt=None):
             r2.update({k: res[k] for k in ("p_frac", "pr_sd", "pr_med")})
             r2["alt"] = True
             return r2
+    if p_grid is not None and res.get("type") is None:
+        r3 = _av3_from_grid(p_grid, beats_ms, grid_info or {})
+        if r3 is not None:   # E5: multi-lead atrial grid, dissociation only
+            r3.update({k: res[k] for k in ("p_frac", "pr_sd", "pr_med")})
+            r3["grid"] = grid_info
+            return r3
+    if grid_info:
+        res["grid"] = grid_info
     return res
 
 
@@ -203,6 +211,7 @@ def _av_core(p_ms, beats_ms, fs):
     if p_reg < 0.85 or atr_rate > 160 or atr_rate < 35:
         return res
     valid = prs[~np.isnan(prs)]
+    res.update(cv_q=cv_q, pr_range=float(valid.max() - valid.min()) if len(valid) else 0.0)
     # complete block: ventricular rate clearly below atrial, regular QRS, PR varying
     if vent_rate < 0.7 * atr_rate and len(valid) >= 4 and (valid.max() - valid.min()) > 120 and cv_q < 0.2:
         res["type"] = "av3"
@@ -261,3 +270,94 @@ def flutter_features(x, fs, beats):
     hr_hz = 1000.0 / (np.mean(np.diff(q)) * 1000.0 / fs) if len(q) > 1 else 0.0
     harm = bool(hr_hz > 0 and any(abs(fr[k] / hr_hz - m) < 0.1 * m for m in (2, 3, 4)))
     return dict(freq_hz=float(fr[k]), peak_ratio=float(sp[near].sum() / tot), harmonic=harm)
+
+
+ATRIAL_LEADS = ("II", "V1", "aVF")
+GRID_ATRIAL_BPM = (40.0, 150.0)   # physiological atrial rate for a dissociated P series
+GRID_VENT_CV = 0.12               # regular (escape) ventricular rhythm
+GRID_VENT_RATIO = 0.85            # ventricular rate must be clearly below the atrial rate
+GRID_INT_TOL = 0.12               # atrial/ventricular rate ratio this close to an integer = harmonic lock, not dissociation
+GRID_PHASE_R = 0.45               # QRS phase vs the P grid: resultant length below this = no fixed PR (dissociation)
+GRID_MIN_AC = 0.30      # autocorrelation of the combined atrial residual at the atrial period
+GRID_MIN_Z = 1.8        # mean combined residual on the P grid, in robust SDs of the residual
+
+
+def atrial_grid(dlt_by_lead, fs, beats):
+    """E5: multi-lead atrial series. The QRS-T-cancelled residuals (atrial_residual) of II, V1 and aVF are
+    z-scored, polarity-aligned and summed; the atrial period comes from the autocorrelation (35-200 /min) and the
+    phase from the best-fitting periodic comb. Returns (grid_ms, info) with the regular P times (ms) or (None, info).
+    Used only to detect AV dissociation (the P-R phase test is in _av_core: PR not constant, ventricular rate < atrial)."""
+    ys = []
+    for ln in ATRIAL_LEADS:
+        x = dlt_by_lead.get(ln)
+        if x is None:
+            continue
+        y = atrial_residual(x, fs, beats)
+        if y is None:
+            continue
+        y = uniform_filter1d(y, max(1, int(0.016 * fs)))
+        sd = 1.4826 * float(np.median(np.abs(y - np.median(y))))
+        if sd <= 0:
+            continue
+        ys.append(y / sd)
+    if not ys:
+        return None, {}
+    ref = ys[0]
+    comb = ref.copy()
+    for y in ys[1:]:
+        comb += y if float(np.corrcoef(ref, y)[0, 1]) >= 0 else -y
+    comb = comb / len(ys)
+    n = len(comb)
+    c0 = comb - comb.mean()
+    nf = int(2 ** np.ceil(np.log2(2 * n)))
+    f = np.fft.rfft(c0, nf)
+    ac = np.fft.irfft(f * np.conj(f), nf)[:n]
+    ac = ac / ac[0] if ac[0] > 0 else ac
+    lo, hi = int(0.30 * fs), min(n // 3, int(1.7 * fs))
+    if hi <= lo:
+        return None, {}
+    seg = ac[lo:hi]
+    kbest = int(np.argmax(seg))
+    # prefer the shortest lag whose autocorrelation is within 90% of the best (avoids subharmonics)
+    cand = [k for k, v in enumerate(seg) if v >= 0.9 * seg[kbest] and 0 < k < len(seg) - 1 and v >= seg[k - 1] and v >= seg[k + 1]]
+    k0 = cand[0] if cand else kbest
+    T = lo + k0
+    info = dict(ac=float(seg[k0]), period_ms=T * 1000.0 / fs)
+    if seg[k0] < GRID_MIN_AC:
+        return None, info
+    best, bphi = -1e9, 0
+    step = max(1, int(0.004 * fs))
+    for phi in range(0, T, step):
+        idx = np.arange(phi, n, T)
+        s = float(comb[idx].mean())
+        if s > best:
+            best, bphi = s, phi
+    info["z"] = best
+    if best < GRID_MIN_Z:
+        return None, info
+    return [k * 1000.0 / fs for k in range(bphi, n, T)], info
+
+
+def _av3_from_grid(grid_ms, beats_ms, info):
+    """Complete AV block from the multi-lead atrial grid: regular slow ventricular rhythm, atrial rate clearly above
+    it and not an integer multiple (harmonic), and no fixed phase between the QRS and the P grid (PR not constant:
+    circular resultant length of the QRS phase within the atrial cycle). Returns an av dict or None."""
+    q = np.asarray(beats_ms, float)
+    g = np.asarray(grid_ms, float)
+    if len(q) < 6 or len(g) < 6:
+        return None
+    rr = np.diff(q)
+    vent = 60000.0 / rr.mean()
+    cv = float(rr.std() / rr.mean())
+    T = float(np.median(np.diff(g)))
+    atr = 60000.0 / T
+    ratio = atr / vent
+    phase = np.exp(2j * np.pi * (((q - g[0]) % T) / T))
+    r = float(abs(phase.mean()))
+    info.update(atrial_rate=atr, vent_rate=vent, cv_q=cv, ratio=ratio, phase_r=r)
+    if not (GRID_ATRIAL_BPM[0] <= atr <= GRID_ATRIAL_BPM[1]) or cv >= GRID_VENT_CV or vent >= GRID_VENT_RATIO * atr:
+        return None
+    if abs(ratio - round(ratio)) < GRID_INT_TOL or r >= GRID_PHASE_R:
+        return None
+    prs = np.array([k - g[g <= k - 50][-1] if (g <= k - 50).any() else np.nan for k in q])
+    return dict(type="av3", atrial_rate=atr, vent_rate=vent, prs=prs, n_p=len(g), n_q=len(q), p_regular=1.0)

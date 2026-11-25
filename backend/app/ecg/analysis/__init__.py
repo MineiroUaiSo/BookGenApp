@@ -27,7 +27,7 @@ from .ectopy import beat_correlations, ectopic_beats, rr_irregularity_excl
 from .pacing import (RELAXED, STRICT, blank_spikes, classify_pacing, detect_spikes, is_paced_timing,
                      spike_timing)
 from .preprocess import noise_sigma, preprocess
-from .rhythm import av_analysis, detect_p_series, detect_p_series_resid, ectopy_pattern, flutter_features, rr_irregularity, rr_stats
+from .rhythm import atrial_grid, av_analysis, detect_p_series, detect_p_series_resid, ectopy_pattern, flutter_features, rr_irregularity, rr_stats
 from .rpeaks import detect_r_peaks
 from .rules import build_findings, classify_rhythm
 
@@ -245,7 +245,9 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     li2 = leads.index(pl_)
     p_series = detect_p_series(dlt[li2], fs, beat_info, noise[li2])
     p_alt = detect_p_series_resid(dlt[li2], fs, beat_info, noise[li2])
-    av = av_analysis(p_series, [b["qrs_on"] * 1000.0 / fs for b in beat_info], fs, p_alt=p_alt)
+    p_grid, grid_info = atrial_grid({l: dlt[i] for i, l in enumerate(leads)}, fs, beat_info)
+    av = av_analysis(p_series, [b["qrs_on"] * 1000.0 / fs for b in beat_info], fs, p_alt=p_alt,
+                     p_grid=p_grid, grid_info=grid_info)
     ectopic = ectopic_beats(pk_ms, beat_correlations(amp, peaks, fs, ref))   # PVC/PAC: excluded from the AF test
     irr = rr_irregularity_excl(pk_ms, ectopic) if ectopic.any() else rr_irregularity(pk_ms)
     # PR of each beat (earliest P onset in any lead -> QRS onset) for the AV-block rule: consistent beats only

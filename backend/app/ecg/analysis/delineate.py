@@ -28,6 +28,7 @@ LEAD_CLAMP_MS = 5       # a lead border may not stray from the median lead borde
 T_END_SHIFT_MS = 10
 GLOBAL_RANK = 1         # 0 = extreme lead, 1 = second most extreme (robust to one outlier lead)
 P_SIG = 0.8
+P_ON_RANK = -1   # global P onset = median over the leads with a significant P (was: earliest, +~12 ms PR bias vs 12SL)
 P_PROM = 0.015
 P_NK = 3.0
 P_PROM_PRIOR = 0.005   # weaker P accepted only at the median-beat P position (see delineate_beat p_prior)
@@ -512,6 +513,7 @@ def delineate_beat(seg_amp, seg_del, fs, a, leads, noise, rr_next_ms, rr_prev_ms
         mx = max(abs(p.amp) for _, p in pl)
         sig = [p for _, p in pl if abs(p.amp) >= P_SIG * mx and abs(p.amp) >= 0.03]
         if sig:
-            bd.p_on = min(p.onset for p in sig)
+            ons = sorted(p.onset for p in sig)
+            bd.p_on = ons[min(P_ON_RANK, len(ons) - 1)] if P_ON_RANK >= 0 else int(np.median(ons))
             bd.p_off = max(p.offset for p in sig)
     return bd

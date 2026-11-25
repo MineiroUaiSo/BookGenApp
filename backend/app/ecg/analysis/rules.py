@@ -157,6 +157,10 @@ QT_ONSET_COMP_MS = 10.0     # E2: compensates the earlier QRS onset in the QT us
 QRS_GLOBAL_W = 0.25       # E4: weight of the global (wider) QRS in the width used for BBB/IVCD criteria
 IVCD_MS = 120             # unspecific IVCD reported as abnormal from here
 AV1_PEAK_MS = 165.0   # P peak -> QRS onset (about PR - 45 ms) for PR > 200 ms
+AV3_SLOW_HR = 60.0     # E5: AF/flutter/no-P with regular slow RR => complete block (suggestive)
+AV3_SLOW_CV = 0.04
+AV1_BEAT_FRAC = 0.6   # E5: share of beats with PR > 200 ms
+AV1_MIN_BEATS = 4
 SBRAD_HR = 50.0
 STACH_HR = 100.0
 STACH_REG_CV = 0.10      # regular tachycardia: RR CV below this
@@ -276,6 +280,12 @@ def build_findings(c):
                       [f"frequência atrial ~{av['atrial_rate']:.0f} bpm, ventricular ~{av['vent_rate']:.0f} bpm",
                        "ondas P regulares dissociadas dos QRS, intervalo PR variável",
                        "achado sugestivo: confirmar no traçado/clínica"], [R_SBC, R_GOLD], 0.5))
+    elif kind in ("no_p", "flutter") and hr is not None and hr < AV3_SLOW_HR and c["cv"] < AV3_SLOW_CV:
+        # E5: regular slow ventricular rhythm without an identifiable P (AF/flutter with a regular escape rhythm)
+        out.append(_f("ecg.av_block_3", "Bloqueio atrioventricular total (sugestivo)", "critical",
+                      [f"ritmo ventricular regular e lento (~{hr:.0f} bpm, CV RR {c['cv']:.2f}) sem onda P conduzida identificável",
+                       "possível fibrilação/flutter atrial com resposta ventricular regular (escape)",
+                       "achado sugestivo: confirmar no traçado/clínica"], [R_SBC, R_GOLD], 0.4))
     elif av and av.get("type") in ("av2_m1", "av2_m2", "av2_21", "av2_unspec"):
         t = av["type"]
         lab = {"av2_m1": "Bloqueio AV de 2º grau Mobitz I (Wenckebach)",
@@ -292,12 +302,14 @@ def build_findings(c):
         # 1st-degree AV block needs a consistent PR > 200 ms (AHA 2009 Part II; SBC 2022). The global PR
         # (earliest P onset in any lead) is inflated by noisy onsets, so the decision uses the median
         # per-lead PR plus an independent P-peak -> QRS interval (PR minus about half of the P duration).
-        prl = [m.pr_ms for m in L.values() if m.pr_ms]
-        pr_lead = float(np.median(prl)) if len(prl) >= 4 else None
+        # E5: global P onset is now the median over the leads (no early bias), so the decision is the per-beat PR:
+        # median PR > 200 ms with >= 60% of the beats above 200 ms, plus the independent P-peak -> QRS interval.
+        pb = np.asarray(c.get("pr_beats") or [], float)
         pk_med = (av or {}).get("pr_med")
-        if pr > 200 and pr_lead is not None and pr_lead > 200 and pk_med is not None and pk_med >= AV1_PEAK_MS:
+        if len(pb) >= AV1_MIN_BEATS and float(np.median(pb)) > 200 and float(np.mean(pb > 200)) >= AV1_BEAT_FRAC \
+                and pk_med is not None and pk_med >= AV1_PEAK_MS:
             out.append(_f("ecg.av_block_1", "Bloqueio atrioventricular de 1º grau", "abnormal",
-                          [f"PR {pr:.0f} ms (>200 ms); mediana das derivações {pr_lead:.0f} ms; "
+                          [f"PR mediano {float(np.median(pb)):.0f} ms (>200 ms) em {float(np.mean(pb > 200)) * 100:.0f}% dos batimentos; "
                            f"pico P ao QRS {pk_med:.0f} ms, consistente entre batimentos"],
                           [R_SBC, R_GOLD], 0.7))
         else:
