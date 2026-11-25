@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from pydantic import BaseModel, Field
 
+from . import ecg_claim_check as EC
 from . import validate as V
 from .guard import PayloadBloqueado, assert_text_only  # noqa: F401  (API pública do laudo)
 
@@ -214,6 +215,35 @@ def _all_texts(l: LaudoECG) -> list[tuple[str, str]]:
     return out
 
 
+def _barreira_qualitativa(upd: dict, summary: dict) -> tuple[int, int, list[str]]:
+    """Falha fechada (EC) no laudo v1: remove frases sem lastro, in-place em `upd`. Crítico sem apoio vira aviso
+    curto (conteúdo removido). Exceção => descarta a narrativa. Devolve (removidas, críticos sem lastro, notas)."""
+    crit = 0
+
+    def aviso(frase: str) -> Optional[str]:
+        nonlocal crit
+        if any(not V.is_supported(r, summary) for r in V.critical_mentions(frase)):
+            crit += 1
+            return f"[removido pelo validador: achado crítico sem regra/escore de apoio ({V.FLAG_UNSUPPORTED})]"
+        return None
+
+    try:
+        removed = 0
+        for k in _TEXT_SECTIONS:
+            upd[k], n = EC.filter_text(upd[k], summary, aviso)
+            removed += n
+        for k in ("impressao", "limitrofes"):
+            upd[k], n = EC.filter_items(list(upd[k]), summary, aviso)
+            removed += n
+        return removed, crit, ([EC.removed_note(removed)] if removed else [])
+    except Exception as exc:  # noqa: BLE001 - falha fechada: nunca devolve o texto cru
+        log.error("barreira qualitativa do laudo falhou (%s); narrativa descartada", type(exc).__name__)
+        for k in _TEXT_SECTIONS + ["qtc_formula"]:
+            upd[k] = ""
+        upd["impressao"], upd["limitrofes"] = [], []
+        return 0, 0, [EC.FALHA_NOTE]
+
+
 def validate_laudo(l: LaudoECG, summary: dict) -> LaudoECG:
     """Aplica: aviso no topo, supressão de achados dependentes de medida divergente e conferência de números."""
     alerts = digitization_alerts(summary)
@@ -240,6 +270,9 @@ def validate_laudo(l: LaudoECG, summary: dict) -> LaudoECG:
                     stats["afirmacoes_removidas"] += n
                     new.append(s)
                 upd[k] = new
+    barreira = _barreira_qualitativa(upd, summary)
+    stats["afirmacoes_removidas"] += barreira[0]
+    notes.extend(barreira[2])
     ref = V.reference_values(summary)
     for src, vals in (("cabecalho_impresso", {"ms:PR": "pr_ms", "ms:QRS": "qrs_ms", "ms:QT": "qt_ms",
                                               "ms:QTc": "qtc_ms"}),):
@@ -271,7 +304,7 @@ def validate_laudo(l: LaudoECG, summary: dict) -> LaudoECG:
         extra = unverified_numbers(txt, summary)
         stats["numeros_fora_das_medidas"] += len(extra)
         notes.extend(f"{field}: número '{x}' não consta nas medidas" for x in extra)
-    stats["criticos_sem_lastro"] = 0
+    stats["criticos_sem_lastro"] = barreira[1]
     for field in ("impressao", "limitrofes"):
         new = []
         for item in upd[field]:
