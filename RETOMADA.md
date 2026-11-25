@@ -146,3 +146,6 @@ Limites T1: estrito (mesmo com imagem enviada, tópico sem fato é removido; lat
 - Limites: rótulo do ICT sobrepõe o das cúpulas em 390px (sem anti-colisão); 1 erro de console não investigado; derrame/consolidação/nódulo/pneumotórax dependem só do escore do modelo (nódulo AUC 0,63).
 - Ainda não mesclado: trabalho do agente de pendências ECG (a67dad: QRS largo sem BRE, regenerar ecg.md/rx.md) — `docs/benchmarks/ecg.md` modificado no working tree NÃO é meu. Limpar worktrees wt/r3-t6 e .claude/worktrees quando concluir.
 - Sem push na main, sem deploy.
+
+## Decisão clínica 2026-11-25: QRS largo sem BRE
+- Dono decidiu: MANTER o aviso de ST como "limítrofe" (sem promover a anormal). Sem mudança de regra. Pendência de corrigir o viés de +25 ms da largura global só se for promover no futuro.
