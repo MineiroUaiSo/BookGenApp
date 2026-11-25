@@ -6,5 +6,5 @@ export default defineConfig({
   plugins: [react()],
   server: { port: 5173 },
   build: { chunkSizeWarningLimit: 1500 },
-  test: { environment: "jsdom", globals: true, setupFiles: ["./src/test/setup.ts"] },
+  test: { environment: "jsdom", globals: true, css: { include: [/global\.css/] }, setupFiles: ["./src/test/setup.ts"] },
 });
