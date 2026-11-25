@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-SOKOLOW_MM = 35.0
+SOKOLOW_MM = 35.0              # Sokolow-Lyon: soma >= 35 mm
 CORNELL_MM = {"M": 28.0, "F": 20.0}
 CORNELL_PRODUCT = 2440.0       # mm.ms
 CORNELL_PRODUCT_F_ADD = 6.0    # mm added to Cornell voltage in women
@@ -23,6 +23,7 @@ R_D1_MM = 20.0                 # Romhilt-Estes limb-lead voltage criterion (R or
 GUBNER_MM = 25.0               # R D1 + S D3
 QRST_ANGLE_DEG = 100.0
 MORRIS_MM_S = 0.04
+RE_P_NEG_DEPTH_MM, RE_P_NEG_DUR_MS = 1.0, 40.0   # Romhilt-Estes (SAE): fase negativa terminal da P em V1 >= 1 mm e >= 40 ms
 RE_PROBABLE, RE_DEFINITE = 4, 5
 
 
@@ -46,7 +47,7 @@ def sokolow_lyon(r: dict, s: dict) -> Optional[dict]:
         return None
     rv = max(r[l] for l in ("V5", "V6") if l in r)
     v = s["V1"] + rv
-    return _idx(v, "mm", SOKOLOW_MM, v > SOKOLOW_MM, {"S_V1": round(s["V1"], 2), "R_V5_V6": round(rv, 2)})
+    return _idx(v, "mm", SOKOLOW_MM, v >= SOKOLOW_MM, {"S_V1": round(s["V1"], 2), "R_V5_V6": round(rv, 2)})
 
 
 def cornell_voltage(r: dict, s: dict, sex: Optional[str] = None) -> Optional[dict]:
@@ -113,17 +114,23 @@ def morris(neg_depth_mm: Optional[float], neg_dur_ms: Optional[float]) -> Option
                 {"profundidade_mm": round(neg_depth_mm, 2), "duracao_ms": round(neg_dur_ms, 1)})
 
 
-def romhilt_estes(r: dict, s: dict, *, strain: bool, digitalis: bool = False, morris_fills: bool = False,
+def romhilt_estes(r: dict, s: dict, *, strain: bool, digitalis: bool = False,
+                  p_neg_depth_mm: Optional[float] = None, p_neg_dur_ms: Optional[float] = None,
                   axis_deg: Optional[float] = None, qrs_ms: Optional[float] = None,
                   idt_ms: Optional[float] = None) -> dict:
-    """Romhilt-Estes point score, item by item. 4 = probable LVH, >= 5 = definite."""
+    """Romhilt-Estes point score, item by item. 4 = probable LVH, >= 5 = definite.
+
+    Atrial item (3 pts): terminal negative phase of P in V1 with depth >= 1 mm AND duration >= 40 ms
+    (original criterion; NOT Morris' depth x duration product, which stays a separate index)."""
+    atrial = (p_neg_depth_mm is not None and p_neg_dur_ms is not None
+              and p_neg_depth_mm >= RE_P_NEG_DEPTH_MM and p_neg_dur_ms >= RE_P_NEG_DUR_MS)
     limb = [x for l in ("I", "II", "III", "aVR", "aVL", "aVF") for x in (r.get(l), s.get(l)) if x is not None]
     volt = (any(x >= 20.0 for x in limb) or any(s.get(l, 0) >= 30.0 for l in ("V1", "V2"))
             or any(r.get(l, 0) >= 30.0 for l in ("V5", "V6")))
     comp = {
         "voltagem": 3 if volt else 0,
         "st_t_strain": (1 if digitalis else 3) if strain else 0,
-        "aumento_atrial_esquerdo": 3 if morris_fills else 0,
+        "aumento_atrial_esquerdo": 3 if atrial else 0,
         "desvio_eixo_esquerda": 2 if axis_deg is not None and axis_deg <= -30.0 else 0,
         "qrs_ge_90ms": 1 if qrs_ms is not None and qrs_ms >= 90.0 else 0,
         "deflexao_intrinsecoide_v5v6_ge_50ms": 1 if idt_ms is not None and idt_ms >= 50.0 else 0,
@@ -150,7 +157,7 @@ def compute_indices(r: dict, s: dict, *, sex: Optional[str] = None, qrs_ms: Opti
         "angulo_qrs_t": qrst_angle(qrs_axis, t_axis),
         "morris": mor,
         "romhilt_estes": romhilt_estes(r, s, strain=strain, digitalis=digitalis,
-                                       morris_fills=bool(mor and mor["preenche"]), axis_deg=qrs_axis,
+                                       p_neg_depth_mm=p_neg_depth_mm, p_neg_dur_ms=p_neg_dur_ms, axis_deg=qrs_axis,
                                        qrs_ms=qrs_ms, idt_ms=idt_ms),
     }
     return {k: v for k, v in out.items() if v is not None}

@@ -3,10 +3,10 @@ cartoes:
 - id: lvh.sokolow_lyon
   versao: 1
   nome_pt: 'HVE: Sokolow-Lyon'
-  criterio: Soma da onda S mais profunda em V1 com a R maior em V5 ou V6; valor acima de 35 mm sugere
+  criterio: Soma da onda S mais profunda em V1 com a R maior em V5 ou V6; valor de 35 mm ou mais sugere
     sobrecarga ventricular esquerda.
   limiares:
-    soma_mm: '>35'
+    soma_mm: '>=35'
   medidas:
   - sokolow_lyon_mv
   - indices.sokolow_mm
