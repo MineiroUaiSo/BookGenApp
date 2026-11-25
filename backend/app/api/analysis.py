@@ -57,6 +57,21 @@ def _ai_unavailable(msg: str) -> AIReport:
     return AIReport(available=False, description="", limitations=[msg])
 
 
+# Last rules-based result per (kind, study): the AI text is a separate call that reuses it (rules come first).
+_LAST: dict[tuple[str, str], tuple[object, Optional[bytes]]] = {}
+
+
+def _remember(kind: str, study_id: str, result: object, png: Optional[bytes] = None) -> None:
+    _LAST[(kind, study_id)] = (result, png)
+
+
+def _recall(kind: str, study_id: str) -> tuple[object, Optional[bytes]]:
+    got = _LAST.get((kind, study_id))
+    if got is None:
+        raise HTTPException(409, "analyze first: no rules-based result for this study (POST .../analyze)")
+    return got
+
+
 # ------------------------------------------------------------------ ECG
 @router.post("/ecg/{study_id}/analyze", response_model=ECGAnalysis)
 def ecg_analyze(study_id: str, body: Optional[ECGRequest] = None, ai: bool = False):
@@ -93,19 +108,51 @@ def ecg_analyze(study_id: str, body: Optional[ECGRequest] = None, ai: bool = Fal
         raise _not_installed(e)
     except (ValueError, RuntimeError) as e:
         raise HTTPException(422, str(e))
+    _remember("ecg", study_id, result, png)
     if ai:
-        try:
-            from app.llm import ai_available
-
-            if ai_available():
-                from app.llm import ecg_report
-
-                result.ai = ecg_report(result, png)
-            else:
-                result.ai = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
-        except ImportError as e:
-            raise _not_installed(e)
+        result = result.model_copy(update={"ai": _run_ecg_ai(result, png)})
     return result
+
+
+def _run_ecg_ai(result: ECGAnalysis, png: Optional[bytes]) -> AIReport:
+    try:
+        from app.llm import ai_available
+
+        if not ai_available():
+            return _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
+        from app.llm import ecg_report
+
+        return ecg_report(result, png)
+    except ImportError as e:
+        raise _not_installed(e)
+
+
+def _run_rx_ai(result: RXAnalysis) -> AIReport:
+    try:
+        from app.llm import ai_available
+
+        if not ai_available():
+            return _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
+        from app.llm import rx_report
+
+        return rx_report(result)
+    except ImportError as e:
+        raise _not_installed(e)
+
+
+@router.post("/ecg/{study_id}/ai", response_model=AIReport)
+def ecg_ai(study_id: str):
+    """AI text for the ECG analysed by the last POST /ecg/{id}/analyze (rules are not blocked by this call)."""
+    _study(study_id)
+    result, png = _recall("ecg", study_id)
+    return _run_ecg_ai(result, png)  # type: ignore[arg-type]
+
+
+@router.post("/rx/{study_id}/ai", response_model=AIReport)
+def rx_ai(study_id: str):
+    _study(study_id)
+    result, _ = _recall("rx", study_id)
+    return _run_rx_ai(result)  # type: ignore[arg-type]
 
 
 # ------------------------------------------------------------------ RX
@@ -166,18 +213,9 @@ def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False
         elif im.region_conflict:
             result.warnings.append(f"{im.instance_id}: tag DICOM diz {im.tag_region.value if im.tag_region else '?'} "
                                    f"mas a imagem parece {im.region.value}; região corrigida pela imagem")
+    _remember("rx", study_id, result)
     if ai:
-        try:
-            from app.llm import ai_available
-
-            if ai_available():
-                from app.llm import rx_report
-
-                result.ai = rx_report(result)
-            else:
-                result.ai = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
-        except ImportError as e:
-            raise _not_installed(e)
+        result = result.model_copy(update={"ai": _run_rx_ai(result)})
     return result
 
 

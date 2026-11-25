@@ -39,8 +39,8 @@ export default function UploadPage({ ai, onResult }: Props) {
   const analyze = async (study: StudyInfo, kind: "ECG" | "RX") => {
     setBusy(study.study_id); setError(null);
     try {
-      if (kind === "ECG") onResult({ kind, study, ecg: await analyzeECG(study.study_id, ai) });
-      else onResult({ kind, study, rx: await analyzeRX(study.study_id, ai) });
+      if (kind === "ECG") onResult({ kind, study, ecg: await analyzeECG(study.study_id, false) });
+      else onResult({ kind, study, rx: await analyzeRX(study.study_id, false) });
     } catch (e) { setError(`Falha na análise: ${(e as Error).message}`); }
     finally { setBusy(null); }
   };

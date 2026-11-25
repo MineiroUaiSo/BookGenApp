@@ -18,6 +18,11 @@ describe("ReportPanel", () => {
     expect(screen.getByRole("status").textContent).toMatch(/indisponível/);
     expect(screen.getByRole("note").textContent).toMatch(/revisão por médico/);
   });
+  it("shows rules immediately and a loading notice while the AI text is generated", () => {
+    render(<ReportPanel findings={findings} ai={null} aiLoading />);
+    expect(screen.getByTestId("ai-loading").textContent).toMatch(/Gerando texto da IA/);
+    expect(screen.getByText("QRS alargado")).toBeTruthy();
+  });
   it("dedups refs and builds text", () => {
     expect(collectRefs(findings, ai).map((r) => r.id)).toEqual(["ref-1", "ref-2"]);
     const t = reportToText("Laudo", findings, ai);

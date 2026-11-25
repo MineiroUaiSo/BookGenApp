@@ -61,9 +61,12 @@ function FindingItem({ f }: { f: Finding }) {
   );
 }
 
-interface Props { title?: string; findings: Finding[]; ai?: AIReport | null; aiRequested?: boolean }
+interface Props {
+  title?: string; findings: Finding[]; ai?: AIReport | null; aiRequested?: boolean;
+  aiLoading?: boolean; aiError?: string | null;
+}
 
-export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested = true }: Props) {
+export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested = true, aiLoading = false, aiError = null }: Props) {
   const [copied, setCopied] = useState(false);
   const refs = useMemo(() => collectRefs(findings, ai), [findings, ai]);
   const text = useMemo(() => reportToText(title, findings, ai), [title, findings, ai]);
@@ -138,6 +141,10 @@ export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested
           <h3>Limitações</h3>
           {ai.limitations.length ? <ul>{ai.limitations.map((x, i) => <li key={i}>{x}</li>)}</ul> : <p className="hint">—</p>}
         </>
+      ) : aiLoading ? (
+        <p className="hint" role="status" data-testid="ai-loading">Gerando texto da IA… o laudo por regras acima já está disponível.</p>
+      ) : aiError ? (
+        <p className="hint" role="status">Texto da IA indisponível ({aiError}). Exibindo apenas medidas e regras.</p>
       ) : (
         <p className="hint" role="status">
           {aiRequested ? "Análise por IA indisponível (sem chave de API ou desativada). Exibindo apenas medidas e regras." : "Análise por IA não solicitada."}

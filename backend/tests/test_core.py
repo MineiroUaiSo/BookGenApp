@@ -199,6 +199,25 @@ def test_ecg_analyze_dicom_and_ai(client, dicom_folder, monkeypatch):
     assert r.json()["ai"]["description"] == "ok"
 
 
+def test_ecg_ai_is_separate_call_after_rules(client, dicom_folder, monkeypatch):
+    d = upload(client, dicom_folder).json()
+    st = [s for s in d["studies"] if s["series"][0]["modality"] == "ECG"][0]
+    sid = st["study_id"]
+    from app.schemas import AIReport
+    install_fake(monkeypatch, "app.llm", ai_available=lambda: True,
+                 ecg_report=lambda a, png: AIReport(description="texto ia"))
+    # before any analysis: no cached rules result
+    from app.api import analysis as api_analysis
+    api_analysis._LAST.pop(("ecg", sid), None)
+    assert client.post(f"/api/ecg/{sid}/ai").status_code == 409
+    install_fake(monkeypatch, "app.ecg.ingest", load_ecg=lambda p: _signal())
+    install_fake(monkeypatch, "app.ecg.analysis", analyze_signal=lambda sig, s: _analysis(s))
+    r = client.post(f"/api/ecg/{sid}/analyze", json={})
+    assert r.status_code == 200 and r.json()["ai"] is None          # rules come back without waiting for the AI
+    r = client.post(f"/api/ecg/{sid}/ai")
+    assert r.status_code == 200 and r.json()["description"] == "texto ia"
+
+
 def test_ecg_analyze_image_uses_digitizer(client, monkeypatch):
     d = client.post("/api/ingest", files=[("files", ("ecg.png", png_bytes(True)))]).json()
     st = d["studies"][0]
