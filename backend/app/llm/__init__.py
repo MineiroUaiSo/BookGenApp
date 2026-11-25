@@ -14,7 +14,9 @@ from ..knowledge import (format_items, format_references, known_reference_ids, l
 from ..schemas import AIReport, ECGAnalysis, RXAnalysis
 from . import client as _client
 from . import laudo as laudo_mod
+from .anon import anonymize_text
 from .client import ai_available, model_name  # noqa: F401  (API pública)
+from .guard import PayloadBloqueado, assert_text_only
 from .render import render_ecg_plot, rx_image_png, rx_overlay_png
 from .schema import output_schema, to_report
 from .validate import validate_report
@@ -82,11 +84,13 @@ def ecg_data_summary(a: ECGAnalysis) -> dict:
     })
 
 
-def rx_data_summary(a: RXAnalysis) -> dict:
+def rx_data_summary(a: RXAnalysis, *, anonymize: bool = False) -> dict:
+    """Resumo determinístico do RX. anonymize=True (texto que vai ao provedor): instance_id vira 'img<n>' e as
+    strings livres perdem study_id, UIDs, datas e idade exata (idade só por faixa)."""
     imgs = []
-    for im in a.images:
+    for n, im in enumerate(a.images, 1):
         imgs.append(_round({
-            "instance_id": im.instance_id,
+            "instance_id": f"img{n}" if anonymize else im.instance_id,
             "incidencia": im.view.value,
             "regiao": im.region.value,
             "tamanho_px": [im.width, im.height],
@@ -100,9 +104,13 @@ def rx_data_summary(a: RXAnalysis) -> dict:
                                          "area_mm2": s.area_mm2, "confianca": s.confidence}
                                         for s in im.structures],
         }))
-    return {"imagens": imgs,
-            "achados_por_regras": [f.model_dump(include={"code", "label", "severity", "evidence"}) for f in a.findings],
-            "avisos": a.warnings}
+    out = {"imagens": imgs,
+           "achados_por_regras": [f.model_dump(include={"code", "label", "severity", "evidence"}) for f in a.findings],
+           "avisos": a.warnings}
+    if not anonymize:
+        return out
+    ids = [a.study_id, *(im.instance_id for im in a.images)]
+    return json.loads(anonymize_text(json.dumps(out, ensure_ascii=False), ids))
 
 
 def _user_context(domain: str, data: dict, findings, measurement_keys) -> str:
@@ -303,18 +311,25 @@ def rx_report(analysis: RXAnalysis, send_images: bool = False) -> AIReport:
         if not scrub_enabled():
             return blocked_scrub_off()
     images: list[tuple[str, bytes]] = []
-    for im in analysis.images[:6]:
+    for n, im in enumerate(analysis.images[:6], 1):
         if motivo_sem_imagem is not None:
             break
-        tag = f"{im.view.value} / {im.region.value} (id {im.instance_id})"
+        tag = f"{im.view.value} / {im.region.value} (img{n})"
         images.append((f"Radiografia {tag}:", rx_image_png(im)))
         ov = rx_overlay_png(im)
         if ov:
             images.append((f"Sobreposição da segmentação automática com legenda de cores, {tag}:", ov))
     keys = [m.key for im in analysis.images for m in im.measurements]
-    ctx = _user_context("rx", rx_data_summary(analysis), analysis.findings, keys)
+    ctx = _user_context("rx", rx_data_summary(analysis, anonymize=True), analysis.findings, keys)
     if motivo_sem_imagem is not None:
         ctx += _SEM_IMAGEM_CTX
+    # Barreira LGPD do texto em TODO caminho (com ou sem imagem): o texto do RX nunca sai sem passar por ela.
+    try:
+        assert_text_only("\n".join(b["text"] for b in _system_blocks("rx")), ctx)
+    except PayloadBloqueado as e:
+        log.warning("rx text payload blocked (LGPD): %s", e)
+        return AIReport(available=False, model=model_name(),
+                        limitations=[f"Envio à IA bloqueado pela barreira LGPD ({e}); nada foi enviado."])
     rep = _two_stage("rx", images, ctx, rx_data_summary(analysis), analysis.findings)
     if motivo_sem_imagem is not None:
         rep.limitations.append(f"Imagem NÃO enviada à IA ({motivo_sem_imagem}); análise apenas pelas medidas e regras locais.")

@@ -64,11 +64,16 @@ def test_lvh_case1_reports_lvh_with_strain_and_secondary_repolarization(a):
     assert "strain" in lvh.label and any("Romhilt-Estes" in e for e in lvh.evidence)
 
 
-def test_lvh_case1_mild_strain_leads_do_not_raise_ischemia_findings():
+def test_lvh_case1_mild_strain_leads_still_report_st_depression_with_qualifier():
+    """R4 T1: strain never suppresses ST infra; it only qualifies the text (isquemia nao excluida)."""
     m = case1(st_by_lead={l: -0.08 for l in STRAIN})   # J60 ~ -1.4 mm: within the 2 mm strain limit
-    bad = [f.code for f in m.findings if f.code.startswith(("ecg.st_depression", "ecg.t_inversion", "ecg.st_elevation"))]
-    assert bad == []
+    std = [f for f in m.findings if f.code.startswith("ecg.st_depression")]
+    assert std, "infra de ST deve ser laudado mesmo com strain"
+    ev = " ".join(e for f in std for e in f.evidence)
+    assert "pode ser secundária a HVE (strain); isquemia não excluída" in ev
     assert "ecg.secondary_repolarization_lvh" in codes(m)
+    sec = next(f for f in m.findings if f.code == "ecg.secondary_repolarization_lvh")
+    assert sec.severity == "abnormal"
 
 
 def test_lvh_case1_repolarizacao_secundaria_e_anormal_e_nao_exclui_isquemia(a):

@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..knowledge.cards import Cartao
 from ..knowledge.search import LIMITE_PADRAO, select_cards
 from .analysis import indices as ix
-from .analysis.rules import ST_NOT_ASSESSABLE_CODE
+from .analysis.rules import ST_MANUAL_NOTE, ST_NOT_ASSESSABLE_CODE
 from .plausibility import BBB, PREEXC, QTF, STFIND
 
 SCHEMA = "ecg_features/v1"
@@ -64,8 +64,8 @@ _AVISO_OK = re.compile(r"^(Traçado digitalizado em segmentos|Derivaç(?:ão|õe
                        r"Ruído elevado|QRS global estimado|ST/Q não avaliados|grade impressa irregular|layout |"
                        r"Resolução baixa)")
 _SEXO = {"M": "M", "F": "F"}
-AVISO_ST_NAO_AVALIAVEL = ("ST/isquemia não avaliável de forma confiável com este padrão (bloqueio de ramo esquerdo, "
-                          "marca-passo ventricular ou distúrbio de condução com QRS largo); considerar critérios de Sgarbossa/Smith; "
+AVISO_ST_NAO_AVALIAVEL = (f"{ST_MANUAL_NOTE}: ST/isquemia não avaliável de forma confiável com este padrão "
+                          "(bloqueio de ramo esquerdo, marca-passo ventricular ou distúrbio de condução com QRS largo); "
                           "avaliação médica obrigatória.")
 
 

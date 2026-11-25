@@ -4,6 +4,7 @@ interface Props { checked: boolean; onChange: (v: boolean) => void }
 export default function ImageConsent({ checked, onChange }: Props) {
   return (
     <div className="image-consent">
+      <p className="hint">Medidas anonimizadas são enviadas à IA na nuvem.</p>
       <label className="switch">
         <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
         Enviar imagem à IA na nuvem

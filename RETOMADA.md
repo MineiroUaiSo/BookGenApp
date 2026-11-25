@@ -2,6 +2,12 @@
 
 Branch: `claude/ecg-rx-ai-reader-nd20rs` (local, **sem push/deploy**). Rodada 2 orquestrada por Opus; executores Sonnet em worktrees `~/medlens-wt/r2-<trilha>` (branches `wt/r2-<trilha>`), mesclados aqui em sequência. Logs por trilha: `docs/benchmarks/trilha_r2_<trilha>_log.md`. Planos: `docs/planning/plano_fable_r2.md` (10 ações), `docs/planning/plano_fable_ecg.md` (ECG ficha/cartões/digitalização). Specs prontas das trilhas não lançadas: `docs/planning/r2_specs_pendentes.md`.
 
+## ESTADO (R4) — 2026-11-25 (worktree agent-aaff1359, sem push)
+Commits (sobre e04f519): `314f574` T1 strain não suprime infra de ST (só qualifica: "pode ser secundária a HVE (strain); isquemia não excluída"); `a5e6c31` T2 Sokolow `>= thr-1e-9` (35,0 mm vira HVE; LAE ctx idem); `3e2a78f` T3 rx_report: `assert_text_only` em todo caminho + texto anonimizado (`llm/anon.py`: sem study_id/UIDs/datas, idade só por faixa, instance_id vira imgN) + aviso de 1 linha na UI; `37a8308` T4 BRE/marca-passo ventricular: achado `ecg.st_not_assessable` "abnormal" com "ST não interpretável pelas regras; aplicar Sgarbossa/Smith manualmente" (rótulo + aviso_topo), nunca vira normal; Sgarbossa NÃO implementado.
+Testes: backend rc=0; frontend vitest 41/41 + `npm run build` ok.
+Bench R4 (PTB-XL dev large, N=9183, tag R4, relatório `docs/benchmarks/r4_ptbxl_large.md`): **STD sens 56,6% / espec 82,5% (aceite >=56,6 OK; R2merged 47,8%)**; **STE_acute FP 310, sens 51,2% (aceite <=341 OK)**; NORM→normal 74,6%; FA 83,7/84,7; BAV1 40,1/54,3; BAV3 33,3/18,2 (12 pos); LVH sens 74,7/VPP 44,1.
+Não feito / desvios: `docs/benchmarks/ecg.md` e `rx.md` NÃO regenerados (exigem LUDB + imagens; `--tag` não reescreve docs) — pendente. Cache do bench rodou em cópia de `data/bench` no scratchpad (não versionada). QRS largo isolado (sem BRE/MP) segue como ST "borderline". Playwright do aviso novo da UI não rodado (só vitest).
+
 Parado por orçamento de uso CRÍTICO (janela de 5h a 97%). Rodada 1: ver histórico do git (commit f9b3def).
 
 ## Mesclado nesta rodada (suíte backend após merges: 1 falha corrigida → 0; frontend build ok)

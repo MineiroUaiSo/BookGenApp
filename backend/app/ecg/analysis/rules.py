@@ -21,6 +21,7 @@ LEAD_PRETTY = {"I": "D1", "II": "D2", "III": "D3"}
 
 
 ST_NOT_ASSESSABLE_CODE = "ecg.st_not_assessable"
+ST_MANUAL_NOTE = "ST não interpretável pelas regras; aplicar Sgarbossa/Smith manualmente"
 ST_WIDE_QRS_MS = 120
 # Texto neutro de propósito: ausência de regra disparada não é um laudo de normalidade.
 NORMAL_LABEL = "Nenhuma regra automática disparou; isso não exclui IAM, BAV ou outras alterações."
@@ -85,6 +86,7 @@ IRBBB_TERM_R_MV = 0.15
 IRBBB_MIN_QRS = 100        # AHA 2009: incomplete RBBB 110-119 ms (adults); 100-119 ms is used by SBC for screening
 Q_DUR_MS, Q_DUR_V23_MS, Q_AMP_MV, Q_RATIO, Q_RATIO_MIN_MV = 30, 20, 0.1, 0.25, 0.2   # AHA 2009 Part VI / UDMI-4
 STD_MV = 0.05            # UDMI-4 / AHA 2009 Part VI: >=0.5 mm (0.05 mV) horizontal or downsloping, 2 contiguous leads
+STRAIN_STD_NOTE = "pode ser secundária a HVE (strain); isquemia não excluída"
 STE_MV, STE_V23_MV = 0.1, 0.2
 
 
@@ -444,7 +446,7 @@ def build_findings(c):
         morris = p1 is not None and p1.extra.get("neg_depth") is not None and p1.extra["neg_depth"] >= 0.1 \
             and p1.extra.get("neg_dur_ms", 0) >= 40
         # P >= 120 ms in D2 is enough on its own (SBC 2022), as is the Morris index (AHA 2009 Part V)
-        lae_ctx = gm.sokolow_lyon_mv is not None and gm.sokolow_lyon_mv > 3.5   # isolated P >= 120 ms counts only with LVH voltage
+        lae_ctx = gm.sokolow_lyon_mv is not None and gm.sokolow_lyon_mv >= 3.5 - 1e-9   # isolated P >= 120 ms counts only with LVH voltage
         if (p_long and (bifid or lae_ctx)) or morris:
             if p_long:
                 ev_l.append(f"P em D2 com {pII.p_duration_ms:.0f} ms (>120)")
@@ -477,10 +479,10 @@ def build_findings(c):
         (L[l].st_j60_mv is not None and L[l].st_j60_mv <= -0.05) or
         (L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -0.1))]
     strong, weak = [], []
-    if sl is not None and sl > sl_thr:
+    if sl is not None and sl >= sl_thr - 1e-9:
         # E4: < 40 anos a voltagem de Sokolow-Lyon sozinha e achado limitrofe; so vira HVE com strain lateral
         (strong if (age_ is None or age_ >= 40 or strain_l) else weak).append(
-            f"Sokolow-Lyon {sl*10:.0f} mm (>{sl_thr*10:.0f} mm)")
+            f"Sokolow-Lyon {sl*10:.0f} mm (≥{sl_thr*10:.0f} mm)")
     if r56 > LVH_R56_MV:
         strong.append(f"R em V5/V6 {r56*10:.0f} mm (>{LVH_R56_MV*10:.0f} mm)")
     if cn is not None and cn > cn_thr:
@@ -566,14 +568,12 @@ def build_findings(c):
         if c["bbb"] == "lbbb":
             ste.pop(l, None)
         std.pop(l, None)
-    # Strain leads: STD is suppressed only if it is mild, lateral and not accompanied by ischaemic signs
-    # (rules_lvh.strain_std_suppressed); otherwise it is reported as a normal ST depression.
+    # Strain leads (R4 T1): STD is never removed. A mild, lateral STD with voltage HVE and no ischaemic signs
+    # (rules_lvh.strain_std_suppressed) is only annotated "pode ser secundaria a HVE (strain)"; it is still reported.
     strain_ls = set(c.get("lvh_strain", ()))
     std_all, ste_all = dict(std), dict(ste)
     strain_supp = {l for l in strain_ls if l in std_all and rules_lvh.strain_std_suppressed(
         l, strain_ls, c.get("indices") or {}, std_all, ste_all)}
-    for l in strain_supp:
-        std.pop(l, None)
     if strain_ls and any(l in std for l in strain_ls) and not strain_supp:
         out[:] = [f for f in out if f.code != "ecg.secondary_repolarization_lvh"]
     if c["bbb"] in ("lbbb", "rbbb", "irbbb"):
@@ -601,9 +601,10 @@ def build_findings(c):
         out.append(_f("ecg.st_elevation_" + name, f"Supradesnivelamento do segmento ST sugestivo ({name}: {pl(lds)})",
                       "critical", ev + caution, [R_UDMI, R_SBC], 0.75 if recip else 0.6))
     for name, lds in territories(list(std)):
+        strain_note = [STRAIN_STD_NOTE] if any(l in strain_supp for l in lds) else []
         out.append(_f("ecg.st_depression_" + name, f"Infradesnivelamento do segmento ST ({name}: {pl(lds)})",
                       "abnormal", ["ST em J+60: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} {std[l]*10:.1f} mm" for l in lds),
-                                   "limiar UDMI-4: >=0,5 mm em 2 derivações contíguas"] + caution,
+                                   "limiar UDMI-4: >=0,5 mm em 2 derivações contíguas"] + strain_note + caution,
                       [R_UDMI, R_SBC], 0.55))
 
     # ---- pathological Q
@@ -680,9 +681,11 @@ def build_findings(c):
     # critérios de Sgarbossa/Smith são decisão clínica e NÃO são implementados aqui).
     why_st = _st_not_assessable_reasons(out, pc, gm.qrs_ms, c["bbb"])
     if why_st:
-        out.append(_f(ST_NOT_ASSESSABLE_CODE, "Isquemia/supradesnivelamento de ST não avaliável de forma confiável "
-                      "com este padrão (considerar critérios de Sgarbossa/Smith; avaliação médica)",
-                      "borderline", why_st, [R_AHA, R_UDMI], 0.9))
+        # BRE ou marca-passo ventricular: "abnormal" (o caso nunca sai como "sem alterações"); só QRS largo: borderline
+        hard = any(w.startswith(("bloqueio de ramo esquerdo", "ritmo de marca-passo")) for w in why_st)
+        out.append(_f(ST_NOT_ASSESSABLE_CODE, f"{ST_MANUAL_NOTE} (isquemia/supradesnivelamento de ST não avaliável "
+                      "de forma confiável com este padrão; avaliação médica)",
+                      "abnormal" if hard else "borderline", why_st, [R_AHA, R_UDMI], 0.9))
 
     # Isolated borderline observations (SBC 2022 "limítrofe"/variants) do not make an ECG abnormal.
     abn = [f for f in out if f.severity in ("abnormal", "critical")]
