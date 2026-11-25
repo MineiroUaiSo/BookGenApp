@@ -129,3 +129,11 @@ Python: `PYTHONPATH=backend /Users/macbook/medlens/backend/.venv/bin/python -m p
 - [~] T10 `backend/bench/rx_gold_fetch.py` + `rx_review_kit.py` + `tests/test_rx_gold_kit.py` prontos. BLOQUEADO o download real: API do Commons devolveu HTTP 429 (rate limit) nas 6 consultas. Retomar: `cd backend && PYTHONPATH=. python -m bench.rx_gold_fetch` (reexecutar depois de alguns minutos; considerar sleep entre consultas). Teste com imagens reais dá skip enquanto `data/gold_rx/` estiver vazio. Kit: `python -m bench.rx_review_kit --n 20`.
 - Pendências/limites: (1) IA do laudo NÃO ligada em `rx_report` (validador pronto, decisão do dono); (2) Concordo/Discordo da UI de laudo não persiste no servidor; (3) nenhum push/deploy feito (regra da tarefa); (4) `knowledge/rx_report_sources.yaml` não pode ter datas (guard PHI "data por extenso"), nota de 2026 foi reescrita sem data; (5) T3/T5/T8/T10 escritos junto com os testes, RED provado por mutação/remoção em T3 e T8.
 Limites T1: estrito (mesmo com imagem enviada, tópico sem fato é removido; lateralidade/lobo só passam com imagem); `validate.py` não foi alterado (ECG intacto).
+
+## Estado 2026-11-25 (noite) — UI-fixes + Laudo RX mesclados na branch
+- Mesclados: wt/ui-fixes (rótulo de medida não corta, base da API `/api` same-origin, switch "Usar IA" 44px) e wt/rx-laudo (laudo RX confiável T1–T10; spec em docs/RX-LAUDO-CONFIAVEL-SPEC.md).
+- Verificação pós-merge: pytest exit 0 (backend), vitest 62/62, build ok.
+- Pendente (dono): 3 decisões do laudo (caixa do escore do modelo; "sugere aumento da silhueta cardíaca"; IA do laudo só após revisão de 30 laudos) — seguidas as recomendações; revisão médica; baixar casos-ouro (`python -m bench.rx_gold_fetch`, deu 429 no Commons, repetir depois); voto Concordo/Discordo ainda só local na UI.
+- Limites: rótulo do ICT sobrepõe o das cúpulas em 390px (sem anti-colisão); 1 erro de console não investigado; derrame/consolidação/nódulo/pneumotórax dependem só do escore do modelo (nódulo AUC 0,63).
+- Ainda não mesclado: trabalho do agente de pendências ECG (a67dad: QRS largo sem BRE, regenerar ecg.md/rx.md) — `docs/benchmarks/ecg.md` modificado no working tree NÃO é meu. Limpar worktrees wt/r3-t6 e .claude/worktrees quando concluir.
+- Sem push na main, sem deploy.
