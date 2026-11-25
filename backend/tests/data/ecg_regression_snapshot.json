@@ -1,0 +1,42 @@
+{
+ "av1_pr_280": [
+  "ecg.av_block_1",
+  "ecg.sinus_rhythm"
+ ],
+ "irregular_rr": [
+  "ecg.irregular_rhythm",
+  "ecg.within_normal_limits"
+ ],
+ "long_qt_520": [
+  "ecg.long_qt",
+  "ecg.sinus_rhythm"
+ ],
+ "noisy_normal": [
+  "ecg.sinus_rhythm",
+  "ecg.within_normal_limits"
+ ],
+ "normal_70": [
+  "ecg.sinus_rhythm",
+  "ecg.within_normal_limits"
+ ],
+ "sinus_brady_45": [
+  "ecg.sinus_bradycardia"
+ ],
+ "sinus_tachy_130": [
+  "ecg.short_pr",
+  "ecg.sinus_tachycardia"
+ ],
+ "st_dep_v4_v6": [
+  "ecg.sinus_rhythm",
+  "ecg.st_depression_lateral"
+ ],
+ "st_elev_v2_v4": [
+  "ecg.sinus_rhythm",
+  "ecg.st_elevation_anterior"
+ ],
+ "wide_qrs_140": [
+  "ecg.lbbb",
+  "ecg.secondary_repolarization",
+  "ecg.sinus_rhythm"
+ ]
+}
