@@ -71,6 +71,22 @@ def test_lvh_case1_mild_strain_leads_do_not_raise_ischemia_findings():
     assert "ecg.secondary_repolarization_lvh" in codes(m)
 
 
+def test_lvh_case1_repolarizacao_secundaria_e_anormal_e_nao_exclui_isquemia(a):
+    f = next(f for f in a.findings if f.code == "ecg.secondary_repolarization_lvh")
+    assert f.severity == "abnormal"
+    ev = " ".join(f.evidence)
+    assert "isquemia não excluída" in ev
+    assert "não interpretado como isquemia" not in ev
+    assert "ecg.within_normal_limits" not in codes(a)
+
+
+def test_lvh_com_strain_leve_sintetico_nunca_gera_dentro_dos_limites_da_normalidade():
+    m = case1(st_by_lead={l: -0.08 for l in STRAIN})
+    assert "ecg.secondary_repolarization_lvh" in codes(m)
+    assert "ecg.within_normal_limits" not in codes(m)
+    assert next(f for f in m.findings if f.code == "ecg.secondary_repolarization_lvh").severity == "abnormal"
+
+
 def test_lvh_case1_deep_strain_std_above_2mm_is_reported_with_caution(a):
     f = next(f for f in a.findings if f.code.startswith("ecg.st_depression"))
     assert any("pode ser secundário à sobrecarga" in e for e in f.evidence)
