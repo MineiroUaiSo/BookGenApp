@@ -105,7 +105,7 @@ _NORMAL_GLOBAL = _re(r"\bnormal(?:is|idade)?\b|sem altera[cç][oõ]es|sem achado
                      r"sem sinais de doen[cç]a|pulm[oõ]es limpos|campos? pulmonares? (?:limpos|livres|claros|"
                      r"transparentes)|exame (?:sem|dentro)|n[aã]o h[aá] altera[cç][oõ]es|aus[eê]ncia de altera\w+|"
                      r"dentro d[oa]s? (?:limites? normais|normalidade)")
-_ABST = _re(r"n[aã]o (?:[eé]|foi|foram) (?:poss[ií]vel|avaliad\w+|analisad\w+)|n[aã]o (?:avali\w+|analis\w+|permite|"
+_ABST = _re(r"n[aã]o (?:[eé]|s[aã]o|foi|foram) (?:poss[ií]vel|avaliad\w+|analisad\w+)|n[aã]o (?:avali\w+|analis\w+|permite|"
             r"h[aá] como|se pode|confirma nem afasta|se aplica)|n[aã]o (?:poss[ií]vel )?(?:avali\w+|afirmar)|"
             r"indeterminad\w+|inconclusiv\w+|sem avalia[cç][aã]o|n[aã]o pode ser (?:avaliad\w+|afirmad\w+|exclu\w+)|"
             r"limita(?:r|ndo|m)? (?:a )?avalia[cç][aã]o|revisar a imagem")
