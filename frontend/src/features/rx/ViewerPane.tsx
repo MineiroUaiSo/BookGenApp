@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RXImageAnalysis, Structure } from "../../types/api";
 import { renderUrl } from "../../api/client";
-import { centroid, pointInPolygon, tintMask } from "./maskUtils";
+import { centroid, cutoutMask, maskLayerPlan, pointInPolygon, tintMask } from "./maskUtils";
 import { labelBox, placeLabel, type Bounds } from "./labelLayout";
 
 export interface PaneProps {
@@ -64,6 +64,16 @@ export default function ViewerPane(p: PaneProps) {
     }
     return () => { alive = false; };
   }, [image]);
+
+  // pulmões com o coração recortado + coração por cima (sem pintar a sobreposição)
+  const layers = useMemo(() => {
+    const plan = maskLayerPlan(image.structures);
+    return plan.map((l) => {
+      const m = masks[l.key];
+      const cutters = l.cutBy.map((k) => masks[k]).filter((c): c is HTMLCanvasElement => !!c);
+      return { key: l.key, mask: m ? cutoutMask(m, cutters) : null };
+    });
+  }, [image.structures, masks]);
 
   const zoomAt = useCallback((factor: number, cx: number, cy: number) => {
     setZoom((z) => {
@@ -154,10 +164,11 @@ export default function ViewerPane(p: PaneProps) {
       left: Math.max(0, -tx / s), top: Math.max(0, -ty / s),
       right: Math.min(image.width, (size.w - tx) / s), bottom: Math.min(image.height, (size.h - ty) / s),
     };
-    for (const st of image.structures) {
+    const byKey = new Map(image.structures.map((st) => [st.key, st]));
+    const drawn = layers.map((l) => ({ ...l, st: byKey.get(l.key)! })).filter((l) => l.st);
+    for (const { st, mask: m } of drawn) {
       if (p.hidden.has(st.key)) continue;
       const hov = p.hoverKey === st.key;
-      const m = masks[st.key];
       if (m) {
         ctx.globalAlpha = hov ? Math.min(1, p.opacity + 0.35) : p.opacity;
         ctx.drawImage(m, 0, 0);
@@ -212,7 +223,7 @@ export default function ViewerPane(p: PaneProps) {
         });
       }
     }
-  }, [image, masks, s, tx, ty, size.w, size.h, p.hidden, p.opacity, p.outlines, p.labels, p.measurements, p.hoverKey, p.highlightMeas]);
+  }, [image, layers, s, tx, ty, size.w, size.h, p.hidden, p.opacity, p.outlines, p.labels, p.measurements, p.hoverKey, p.highlightMeas]);
 
   const src = useMemo(
     () => (p.wl ? renderUrl(image.instance_id, p.wl.wc, p.wl.ww, p.apiBase) : `data:image/png;base64,${image.image_png_b64}`),

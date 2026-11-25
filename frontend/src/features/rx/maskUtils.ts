@@ -55,3 +55,33 @@ export function tintMask(b64: string, color: string, w: number, h: number): Prom
     img.src = `data:image/png;base64,${b64}`;
   });
 }
+
+export interface MaskLayer { key: string; cutBy: string[] }
+
+const HEART_KEY = "heart";
+
+/**
+ * Ordem de desenho das máscaras: o coração vai por cima de tudo e os pulmões são desenhados com a região do
+ * coração recortada (sem pintar a sobreposição pulmão x coração). As cores de cada estrutura não mudam.
+ */
+export function maskLayerPlan(structures: { key: string; category: string }[]): MaskLayer[] {
+  const hasHeart = structures.some((s) => s.key === HEART_KEY);
+  const rest = structures.filter((s) => s.key !== HEART_KEY);
+  const plan: MaskLayer[] = rest.map((s) => ({ key: s.key, cutBy: hasHeart && s.category === "lung" ? [HEART_KEY] : [] }));
+  if (hasHeart) plan.push({ key: HEART_KEY, cutBy: [] });
+  return plan;
+}
+
+/** Cópia de `mask` com as áreas de `cutters` removidas (destination-out). Sem recortadores devolve a própria máscara. */
+export function cutoutMask(mask: HTMLCanvasElement, cutters: HTMLCanvasElement[]): HTMLCanvasElement {
+  if (!cutters.length || typeof document === "undefined") return mask;
+  const c = document.createElement("canvas");
+  c.width = mask.width; c.height = mask.height;
+  const ctx = c.getContext("2d");
+  if (!ctx) return mask;
+  ctx.drawImage(mask, 0, 0);
+  ctx.globalCompositeOperation = "destination-out";
+  for (const k of cutters) ctx.drawImage(k, 0, 0);
+  ctx.globalCompositeOperation = "source-over";
+  return c;
+}
