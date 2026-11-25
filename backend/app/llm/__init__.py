@@ -204,10 +204,43 @@ def ecg_laudo_fields(summary: dict, *, printed_header: Optional[dict] = None, se
         return {}
 
 
-def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None, *,  # noqa: ARG001 printed_header: Optional[dict] = None,
+def ecg_report_v2(analysis: ECGAnalysis, *, printed_header: Optional[dict] = None,
+                  sexo: Optional[str] = None, call: Optional[laudo_mod.LLMCall] = None) -> AIReport:
+    """Laudo v2 (MEDLENS_LAUDO_V2=1): ficha ecg_features/v1 -> UMA chamada só de texto (sem imagem, sem cabeçalho)
+    -> afirmações citadas validadas em código; qualquer falha vira abstenção explícita, nunca texto inventado."""
+    from ..ecg.features import features_from_analysis   # import tardio: evita ciclo llm <-> ecg
+    ficha = features_from_analysis(analysis, printed_header=printed_header, sexo=sexo)
+    schema = laudo_mod.output_schema_v2(ficha)
+    provider: dict[str, Optional[str]] = {"name": None}
+
+    def _call(system: str, user: str) -> str:
+        c = _client
+        text, _, prov = c.run_resilient(c.make_client(), [{"type": "text", "text": system}],
+                                        [{"role": "user", "content": user}], c.MAX_TOKENS_LAUDO, schema=schema)
+        provider["name"] = prov
+        return text
+
+    lau = laudo_mod.generate_laudo_v2(ficha, call or _call)
+    curto = laudo_mod.render_short_v2(lau)
+    return AIReport(available=True, model=model_name(), provider=provider["name"], validation=lau.validacao,
+                    description=curto, disagreements_with_measurements=list(lau.aviso_topo),
+                    limitations=list(lau.abstencao.motivos) if lau.abstencao else [],
+                    laudo=lau.model_dump(), laudo_markdown=laudo_mod.render_markdown_v2(lau, ficha),
+                    laudo_curto=curto)
+
+
+def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None, *, printed_header: Optional[dict] = None,
                sexo: Optional[str] = None) -> AIReport:
     if not ai_available():
         return unavailable()
+    if laudo_enabled() and laudo_mod.v2_enabled():
+        del image_png   # LGPD: v2 é só texto
+        try:
+            return ecg_report_v2(analysis, printed_header=printed_header, sexo=sexo)
+        except Exception:
+            log.exception("laudo v2 failure")
+            return AIReport(available=False, model=model_name(),
+                            limitations=["Sem laudo automático confiável: falha interna no laudo v2."])
     # LGPD: a foto/captura original do ECG (cabeçalho com nome, data de nascimento etc.) NUNCA vai ao
     # provedor externo. image_png é aceito só por compatibilidade de assinatura e é ignorado; ao LLM vai
     # apenas o plot renderizado do sinal digitalizado (sem cabeçalho) e o texto das medidas/achados.

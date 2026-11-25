@@ -8,9 +8,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Optional
 
+from ..knowledge.cards import gatilho_casa
 from ..schemas import AIReport, Finding
+
+if TYPE_CHECKING:   # só tipagem: validate não depende de ecg.features em tempo de importação
+    from ..ecg.features import CartaoRef, Fato, Ficha
 
 NOT_APPLICABLE = "não aplicável"
 FLAG_DIVERGENT = "valor divergente da medida"
@@ -424,3 +428,139 @@ def validate_report(rep: AIReport, summary: dict, rule_findings: Optional[list[F
     return rep.model_copy(update={"description": desc, "findings": findings, "differentials": diffs,
                                   "disagreements_with_measurements": disc_u, "limitations": limitations,
                                   "validation": stats})
+
+
+# ---------------------------------------------------------------- laudo v2: afirmações citadas [F]/[C]
+SECOES_V2 = ("qualidade_tecnica", "ritmo_frequencia", "intervalos", "eixos", "onda_p", "complexo_qrs", "st_t",
+             "impressao", "limitrofes", "recomendacao")
+MAX_REJEICAO = 0.5            # mais da metade das afirmações rejeitadas => abstenção (a LLM não é confiável)
+GENERIC_CARD_IDS = ("normal.convencoes_medida",)   # convenções de grade/calibração: lastro de fatos "meta"
+
+_PRE = r"pr[eé]-?excita\w+|onda delta|\bWPW\b|wolff"
+SUPPRESS_PATTERNS = {
+    "PR": _PRE + r"|\bBAV\b|bloqueio atrioventricular|PR (?:curto|longo|prolongad\w+)",
+    "QRS": _PRE + r"|bloqueio de ramo|\bB[RE]D\b|\bBRE\b|QRS (?:largo|alargad\w+)|dist[uú]rbio de condu[cç][aã]o",
+    "QT": r"QT\w*\s+(?:longo|curto|prolongad\w+)|s[ií]ndrome do QT",
+    "ST": r"isqu[eê]mi\w+|infra\w*\s*(?:de\s*)?ST|supra\w*\s*(?:de\s*)?ST|les[aã]o subepic\w+|\bIAM\b|infarto",
+}
+HEDGE_RE = re.compile(r"n[aã]o (?:avali|diagnost|afirm|conclu|confi)|n[aã]o foi poss|diverg|discord|poss[ií]vel erro|"
+                      r"suspeit|sem seguran|n[aã]o h[aá]|sem sinais|aus[eê]ncia|n[aã]o se|descart", re.IGNORECASE)
+_LEAD_RE = re.compile(r"\b(?:V[1-6]R?|D[123I]{1,3}|aV[RLF]|DII+|[IV]{1,3})\b|\b12\s+deriva", re.IGNORECASE)
+_ID_TOKEN = re.compile(r"\[?\b[FC]\d+\b\]?")
+_NUMTOK = re.compile(r"(?<![\w.,])(\d+(?:[.,]\d+)?)\s*(ms|mm/mv|mm/s|mm|mv|bpm|%|pontos?|graus|°|º)?", re.IGNORECASE)
+_ANY_NUM = re.compile(r"\d+(?:[.,]\d+)?")
+_CONST_NUMS = (10.0, 25.0)     # 10 mm/mV, 25 mm/s (convenções de grade)
+_NUM_TOL = 0.05
+
+
+@dataclass(frozen=True)
+class Afirmacao:
+    secao: str
+    texto: str
+    fatos: tuple[str, ...]
+    criterios: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Rejeicao:
+    indice: int
+    secao: str
+    motivos: tuple[str, ...]
+
+
+def _nums_of(text: str) -> set[float]:
+    return {float(m.group().replace(",", ".")) for m in _ANY_NUM.finditer(text or "")}
+
+
+def _num_ok(v: float, allowed: set[float]) -> bool:
+    return any(abs(v - k) <= _NUM_TOL or (float(v).is_integer() and int(k + 0.5) == int(v)) for k in allowed)
+
+
+def unmatched_numbers(text: str, allowed: set[float]) -> list[str]:
+    """Números do texto (com ou sem unidade) ausentes de `allowed`; derivações, ids e convenções de grade ficam de fora."""
+    clean = _ID_TOKEN.sub(" ", _LEAD_RE.sub(" ", text or ""))
+    bad: list[str] = []
+    for m in _NUMTOK.finditer(clean):
+        v = float(m.group(1).replace(",", "."))
+        unit = (m.group(2) or "").lower()
+        if unit in ("mm/mv", "mm/s", "º"):
+            continue
+        if not unit and v <= 12 and float(v).is_integer():
+            continue
+        if not _num_ok(v, allowed | set(_CONST_NUMS)):
+            bad.append(m.group(0).strip())
+    return bad
+
+
+def _card_has_lastro(card: "CartaoRef", fatos: list["Fato"]) -> bool:
+    for f in fatos:
+        if f.codigo and any(gatilho_casa(g, f.codigo) for g in card.gatilhos):
+            return True
+        if set(card.medidas) & set(f.chaves):
+            return True
+        if f.tipo == "meta" and card.card_id in GENERIC_CARD_IDS:
+            return True
+    return False
+
+
+def _ids(v: Any) -> Optional[list[str]]:
+    return [str(x) for x in v] if isinstance(v, list) else None
+
+
+def claim_issues(c: Any, ficha: "Ficha") -> list[str]:
+    """Motivos pelos quais a afirmação não pode ser emitida (lista vazia = válida)."""
+    if not isinstance(c, dict):
+        return ["afirmação fora do formato esperado"]
+    texto, secao = c.get("texto"), c.get("secao")
+    fids, cids = _ids(c.get("fatos")), _ids(c.get("criterios"))
+    issues: list[str] = []
+    if secao not in SECOES_V2:
+        issues.append(f"seção inválida: {secao!r}")
+    if not isinstance(texto, str) or not texto.strip():
+        return issues + ["texto vazio"]
+    if not fids:
+        issues.append("sem fatos [F] citados")
+    if not cids:
+        issues.append("sem critérios [C] citados")
+    fora = [i for i in (fids or []) if ficha.fato(i) is None] + [i for i in (cids or []) if ficha.cartao(i) is None]
+    fora += [i for i in re.findall(r"\b([FC]\d+)\b", texto)
+             if (ficha.fato(i) if i[0] == "F" else ficha.cartao(i)) is None]
+    if fora:
+        issues.append("identificador fora da lista fechada: " + ", ".join(sorted(set(fora))))
+        return issues
+    if issues:
+        return issues
+    fatos = [ficha.fato(i) for i in fids]            # type: ignore[arg-type]
+    cartoes = [ficha.cartao(i) for i in cids]        # type: ignore[arg-type]
+    allowed: set[float] = set()
+    for f in fatos:
+        allowed |= _nums_of(f.texto)
+    for k in cartoes:
+        allowed |= _nums_of(k.criterio) | _nums_of(" ".join(k.limiares.values()))
+    bad = unmatched_numbers(texto, allowed)
+    if bad:
+        issues.append(f"número não consta nos fatos/critérios citados ({len(bad)} valor(es) removido(s))")
+    sem_lastro = [k.id for k in cartoes if not _card_has_lastro(k, fatos)]
+    if sem_lastro:
+        issues.append("critério sem lastro nos fatos citados: " + ", ".join(sem_lastro))
+    for cat in sorted({s.categoria for s in ficha.suprimidos}):
+        if re.search(SUPPRESS_PATTERNS[cat], texto, re.IGNORECASE) and not HEDGE_RE.search(texto):
+            issues.append(f"afirmação sobre achado suprimido ({cat}): digitalização não confiável")
+    compat = ficha.compat_summary()
+    for rule in critical_mentions(texto):
+        if not is_supported(rule, compat):
+            issues.append(f"achado crítico '{rule.name}' sem regra de apoio")
+    return issues
+
+
+def validate_claims(raw: Any, ficha: "Ficha") -> tuple[list[Afirmacao], list[Rejeicao]]:
+    """Separa afirmações válidas (todas com [F] e [C] da lista fechada e com lastro) das rejeitadas."""
+    ok: list[Afirmacao] = []
+    bad: list[Rejeicao] = []
+    for i, c in enumerate(raw if isinstance(raw, list) else []):
+        issues = claim_issues(c, ficha)
+        if issues:
+            bad.append(Rejeicao(i, str(c.get("secao")) if isinstance(c, dict) else "?", tuple(issues)))
+        else:
+            ok.append(Afirmacao(c["secao"], " ".join(c["texto"].split()), tuple(c["fatos"]), tuple(c["criterios"])))
+    return ok, bad

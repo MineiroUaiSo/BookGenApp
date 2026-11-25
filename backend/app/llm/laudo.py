@@ -7,13 +7,20 @@ marcados/removidos aqui, em código (não só no prompt).
 from __future__ import annotations
 
 import json
+import logging
+import os
 import re
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from pydantic import BaseModel, Field
 
 from . import validate as V
+
+if TYPE_CHECKING:
+    from ..ecg.features import Ficha
+
+log = logging.getLogger("medlens.laudo")
 
 PROMPT_VERSION = "ecg_laudo_v1"
 PROMPT_PATH = Path(__file__).parent / "prompts" / f"{PROMPT_VERSION}.md"
@@ -96,16 +103,9 @@ def compute_indices(summary: dict, sexo: Optional[str] = None) -> dict[str, Any]
 
 
 # ------------------------------------------------------------ gate de digitalização
-_PRE = r"pr[eé]-?excita\w+|onda delta|\bWPW\b|wolff"
-_SUPPRESS = {
-    "PR": _PRE + r"|\bBAV\b|bloqueio atrioventricular|PR (?:curto|longo|prolongad\w+)",
-    "QRS": _PRE + r"|bloqueio de ramo|\bB[RE]D\b|\bBRE\b|QRS (?:largo|alargad\w+)|dist[uú]rbio de condu[cç][aã]o",
-    "QT": r"QT\w*\s+(?:longo|curto|prolongad\w+)|s[ií]ndrome do QT",
-    "ST": r"isqu[eê]mi\w+|infra\w*\s*(?:de\s*)?ST|supra\w*\s*(?:de\s*)?ST|les[aã]o subepic\w+|\bIAM\b|infarto",
-}
+_SUPPRESS = V.SUPPRESS_PATTERNS   # padrões compartilhados com o validador v2
 _PRINTED = {"PR": ("pr_ms", "pr_ms"), "QRS": ("qrs_ms", "qrs_ms"), "QT": ("qt_ms", "qt_ms")}
-_HEDGE_RE = re.compile(r"n[aã]o (?:avali|diagnost|afirm|conclu|confi)|n[aã]o foi poss|diverg|discord|poss[ií]vel erro|"
-                       r"suspeit|sem seguran|n[aã]o h[aá]|sem sinais|aus[eê]ncia|n[aã]o se|descart", re.IGNORECASE)
+_HEDGE_RE = V.HEDGE_RE
 
 
 def digitization_alerts(summary: dict) -> list[dict]:
@@ -354,3 +354,204 @@ def generate_laudo(summary: dict, call: LLMCall) -> LaudoECG:
     """Chama a LLM (injetável p/ testes offline), valida e devolve o laudo."""
     raw = call(system_prompt(), user_message(summary))
     return validate_laudo(parse_laudo(raw), summary)
+
+
+# =============================================================== laudo v2: citações [F]/[C], só texto
+PROMPT_VERSION_V2 = "ecg_laudo_v2"
+PROMPT_PATH_V2 = Path(__file__).parent / "prompts" / f"{PROMPT_VERSION_V2}.md"
+ABSTENCAO_TEXTO = "Sem laudo automático confiável."
+_V2_STR_SECTIONS = ("qualidade_tecnica", "ritmo_frequencia", "intervalos", "eixos", "onda_p", "complexo_qrs", "st_t",
+                    "recomendacao")
+_V2_LIST_SECTIONS = ("impressao", "limitrofes")
+
+
+def v2_enabled() -> bool:
+    """Laudo v2 (citações) só liga com MEDLENS_LAUDO_V2=1; padrão desligado até aprovação médica."""
+    return os.environ.get("MEDLENS_LAUDO_V2", "0") == "1"
+
+
+class Citacao(BaseModel):
+    n: int
+    secao: str
+    texto: str
+    fatos: list[str]
+    criterios: list[str]
+
+
+class RejeicaoV2(BaseModel):
+    indice: int
+    secao: str
+    motivos: list[str]          # o texto rejeitado NÃO é guardado: nada inventado chega ao consumidor
+
+
+class Abstencao(BaseModel):
+    texto: str = ABSTENCAO_TEXTO
+    motivos: list[str] = Field(default_factory=list)
+
+
+class LaudoV2(LaudoECG):
+    versao: str = "v2"
+    comparacao: str = ""        # sem fato que o sustente: não afirmamos nada sobre ECG anterior
+    abstencao: Optional[Abstencao] = None
+    citacoes: list[Citacao] = Field(default_factory=list)
+    rejeitadas: list[RejeicaoV2] = Field(default_factory=list)
+
+
+class PayloadBloqueado(Exception):
+    pass
+
+
+_PAYLOAD_PROIBIDO = [
+    (re.compile(r"data:[a-z]+/[a-z0-9.+-]+;base64", re.I), "imagem embutida (data URI)"),
+    (re.compile(r"[A-Za-z0-9+/=]{200,}"), "bloco binário/base64"),
+    (re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"), "CPF"),
+    (re.compile(r"\b\d{2}/\d{2}/\d{4}\b"), "data"),
+    (re.compile(r"\bORDER\s*ECG\w*|\bECG\d{6,}\b", re.I), "identificador de exame"),
+    (re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+"), "e-mail"),
+]
+
+
+def assert_text_only(system: str, user: str) -> None:
+    """Barreira LGPD: o que vai ao provedor é só texto e sem padrões de identificação/imagem."""
+    if not isinstance(system, str) or not isinstance(user, str):
+        raise PayloadBloqueado("payload não é texto")
+    for rx, nome in _PAYLOAD_PROIBIDO:
+        if rx.search(system) or rx.search(user):
+            raise PayloadBloqueado(nome)
+
+
+def system_prompt_v2() -> str:
+    return PROMPT_PATH_V2.read_text(encoding="utf-8")
+
+
+def output_schema_v2(ficha: "Ficha") -> dict:
+    """JSON Schema estrito; fatos/critérios são enums da lista fechada enviada (mínimo 1 de cada)."""
+    item = {"type": "object", "additionalProperties": False,
+            "required": ["secao", "texto", "fatos", "criterios"],
+            "properties": {
+                "secao": {"type": "string", "enum": list(V.SECOES_V2)},
+                "texto": {"type": "string"},
+                "fatos": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": ficha.fact_ids}},
+                "criterios": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": ficha.card_ids}}}}
+    return {"type": "object", "additionalProperties": False, "required": ["afirmacoes"],
+            "properties": {"afirmacoes": {"type": "array", "items": item}}}
+
+
+def user_message_v2(ficha: "Ficha") -> str:
+    return "\n".join([
+        "FICHA ecg_features/v1 (somente texto)",
+        f"Qualidade técnica da digitalização: {ficha.qualidade.nivel}",
+        "", "FATOS (cite pelo identificador)", ficha.narrative(),
+        "", "CRITÉRIOS (cite pelo identificador)", ficha.cards_block(),
+        "", "LISTA FECHADA DE IDENTIFICADORES",
+        "fatos: " + ", ".join(ficha.fact_ids), "criterios: " + ", ".join(ficha.card_ids)])
+
+
+def _marca(a: V.Afirmacao) -> str:
+    return f"[{', '.join(a.fatos)}; {', '.join(a.criterios)}]"
+
+
+def _rej(bad: list[V.Rejeicao]) -> list[RejeicaoV2]:
+    return [RejeicaoV2(indice=r.indice, secao=r.secao, motivos=list(r.motivos)) for r in bad]
+
+
+def _abstem(ficha: "Ficha", motivos: list[str], rejeitadas: Optional[list[V.Rejeicao]] = None,
+            stats: Optional[dict[str, int]] = None) -> LaudoV2:
+    uniq = list(dict.fromkeys(m for m in motivos if m))
+    return LaudoV2(aviso_topo=list(ficha.aviso_topo), abstencao=Abstencao(motivos=uniq),
+                   rejeitadas=_rej(rejeitadas or []), validacao=stats or {}, avisos_validacao=uniq)
+
+
+def generate_laudo_v2(ficha: "Ficha", call: LLMCall) -> LaudoV2:
+    """Chama a LLM (injetável), valida cada afirmação contra a ficha e devolve o laudo ou a abstenção explícita.
+
+    Nunca levanta: falha de chamada, JSON fora do esquema, payload bloqueado, qualidade inválida ou maioria de
+    afirmações rejeitadas viram abstenção com motivos; nenhum texto não validado é emitido."""
+    if ficha.qualidade.nivel == "invalida":
+        return _abstem(ficha, ["digitalização/medidas inválidas: " + m for m in ficha.qualidade.motivos])
+    try:
+        system, user = system_prompt_v2(), user_message_v2(ficha)
+        assert_text_only(system, user)
+    except PayloadBloqueado as e:
+        return _abstem(ficha, [f"payload bloqueado pela barreira LGPD ({e}); nada foi enviado ao provedor"])
+    try:
+        raw = call(system, user)
+    except Exception as e:  # noqa: BLE001 - qualquer falha de rede/provedor vira abstenção
+        log.warning("laudo v2: falha na chamada da LLM (%s)", type(e).__name__)
+        return _abstem(ficha, [f"falha na chamada da LLM ({type(e).__name__})"])
+    try:
+        claims = json.loads(raw)["afirmacoes"]
+        if not isinstance(claims, list):
+            raise TypeError("afirmacoes não é lista")
+    except (ValueError, KeyError, TypeError):
+        return _abstem(ficha, ["resposta da LLM fora do esquema (JSON inválido ou sem 'afirmacoes')"])
+    if not claims:
+        return _abstem(ficha, ["a LLM não emitiu nenhuma afirmação"])
+    ok, bad = V.validate_claims(claims, ficha)
+    cobertura = sum(1 for a in ok if a.fatos and a.criterios and all(ficha.fato(i) for i in a.fatos)
+                    and all(ficha.cartao(i) for i in a.criterios))
+    stats = {"afirmacoes_total": len(claims), "afirmacoes_emitidas": len(ok), "afirmacoes_rejeitadas": len(bad),
+             "cobertura_citacao_pct": round(100 * cobertura / len(ok)) if ok else 0}
+    motivos_rej = [f"afirmação {r.indice + 1}: {m}" for r in bad for m in r.motivos]
+    if not ok or len(bad) / len(claims) > V.MAX_REJEICAO:
+        return _abstem(ficha, [f"{len(bad)} de {len(claims)} afirmações da LLM rejeitadas pelo validador"]
+                       + motivos_rej, bad, stats)
+    upd: dict[str, Any] = {k: [] if k in _V2_LIST_SECTIONS else "" for k in (*_V2_STR_SECTIONS, *_V2_LIST_SECTIONS)}
+    for a in ok:
+        t = f"{a.texto} {_marca(a)}"
+        if a.secao in _V2_LIST_SECTIONS:
+            upd[a.secao].append(t)
+        else:
+            upd[a.secao] = (upd[a.secao] + " " + t).strip()
+    cits = [Citacao(n=i, secao=a.secao, texto=a.texto, fatos=list(a.fatos), criterios=list(a.criterios))
+            for i, a in enumerate(ok, 1)]
+    return LaudoV2(**upd, aviso_topo=list(ficha.aviso_topo), citacoes=cits, rejeitadas=_rej(bad),
+                   validacao=stats, avisos_validacao=motivos_rej)
+
+
+def _fontes(l: LaudoV2, ficha: "Ficha") -> list[str]:
+    fids = list(dict.fromkeys(i for c in l.citacoes for i in c.fatos))
+    cids = list(dict.fromkeys(i for c in l.citacoes for i in c.criterios))
+    out = ["## Fontes das citações"]
+    for i in fids:
+        f = ficha.fato(i)
+        if f:
+            out.append(f"- [{i}] {f.texto}")
+    for i in cids:
+        k = ficha.cartao(i)
+        if k:
+            out.append(f"- [{i}] {k.nome}: {k.criterio}")
+    return out
+
+
+def render_markdown_v2(l: LaudoV2, ficha: "Ficha") -> str:
+    out = ["# Laudo de ECG - rascunho para revisão médica", ""]
+    if l.aviso_topo:
+        out += ["> **ATENÇÃO - DISCORDÂNCIA DE MEDIDAS**"] + [f"> {x}" for x in l.aviso_topo] + [""]
+    if l.abstencao is not None:
+        out += [f"> **{ABSTENCAO_TEXTO}**", ""] + [f"- {m}" for m in l.abstencao.motivos]
+        out += ["", "Conferir o traçado original e laudar manualmente.", "", f"_{DISCLAIMER}_"]
+        return "\n".join(out)
+    sec = [("Qualidade técnica", l.qualidade_tecnica), ("Ritmo e frequência", l.ritmo_frequencia),
+           ("Intervalos", l.intervalos), ("Eixos", l.eixos), ("Onda P", l.onda_p), ("Complexo QRS", l.complexo_qrs),
+           ("Segmento ST e onda T", l.st_t)]
+    for title, body in sec:
+        if body:
+            out += [f"## {title}", body, ""]
+    if l.impressao:
+        out += ["## IMPRESSÃO DIAGNÓSTICA"] + [f"{i}. {x}" for i, x in enumerate(l.impressao, 1)]
+    if l.limitrofes:
+        out += ["", "**Limítrofes:** " + "; ".join(l.limitrofes)]
+    if l.recomendacao:
+        out += ["", f"**Recomendação:** {l.recomendacao}"]
+    out += [""] + _fontes(l, ficha) + ["", f"_{DISCLAIMER}_"]
+    return "\n".join(out)
+
+
+_MARCA_RE = re.compile(r"\s*\[F\d+[^\]]*\]")
+
+
+def render_short_v2(l: LaudoV2) -> str:
+    if l.abstencao is not None:
+        return " ".join([ABSTENCAO_TEXTO, *l.abstencao.motivos[:3], "Rascunho para revisão médica."])
+    return _MARCA_RE.sub("", render_short(l))
