@@ -127,14 +127,15 @@ def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str,
         desc, _, prov1 = c.run_resilient(
             client, system,
             [{"role": "user", "content": content + [{"type": "text", "text": _prompt(f"{domain}_describe")}]}],
-            c.MAX_TOKENS_DESCRIBE)
+            c.MAX_TOKENS_DESCRIBE, allow_images=True)
         # Etapa 2: análise crítica com saída estruturada.
         refs = sorted(known_reference_ids())
         msgs = [{"role": "user", "content": content + [
             {"type": "text", "text": f"DESCRIÇÃO DA ETAPA 1\n{desc}"},
             {"type": "text", "text": _prompt("analyze")},
         ]}]
-        text, final, prov2 = c.run_resilient(client, system, msgs, c.MAX_TOKENS_ANALYZE, schema=output_schema(refs))
+        text, final, prov2 = c.run_resilient(client, system, msgs, c.MAX_TOKENS_ANALYZE, schema=output_schema(refs),
+                                             allow_images=True)
         data = c.parse_json(text)
         rep = to_report(data, getattr(final, "model", None) or model, description_fallback=desc)
         rep = rep.model_copy(update={"provider": prov2 if prov1 == prov2 else f"{prov1}+{prov2}"})

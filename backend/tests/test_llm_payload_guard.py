@@ -89,8 +89,17 @@ def test_run_resilient_bloqueia_identificacao_no_system_e_em_blocos_de_texto(mon
 def test_run_resilient_aceita_bloco_de_imagem_estruturado_quando_permitido(monkeypatch):
     fake = _fake(monkeypatch)
     msg = [{"role": "user", "content": [{"type": "text", "text": "plot"}, C.image_block(_png())]}]
-    C.run_resilient(fake, [{"type": "text", "text": "sistema"}], msg, 100)
+    C.run_resilient(fake, [{"type": "text", "text": "sistema"}], msg, 100, allow_images=True)
     assert len(fake.calls) == 1
+
+
+def test_run_resilient_sem_flag_rejeita_bloco_de_imagem_e_nao_chama_o_provedor(monkeypatch):
+    """Padrão seguro: imagem só sai com allow_images=True explícito."""
+    fake = _fake(monkeypatch)
+    msg = [{"role": "user", "content": [{"type": "text", "text": "plot"}, C.image_block(_png())]}]
+    with pytest.raises(L.PayloadBloqueado):
+        C.run_resilient(fake, [{"type": "text", "text": "sistema"}], msg, 100)
+    assert fake.calls == []
 
 
 def test_run_resilient_sem_imagens_rejeita_bloco_de_imagem(monkeypatch):
@@ -101,10 +110,25 @@ def test_run_resilient_sem_imagens_rejeita_bloco_de_imagem(monkeypatch):
     assert fake.calls == []
 
 
+def test_two_stage_passa_allow_images_true_explicitamente(monkeypatch):
+    """O caminho v1 (ECG/RX com imagem) segue enviando a imagem, mas pedindo isso de forma explícita."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    vistos = []
+
+    def fake_run(client, system, messages, max_tokens, schema=None, **kw):
+        vistos.append(kw.get("allow_images"))
+        raise C.LLMProviderError("stop")
+
+    monkeypatch.setattr(llm._client, "make_client", lambda: object())
+    monkeypatch.setattr(llm._client, "run_resilient", fake_run)
+    llm._two_stage("rx", [("img", _png())], "contexto")
+    assert vistos and all(v is True for v in vistos)
+
+
 def test_base64_dentro_de_bloco_de_imagem_nao_dispara_o_falso_positivo_de_base64_em_texto(monkeypatch):
     fake = _fake(monkeypatch)
     msg = [{"role": "user", "content": [C.image_block(_png((300, 300))), {"type": "text", "text": "legenda"}]}]
-    C.run_resilient(fake, [{"type": "text", "text": "sistema"}], msg, 100)
+    C.run_resilient(fake, [{"type": "text", "text": "sistema"}], msg, 100, allow_images=True)
     assert len(fake.calls) == 1
 
 

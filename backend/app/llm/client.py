@@ -323,7 +323,7 @@ def provider_of(client) -> str:
 
 
 def run_resilient(client, system: list[dict], messages: list[dict], max_tokens: int,
-                  schema: Optional[dict] = None, *, allow_images: bool = True) -> tuple[str, Any, str]:
+                  schema: Optional[dict] = None, *, allow_images: bool = False) -> tuple[str, Any, str]:
     """run() com retry (máx 2 tentativas por provedor) e failover Anthropic -> OpenRouter.
 
     Só 429/5xx/timeout/conexão são retentados/failover; 4xx != 429, recusa e truncamento propagam.

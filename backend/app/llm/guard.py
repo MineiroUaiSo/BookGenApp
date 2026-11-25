@@ -91,7 +91,7 @@ def _textos(o: Any, allow_images: bool) -> Iterable[str]:
         raise PayloadBloqueado("payload não é texto")
 
 
-def assert_payload(system: Any, messages: Any, *, allow_images: bool = True) -> None:
+def assert_payload(system: Any, messages: Any, *, allow_images: bool = False) -> None:
     """Levanta PayloadBloqueado se o que iria ao provedor tiver identificação/imagem em texto."""
     for t in (*_textos(system, allow_images), *_textos(messages, allow_images)):
         nome = scan_text(t)
