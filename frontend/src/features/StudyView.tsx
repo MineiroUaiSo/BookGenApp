@@ -6,7 +6,7 @@ import RXViewer from "./rx/RXViewer";
 import { ECGWorkspace, Recon3DViewer } from "./registry";
 import type { AnalysisResult } from "./upload/UploadPage";
 
-export default function StudyView({ result, ai, onBack }: { result: AnalysisResult; ai: boolean; onBack: () => void }) {
+export default function StudyView({ result, ai, sendImages = false, onBack }: { result: AnalysisResult; ai: boolean; sendImages?: boolean; onBack: () => void }) {
   const [recon, setRecon] = useState<Recon3DResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,12 +24,12 @@ export default function StudyView({ result, ai, onBack }: { result: AnalysisResu
     if (!ai) { setAiReport(null); setAiLoading(false); setAiError(null); return; }
     let cancelled = false;
     setAiLoading(true); setAiError(null); setAiReport(null);
-    fetchAI(kindKey, studyId)
+    fetchAI(kindKey, studyId, API_BASE, { sendImages })
       .then((r) => { if (!cancelled) setAiReport(r); })
       .catch((e: Error) => { if (!cancelled) setAiError(e.message); })
       .finally(() => { if (!cancelled) setAiLoading(false); });
     return () => { cancelled = true; };
-  }, [ai, kindKey, studyId, aiNonce]);
+  }, [ai, kindKey, studyId, aiNonce, sendImages]);
 
   const confirmRegion = async (instanceId: string, region: BodyRegion) => {
     const next = { ...overrides, [instanceId]: region };

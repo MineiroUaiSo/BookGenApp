@@ -72,11 +72,13 @@ export const analyzeECG = (
 ) => fetch(`${base}/ecg/${studyId}/analyze?ai=${ai}`, json(body)).then(parse<ECGAnalysis>);
 
 export const analyzeRX = (
-  studyId: string, ai: boolean, body: { instance_ids?: string[]; region_overrides?: Record<string, BodyRegion> } = {}, base = API_BASE,
+  studyId: string, ai: boolean, body: { instance_ids?: string[]; region_overrides?: Record<string, BodyRegion>; send_images_to_ai?: boolean } = {}, base = API_BASE,
 ) => fetch(`${base}/rx/${studyId}/analyze?ai=${ai}`, json(body)).then(parse<RXAnalysis>);
 
-export const fetchAI = (kind: "ecg" | "rx", studyId: string, base = API_BASE) =>
-  fetch(`${base}/${kind}/${studyId}/ai`, json({})).then(parse<AIReport>);
+/** `sendImages` (opt-in) só vale para RX: o ECG nunca leva o campo. */
+export const fetchAI = (kind: "ecg" | "rx", studyId: string, base = API_BASE, opts: { sendImages?: boolean } = {}) =>
+  fetch(`${base}/${kind}/${studyId}/ai`, json(kind === "rx" ? { send_images_to_ai: opts.sendImages === true } : {}))
+    .then(parse<AIReport>);
 
 export interface RulePpvEntry { ppv: number; ic_inf: number; ic_sup: number; n: number; fonte: string }
 export interface RulePpv { _meta: Record<string, unknown>; codes: Record<string, RulePpvEntry> }
