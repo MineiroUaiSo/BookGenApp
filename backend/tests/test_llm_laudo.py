@@ -64,7 +64,9 @@ def test_laudo_caso1_correct_gives_lve_and_cmh_pattern():
     assert lau.aviso_topo == []
     imp = " ".join(lau.impressao).lower()
     assert "sobrecarga de câmaras esquerdas" in imp and "miocardiopatia hipertrófica" in imp
-    assert "repolarização secundária" in imp and "não como isquemia" in imp
+    # a frase que nega isquemia / afirma ST-T sem regra de ST na entrada é removida pela barreira (C1)
+    assert "não como isquemia" not in imp and "repolarização secundária" not in imp
+    assert lau.validacao["afirmacoes_removidas"] >= 1
     assert "sem desvio de eixo" in lau.eixos and "Peguero" in lau.complexo_qrs and "focal" in lau.complexo_qrs
     assert lau.validacao["numeros_divergentes"] == 0, lau.avisos_validacao
     assert lau.validacao["numeros_fora_das_medidas"] == 0, lau.avisos_validacao
