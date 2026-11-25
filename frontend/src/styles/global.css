@@ -126,3 +126,10 @@ table.meas tr.hl { background: var(--bg-3); }
   .disclaimer { border-color: #000; background: #fff; }
   :root { --fg: #000; --fg-dim: #333; --bg: #fff; --bg-2: #fff; --bg-3: #fff; --border: #999; }
 }
+
+.reliability-alert { display: flex; gap: .6rem; align-items: flex-start; margin: .6rem 0; padding: .6rem .8rem; border-radius: 8px;
+  border: 2px solid var(--warn); background: color-mix(in srgb, var(--warn) 14%, var(--bg-2)); color: var(--fg); }
+.reliability-alert.critical { border-color: var(--crit); background: color-mix(in srgb, var(--crit) 14%, var(--bg-2)); }
+.reliability-alert .ra-icon { font-size: 1.3rem; line-height: 1.2; }
+.reliability-alert ul { margin: .25rem 0 0; padding-left: 1.1rem; font-size: .88rem; }
+

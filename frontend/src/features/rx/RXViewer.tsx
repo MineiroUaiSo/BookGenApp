@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { BodyRegion, RXAnalysis, RXImageAnalysis, RXView } from "../../types/api";
+import ReliabilityAlert, { isLowReliability } from "../../components/ReliabilityAlert";
 import Legend from "./Legend";
 import ViewerPane from "./ViewerPane";
 
@@ -137,8 +138,13 @@ export default function RXViewer({ analysis, apiBase, dicom = false, onRegionCon
         <div key={img.instance_id}>
           <h3 style={{ marginTop: "1rem" }}>Medidas — {imageLabel(img, images.indexOf(img))}</h3>
           <RegionNotice img={img} onConfirm={onRegionConfirm} />
+          <ReliabilityAlert messages={[
+            ...(img.out_of_scope && img.scope_reason ? [`Fora de escopo: ${img.scope_reason}`] : []),
+            ...Object.entries(img.quality).filter(([k, v]) => k !== "escopo" && k !== "região" && isLowReliability(`${k}: ${v}`))
+              .map(([k, v]) => `${k}: ${v}`),
+          ]} />
           {Object.keys(img.quality).length > 0 && (
-            <p>{Object.entries(img.quality).map(([k, v]) => (
+            <p>{Object.entries(img.quality).filter(([k, v]) => k === "escopo" || k === "região" || !isLowReliability(`${k}: ${v}`)).map(([k, v]) => (
               <span key={k} className="badge" style={{ marginRight: 4 }} title={k}>{k}: {v}</span>
             ))}</p>
           )}
@@ -162,9 +168,7 @@ export default function RXViewer({ analysis, apiBase, dicom = false, onRegionCon
           ) : <p className="hint">Sem medidas para esta imagem.</p>}
         </div>
       ))}
-      {analysis.warnings.length > 0 && (
-        <ul className="hint">{analysis.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
-      )}
+      <ReliabilityAlert title="Avisos da análise" messages={analysis.warnings} />
     </section>
   );
 }

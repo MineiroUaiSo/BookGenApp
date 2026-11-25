@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ECGAnalysis, Finding } from "../../types/api";
+import ReliabilityAlert from "../../components/ReliabilityAlert";
 import "./ecg.css";
 import EcgPaper from "./EcgPaper";
 import { GlobalTable, LeadTable } from "./MeasurementsTable";
@@ -47,11 +48,7 @@ export default function ECGWorkspace({ analysis }: { analysis: ECGAnalysis }) {
 
   return (
     <section className="ecg-ws" aria-label="Área de trabalho do ECG">
-      {analysis.warnings.length > 0 && (
-        <div className="ecg-card" role="alert" style={{ borderColor: "var(--ecg-warn)" }}>
-          {analysis.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
-        </div>
-      )}
+      <ReliabilityAlert title="Avisos da análise" messages={analysis.warnings} />
 
       <div className="ecg-card">
         <div className="ecg-row" aria-label="Achados">

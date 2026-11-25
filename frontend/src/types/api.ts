@@ -202,6 +202,8 @@ export interface RXImageAnalysis {
   region_uncertain?: boolean;
   region_conflict?: boolean;
   tag_region?: BodyRegion | null;
+  out_of_scope?: boolean;
+  scope_reason?: string | null;
 }
 
 export interface RXAnalysis {
