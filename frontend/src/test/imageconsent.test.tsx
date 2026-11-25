@@ -11,6 +11,10 @@ describe("ImageConsent (opt-in de envio da imagem à IA na nuvem)", () => {
     expect(screen.getByRole("note").textContent).toMatch(/LGPD/);
     expect(screen.getByRole("note").textContent).toMatch(/medidas e regras/);
   });
+  it("avisa em 1 linha que as medidas anonimizadas vão à IA na nuvem (mesmo sem marcar a imagem)", () => {
+    render(<ImageConsent checked={false} onChange={() => {}} />);
+    expect(screen.getByText("Medidas anonimizadas são enviadas à IA na nuvem.")).toBeTruthy();
+  });
   it("avisa o pai ao marcar", () => {
     const onChange = vi.fn();
     render(<ImageConsent checked={false} onChange={onChange} />);
