@@ -74,3 +74,11 @@ Modelos SEMPRE em nuvem via OpenRouter (nunca locais). Saldo OpenRouter ~US$ 2,6
 - docs/benchmarks/ecg.md e rx.md regenerados no codigo c9a5a49 (ECG large N=9183 via cache R3T5L, codigo ECG inalterado desde 4b13b7d; RX masks completo + gate T2 4,4% fora de escopo; calibracao nao rerodada). Detalhes e decisoes abertas no rodape de cada md.
 - Fix bench/ecg_bench.py: build_report respeita --set large. Secao Images do ecg.md e Montgomery/Shenzhen do rx.md saem (datasets ausentes).
 - Pendente: CODE-test (1x no fim), push/deploy pelo dono, credenciais VinDr/BRAX/VinBig, re-rodar calibracao IU (~16 h) se desejado.
+
+
+## ESTADO 2026-11-25 (tarde — laudo v2 + auditoria Opus)
+- Branch claude/ecg-rx-ai-reader-nd20rs enviada ao GitHub até a936cbb (laudo v2 [F]/[C] atrás de MEDLENS_LAUDO_V2=1, desligado). Suíte backend 628 passed/10 skipped no worktree do laudo; frontend 35 testes + build ok.
+- Trilhas 5 (UX/log/alerta), 6, 7, 8, E6, LGPD ecg_report sem foto, restrição de strain: TODAS já mescladas (as seções acima que dizem "não lançadas"/"nada enviado" estão superadas). Dado real: BAV3 4/12 (33%), 60 de 142 cartões "verificar", 0 revisados por médico.
+- Auditoria Opus (read-only): push OK; BLOQUEIA ligar MEDLENS_LAUDO_V2 e uso clínico: (1) CRÍTICO validador v2 aceita afirmação qualitativa falsa com ids válidos (probe em scratchpad probe_v2.py); (2) ALTO STE some em BRD/BRE e sem Sgarbossa/Smith; (3) ALTO "sem alterações pelas regras" tranquiliza com sens STE_acute 51%; (4) ALTO imagem de RX vai ao provedor por padrão (depende de heurística de texto queimado); (5) MÉDIO assert_text_only só no v2; (6) refs locais ainda contêm o JPG: backup/pre-filter-2026-11-25, wt/r2-ecgk, refs/original/... (nunca push --all/--mirror; apagar após decisão + git gc); (7) BAIXO Romhilt-Estes AE por produto de Morris, Sokolow >35 vs >=35.
+- Em andamento: agente Sonnet corrigindo 1, 2 (conservador, sem implementar Sgarbossa), 3 e 5 em worktree (branch worktree-agent-a5a9699b812f13ccc), sem push.
+- Decisões do dono: política de envio de imagem de RX (opt-in?), Sgarbossa/Smith, STD vs strain, apagar refs com JPG, licenças.
