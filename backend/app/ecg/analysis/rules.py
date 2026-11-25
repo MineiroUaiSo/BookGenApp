@@ -85,6 +85,7 @@ IRBBB_TERM_R_MV = 0.15
 IRBBB_MIN_QRS = 100        # AHA 2009: incomplete RBBB 110-119 ms (adults); 100-119 ms is used by SBC for screening
 Q_DUR_MS, Q_DUR_V23_MS, Q_AMP_MV, Q_RATIO, Q_RATIO_MIN_MV = 30, 20, 0.1, 0.25, 0.2   # AHA 2009 Part VI / UDMI-4
 STD_MV = 0.05            # UDMI-4 / AHA 2009 Part VI: >=0.5 mm (0.05 mV) horizontal or downsloping, 2 contiguous leads
+STRAIN_STD_NOTE = "pode ser secundária a HVE (strain); isquemia não excluída"
 STE_MV, STE_V23_MV = 0.1, 0.2
 
 
@@ -566,14 +567,12 @@ def build_findings(c):
         if c["bbb"] == "lbbb":
             ste.pop(l, None)
         std.pop(l, None)
-    # Strain leads: STD is suppressed only if it is mild, lateral and not accompanied by ischaemic signs
-    # (rules_lvh.strain_std_suppressed); otherwise it is reported as a normal ST depression.
+    # Strain leads (R4 T1): STD is never removed. A mild, lateral STD with voltage HVE and no ischaemic signs
+    # (rules_lvh.strain_std_suppressed) is only annotated "pode ser secundaria a HVE (strain)"; it is still reported.
     strain_ls = set(c.get("lvh_strain", ()))
     std_all, ste_all = dict(std), dict(ste)
     strain_supp = {l for l in strain_ls if l in std_all and rules_lvh.strain_std_suppressed(
         l, strain_ls, c.get("indices") or {}, std_all, ste_all)}
-    for l in strain_supp:
-        std.pop(l, None)
     if strain_ls and any(l in std for l in strain_ls) and not strain_supp:
         out[:] = [f for f in out if f.code != "ecg.secondary_repolarization_lvh"]
     if c["bbb"] in ("lbbb", "rbbb", "irbbb"):
@@ -601,9 +600,10 @@ def build_findings(c):
         out.append(_f("ecg.st_elevation_" + name, f"Supradesnivelamento do segmento ST sugestivo ({name}: {pl(lds)})",
                       "critical", ev + caution, [R_UDMI, R_SBC], 0.75 if recip else 0.6))
     for name, lds in territories(list(std)):
+        strain_note = [STRAIN_STD_NOTE] if any(l in strain_supp for l in lds) else []
         out.append(_f("ecg.st_depression_" + name, f"Infradesnivelamento do segmento ST ({name}: {pl(lds)})",
                       "abnormal", ["ST em J+60: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} {std[l]*10:.1f} mm" for l in lds),
-                                   "limiar UDMI-4: >=0,5 mm em 2 derivações contíguas"] + caution,
+                                   "limiar UDMI-4: >=0,5 mm em 2 derivações contíguas"] + strain_note + caution,
                       [R_UDMI, R_SBC], 0.55))
 
     # ---- pathological Q
