@@ -147,3 +147,8 @@ def test_rx_laudo_fora_de_escopo_so_avisa_e_nao_mede():
 def test_rx_laudo_markdown_marca_rascunho_e_nota_de_ia():
     md = LA.render_markdown(LA.build_laudo(CENARIOS["pa_modelo"]))
     assert "rascunho" in md.lower() and "revisão médica" in md.lower() and "decisão final é do médico" in md
+
+
+def test_rx_laudo_heuristica_nao_repete_frase_de_achado():
+    textos = [f.texto for s in LA.build_laudo(CENARIOS["heuristica"]).secoes if s.id == "achados" for f in s.frases]
+    assert len(textos) == len(set(textos))

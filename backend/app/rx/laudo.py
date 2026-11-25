@@ -140,9 +140,12 @@ def _achados(f: Ficha) -> list[Frase]:
                            "automática.", Nivel.NAO_AVALIADO, c.fatos))
         else:
             out.append(_fr("achados", f"{nome}: não avaliado nesta análise automática.", Nivel.NAO_AVALIADO, c.fatos))
+        vistos = {fr.texto for fr in out}
         for x in (y for y in f.fatos if y.regiao == c.regiao and y.chave in _ROTULO):
             t, n = _frase_fato(x)
-            out.append(_fr("achados", t, n, [x.id], x.fontes))
+            if t not in vistos:                      # mm e % do mediastino geram a mesma frase não medida
+                vistos.add(t)
+                out.append(_fr("achados", t, n, [x.id], x.fontes))
     return out
 
 
