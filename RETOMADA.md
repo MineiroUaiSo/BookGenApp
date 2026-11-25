@@ -1,5 +1,14 @@
 # RETOMADA — MedLens (rodada 2, 2026-11-24)
 
+## Rodada 2026-11-25 noite 2 — ECG final (worktree wt/ecg-final, base 2be7b23, sem push)
+- Feito: (1) QRS largo sem BRE: SEM mudanca de regra (ver pendencia abaixo). (2) docs/benchmarks/ecg.md (LUDB 200 + PTB-XL dev large N=9183, rodada fresca) e rx.md (masks completo, 2094 tarefas) regenerados no codigo 2be7b23; sem PHI nem imagem real. (3) Limpeza: removidos 24 worktrees mesclados e limpos (wt/A..I, r2-*, r3-t5, r4-playwright, agent-a5a9699b/a7689ed5/a7f67de3) e 29 branches mescladas (git branch -d). (4) CODE-test rodado UMA vez (docs/benchmarks/code_test.md; marcador data/bench/ecg/code_test.RUN, nao rodar de novo).
+- CODE-test (N=827): AV1 sens 46,4% VPP 92,9%; BRD 52,9%/51,4% (nossa RBBB_any inclui incompleto); BRE 83,3%/80,6%; bradicardia 93,8%/78,9%; FA 92,3%/54,5% (13 pos); taq. sinusal 83,8%/88,6%.
+- Benchmark PTB-XL dev large antes/depois = identico (nenhuma regra mudou): NORM->normal 74,6% (2101/2815), STD sens 56,6%, STE_acute sens 51,2% FP 310.
+- Mantidos (nao mesclados ou sujos): worktree/branch wt/r3-t6 (2 commits fora da principal + 1 arquivo sujo), worktree-agent-a6ff241e (mesclado, mas 4 alteracoes nao commitadas em rules.py/delineate.py/plausibility.py + test_ecg_st_noise_abstention.py de outra sessao), worktree-agent-aaff1359 (travado, sessao ativa), worktree-agent-a5a9699b so existe no origin.
+- Pendencia clinica do medico (QRS largo sem BRD/BRE): o criterio (>=120 ms sem morfologia de BRE/BRD = atraso inespecifico, 110-119 = limitrofe; AHA/ACCF/HRS 2009 Parte III, cards normal.qrs_duracao e conducao.ivcd) JA esta implementado sobre a largura mista (mediana por derivacao + 0,25 x global). O que fica "borderline" e o aviso de ST (`ecg.st_not_assessable`) quando a largura GLOBAL >= 120 ms mas a mista < 120: a largura global tem vies de +25 ms vs 12SL e 4876/9183 registros do dev passam de 120 ms globais (2970 sem bloqueio; 1010 deles NORM no gold = 34%). Pergunta: manter esse aviso como limitrofe (sem tirar o ECG de "normal pelas regras") ou promover QRS largo sem BRE a anormal? Promover derruba NORM->normal em ~1/3; exige antes corrigir o vies da largura global. Decisao do medico.
+- Pendente do dono: push/deploy; credenciais PhysioNet/Kaggle/VinDr/BRAX; calibracao RX e gate fora-de-escopo RX (4,4%) nao rerodados.
+
+
 Branch: `claude/ecg-rx-ai-reader-nd20rs` (local, **sem push/deploy**). Rodada 2 orquestrada por Opus; executores Sonnet em worktrees `~/medlens-wt/r2-<trilha>` (branches `wt/r2-<trilha>`), mesclados aqui em sequência. Logs por trilha: `docs/benchmarks/trilha_r2_<trilha>_log.md`. Planos: `docs/planning/plano_fable_r2.md` (10 ações), `docs/planning/plano_fable_ecg.md` (ECG ficha/cartões/digitalização). Specs prontas das trilhas não lançadas: `docs/planning/r2_specs_pendentes.md`.
 
 ## Playwright RX (2026-11-25) — worktree r4-playwright (branch wt/r4-playwright, sem push)
