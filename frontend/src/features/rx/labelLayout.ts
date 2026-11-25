@@ -7,6 +7,8 @@ export interface LabelPlacement {
   /** centro vertical da primeira linha (textBaseline = "middle") */
   y: number;
   lineHeight: number;
+  /** largura do bloco de texto, em unidades de imagem */
+  width: number;
 }
 
 const PAD = 4;       // folga até a borda, em px de tela
@@ -28,14 +30,32 @@ function wrap(text: string, measure: (s: string) => number, maxW: number): strin
 /** limita v a [lo, hi]; se o intervalo for inválido (hi < lo), vale lo. */
 const clamp = (v: number, lo: number, hi: number) => (hi < lo ? lo : Math.min(Math.max(v, lo), hi));
 
+/** Caixa ocupada pelo rótulo, em unidades de imagem. */
+export function labelBox(p: LabelPlacement): Bounds {
+  return {
+    left: p.x, right: p.x + p.width,
+    top: p.y - p.lineHeight / 2,
+    bottom: p.y + (p.lines.length - 1) * p.lineHeight + p.lineHeight / 2,
+  };
+}
+
+const overlaps = (a: Bounds, b: Bounds) =>
+  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+/** deslocamentos em passos de lineHeight: acima (1, 2), depois abaixo (1, 2) — 4 tentativas */
+const SHIFT_STEPS = [-1, -2, 1, 2];
+
 /**
  * Posiciona o rótulo de uma medida dentro de `bounds` (viewport visível em
  * coordenadas de imagem). Prefere à direita do âncora; perto da borda direita
  * vai para a esquerda; texto mais largo que o viewport quebra em linhas.
+ * `ocupados` = caixas de rótulos já desenhados: se houver interseção, desloca
+ * em passos de lineHeight (acima, depois abaixo) mantendo-se dentro do viewport.
  * `px` = unidades de imagem por pixel de tela (1 / escala).
  */
 export function placeLabel(
   text: string, measure: (s: string) => number, anchor: [number, number], bounds: Bounds, px: number,
+  ocupados: Bounds[] = [],
 ): LabelPlacement {
   const pad = PAD * px;
   const lineHeight = LINE_H * px;
@@ -48,7 +68,18 @@ export function placeLabel(
   x = clamp(x, bounds.left + pad, bounds.right - pad - w);
 
   const blockH = lines.length * lineHeight;
+  const minY = bounds.top + pad + lineHeight / 2;
+  const maxY = bounds.bottom - pad - blockH + lineHeight / 2;
   let y = anchor[1] - OFFSET_Y * px - (lines.length - 1) * lineHeight;
-  y = clamp(y, bounds.top + pad + lineHeight / 2, bounds.bottom - pad - blockH + lineHeight / 2);
-  return { lines, x, y, lineHeight };
+  y = clamp(y, minY, maxY);
+  const base: LabelPlacement = { lines, x, y, lineHeight, width: w };
+  if (!ocupados.some((o) => overlaps(labelBox(base), o))) return base;
+
+  for (const step of SHIFT_STEPS) {
+    const ny = y + step * lineHeight;
+    if (ny < minY || ny > maxY) continue;
+    const cand = { ...base, y: ny };
+    if (!ocupados.some((o) => overlaps(labelBox(cand), o))) return cand;
+  }
+  return base;
 }

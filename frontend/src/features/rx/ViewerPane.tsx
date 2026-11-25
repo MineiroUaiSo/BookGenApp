@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RXImageAnalysis, Structure } from "../../types/api";
 import { renderUrl } from "../../api/client";
 import { centroid, pointInPolygon, tintMask } from "./maskUtils";
-import { placeLabel } from "./labelLayout";
+import { labelBox, placeLabel, type Bounds } from "./labelLayout";
 
 export interface PaneProps {
   image: RXImageAnalysis;
@@ -185,6 +185,7 @@ export default function ViewerPane(p: PaneProps) {
       }
     }
     if (p.measurements) {
+      const pending: { txt: string; mid: number[] }[] = [];
       for (const me of image.measurements) {
         if (me.drawing.length < 2) continue;
         const hl = p.highlightMeas === me.key;
@@ -195,9 +196,15 @@ export default function ViewerPane(p: PaneProps) {
         for (const [x, y] of me.drawing) { ctx.beginPath(); ctx.arc(x, y, 3 * px, 0, Math.PI * 2); ctx.fillStyle = MEAS_COLOR; ctx.fill(); }
         const mid = me.drawing[Math.floor(me.drawing.length / 2)];
         const txt = `${me.label}${me.value != null ? `: ${me.value}${me.unit ?? ""}` : ""}`;
-        ctx.font = `${Math.round(12 * px)}px system-ui, sans-serif`;
-        ctx.textAlign = "left"; ctx.textBaseline = "middle";
-        const pl = placeLabel(txt, (t) => ctx.measureText(t).width, [mid[0], mid[1]], view, px);
+        pending.push({ txt, mid });
+      }
+      // rótulos depois das linhas, em ordem de y do âncora, evitando caixas já ocupadas
+      ctx.font = `${Math.round(12 * px)}px system-ui, sans-serif`;
+      ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      const occupied: Bounds[] = [];
+      for (const { txt, mid } of [...pending].sort((a, b) => a.mid[1] - b.mid[1])) {
+        const pl = placeLabel(txt, (t) => ctx.measureText(t).width, [mid[0], mid[1]], view, px, occupied);
+        occupied.push(labelBox(pl));
         pl.lines.forEach((ln, i) => {
           const ly = pl.y + i * pl.lineHeight;
           ctx.lineWidth = 3 * px; ctx.strokeStyle = "rgba(0,0,0,.85)"; ctx.strokeText(ln, pl.x, ly);
