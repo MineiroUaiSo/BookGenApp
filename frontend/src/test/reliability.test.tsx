@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import css from "../styles/global.css?raw";
 import ReliabilityAlert, { isLowReliability } from "../components/ReliabilityAlert";
 
 describe("ReliabilityAlert", () => {
@@ -18,5 +19,16 @@ describe("ReliabilityAlert", () => {
     expect(container.firstChild).toBeNull();
     expect(isLowReliability("segmentação: PSPNet")).toBe(false);
     expect(isLowReliability("confiabilidade: baixa confiabilidade")).toBe(true);
+  });
+});
+
+describe("touch targets (WCAG 2.5.5)", () => {
+  const minHeight = (sel: string) => {
+    const m = css.match(new RegExp(`^${sel.replace(/[.\\[\]]/g, "\\$&")}\\s*\\{[^}]*min-height:\\s*(\\d+)px`, "m"));
+    return m ? Number(m[1]) : 0;
+  };
+  it(".btn.small and .tab have min-height >= 44px", () => {
+    expect(minHeight(".btn.small")).toBeGreaterThanOrEqual(44);
+    expect(minHeight(".tab")).toBeGreaterThanOrEqual(44);
   });
 });
