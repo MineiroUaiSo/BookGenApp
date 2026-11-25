@@ -30,7 +30,7 @@ Parado por orçamento de uso CRÍTICO (janela de 5h a 97%). Rodada 1: ver histó
 
 ## Decisões do médico / usuário
 - STD vs strain: aceitar queda de sens STD (68→62%) em troca de rotular strain como secundário, ou restringir a supressão.
-- Gabarito caso1 inconsistente: Cornell 58 mm (R aVL 21 + S V3 37) implicaria Peguero positivo; confirmar S V3 real.
+- Gabarito caso1 RESOLVIDO (R3-C1): medido na imagem, S V3 ~6 mm, R V3 ~37-39 mm, R aVL ~21 mm; o "Cornell 58" = R aVL + R V3 (soma de R). Cornell classico ~27 mm. Texto corrigido em docs/planning/r2_specs_pendentes.md (SPEC7).
 - Rodar 60 laudos IA (~US$ 11) ou modelo mais barato; revisar 20 laudos.
 - Licença CXAS (pesos MIMIC/DINOv3) antes de ligar por padrão; 91 cartões "verificar".
 - Credencial PhysioNet/Kaggle (VinDr, BRAX, VinBigData); reiniciar o servidor da porta 8000; E6 na UI só após decisão regulatória.
@@ -55,7 +55,7 @@ Estado: rodada 2 mesclada LOCALMENTE em claude/ecg-rx-ai-reader-nd20rs (50+ comm
 
 ### Decisões do usuário em aberto
 1. STD caiu 56,6%→47,8% sens (espec 82,5→85,1) pela regra strain=repolarização secundária; manter ou restringir.
-2. Gabarito caso1 inconsistente: Cornell 58 mm exige S V3 ~37 mm (Peguero positivo?). Conferir S de V3 real.
+2. (feito R3-C1) Gabarito caso1: 58 mm = R aVL 21 + R V3 ~37; S V3 real ~6 mm. Ver SPEC7.
 3. CXAS: licença MIT "só pesquisa"; fica desligado (MEDLENS_RX_CXAS=1).
 4. Credenciais PhysioNet/Kaggle (VinDr, BRAX, VinBigData); reiniciar servidor porta 8000 (roda código antigo).
 5. Limiares: Sokolow por idade, Cornell sem sexo, P>=120 ms, Romhilt-Estes; uso comercial (licença LITFL/ECGpedia).
