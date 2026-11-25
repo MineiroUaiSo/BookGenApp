@@ -82,7 +82,7 @@ fontes:
     secoes: [revisao_medica]
     verificado: true
     lido: "decisão final sempre do médico; sem aprovação automática de laudos; paciente informado do uso de IA; nota padronizada no laudo em construção pelo CBR"
-    nota: "nota de 02/03/2026; texto integral da resolução não lido"
+    nota: "nota recente (ano 2026); texto integral da resolução não lido"
   - id: S9
     titulo: "Wikimedia Commons, Category:X-rays of the chest"
     entidade: "Wikimedia Commons"
