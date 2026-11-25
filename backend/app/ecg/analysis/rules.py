@@ -21,6 +21,7 @@ LEAD_PRETTY = {"I": "D1", "II": "D2", "III": "D3"}
 
 
 ST_NOT_ASSESSABLE_CODE = "ecg.st_not_assessable"
+ST_MANUAL_NOTE = "ST não interpretável pelas regras; aplicar Sgarbossa/Smith manualmente"
 ST_WIDE_QRS_MS = 120
 # Texto neutro de propósito: ausência de regra disparada não é um laudo de normalidade.
 NORMAL_LABEL = "Nenhuma regra automática disparou; isso não exclui IAM, BAV ou outras alterações."
@@ -680,9 +681,11 @@ def build_findings(c):
     # critérios de Sgarbossa/Smith são decisão clínica e NÃO são implementados aqui).
     why_st = _st_not_assessable_reasons(out, pc, gm.qrs_ms, c["bbb"])
     if why_st:
-        out.append(_f(ST_NOT_ASSESSABLE_CODE, "Isquemia/supradesnivelamento de ST não avaliável de forma confiável "
-                      "com este padrão (considerar critérios de Sgarbossa/Smith; avaliação médica)",
-                      "borderline", why_st, [R_AHA, R_UDMI], 0.9))
+        # BRE ou marca-passo ventricular: "abnormal" (o caso nunca sai como "sem alterações"); só QRS largo: borderline
+        hard = any(w.startswith(("bloqueio de ramo esquerdo", "ritmo de marca-passo")) for w in why_st)
+        out.append(_f(ST_NOT_ASSESSABLE_CODE, f"{ST_MANUAL_NOTE} (isquemia/supradesnivelamento de ST não avaliável "
+                      "de forma confiável com este padrão; avaliação médica)",
+                      "abnormal" if hard else "borderline", why_st, [R_AHA, R_UDMI], 0.9))
 
     # Isolated borderline observations (SBC 2022 "limítrofe"/variants) do not make an ECG abnormal.
     abn = [f for f in out if f.severity in ("abnormal", "critical")]
