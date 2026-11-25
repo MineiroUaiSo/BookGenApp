@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 from app.ecg.analysis import analyze_signal
-from app.ecg.analysis.rhythm import _av_core, av_analysis
+from app.ecg.analysis.rhythm import _av3_from_grid, _av_core, atrial_grid, av_analysis
 from app.schemas import ECGSignal, SourceKind
 from synth_ecg import synth_signal
 
@@ -64,3 +64,48 @@ def test_av_core_normal_one_to_one_conduction_has_no_block():
     res = _av_core(p, q, FS)
 
     assert res["type"] is None
+
+def test_av3_from_grid_dissociated_p_at_75_and_qrs_at_40_flags_complete_block():
+    q = np.arange(400.0, 9600.0, 1500.0)       # escape ~40 bpm, regular
+    g = np.arange(100.0, 9600.0, 800.0)        # atrial ~75 bpm, unrelated phase (ratio 1.9 is not an integer lock)
+
+    res = _av3_from_grid(g, q, {})
+
+    assert res is not None and res["type"] == "av3"
+    assert res["vent_rate"] < 0.85 * res["atrial_rate"]
+
+
+def test_av3_from_grid_normal_sinus_conduction_is_not_block():
+    q = np.arange(500.0, 9500.0, 900.0)
+    g = q - 160.0                               # fixed PR: QRS phase locked to the grid
+
+    assert _av3_from_grid(g, q, {}) is None
+
+
+def test_av3_from_grid_harmonic_grid_at_half_rr_is_not_block():
+    q = np.arange(500.0, 9500.0, 800.0)
+    g = np.arange(150.0, 9500.0, 400.0)         # grid at half the RR (T-wave/subharmonic artefact), ratio 2.0
+
+    assert _av3_from_grid(g, q, {}) is None
+
+
+def test_atrial_grid_recovers_independent_atrial_period_from_synthetic_leads():
+    rng = np.random.default_rng(3)
+    n = 10 * FS
+    t = np.arange(n) / FS
+    q_ms = np.arange(400.0, 9600.0, 1500.0)
+    leads = {}
+    for ln, sign in (("II", 1.0), ("aVF", 1.0), ("V1", -0.6)):
+        x = 0.01 * rng.standard_normal(n)
+        for pt in np.arange(150.0, 9800.0, 800.0):                 # P waves every 800 ms
+            x += sign * 0.12 * np.exp(-0.5 * ((t - pt / 1000.0) / 0.025) ** 2)
+        for qt in q_ms:                                            # narrow QRS every 1500 ms
+            x += 1.0 * np.exp(-0.5 * ((t - qt / 1000.0) / 0.012) ** 2)
+        leads[ln] = x
+    beats = [{"qrs_on": int(qt * FS / 1000) - 10, "qrs_off": int(qt * FS / 1000) + 10, "t_off": int(qt * FS / 1000) + 90}
+             for qt in q_ms]
+
+    grid, info = atrial_grid(leads, FS, beats)
+
+    assert grid is not None
+    assert abs(info["period_ms"] - 800.0) < 30.0
