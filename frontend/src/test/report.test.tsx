@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import ReportPanel, { collectRefs, reportToText } from "../features/report/ReportPanel";
+import ReportPanel, { collectRefs, ppvLabel, reportToText } from "../features/report/ReportPanel";
 import { ai, findings } from "./fixtures";
 
 describe("ReportPanel", () => {
@@ -38,6 +38,11 @@ describe("ReportPanel", () => {
       expect(calls[0].url).toMatch(/\/feedback\/s1$/);
       expect(JSON.parse(calls[0].body)).toMatchObject({ kind: "ecg", verdict: "disagree" });
     } finally { globalThis.fetch = orig; }
+  });
+  it("formats measured PPV with CI and source, or 'não medido'", () => {
+    expect(ppvLabel({ ppv: 0.8, ic_inf: 0.74, ic_sup: 0.85, n: 123, fonte: "PTB-XL dev" }))
+      .toBe("VPP 0,80 [0,74–0,85] (PTB-XL dev, N=123)");
+    expect(ppvLabel(undefined)).toBe("VPP não medido");
   });
   it("dedups refs and builds text", () => {
     expect(collectRefs(findings, ai).map((r) => r.id)).toEqual(["ref-1", "ref-2"]);

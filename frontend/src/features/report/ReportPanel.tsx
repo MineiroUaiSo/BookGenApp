@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { sendFeedback } from "../../api/client";
+import { useEffect, useMemo, useState } from "react";
+import { fetchRulePpv, sendFeedback } from "../../api/client";
+import type { RulePpvEntry } from "../../api/client";
 import type { AIReport, Finding, Reference } from "../../types/api";
 
 export const DEFAULT_DISCLAIMER =
@@ -62,13 +63,35 @@ function FeedbackButtons({ code, vote, onVote }: { code: string; vote?: Verdict;
   );
 }
 
-function FindingItem({ f, vote, onVote }: { f: Finding; vote?: Verdict; onVote?: FeedbackFn }) {
+const nf = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** "VPP 0,80 [0,74–0,85] (PTB-XL dev, N=123)" or "VPP não medido". */
+export function ppvLabel(e?: RulePpvEntry): string {
+  if (!e) return "VPP não medido";
+  return `VPP ${nf.format(e.ppv)} [${nf.format(e.ic_inf)}–${nf.format(e.ic_sup)}] (${e.fonte}, N=${e.n})`;
+}
+
+let ppvCache: Promise<Record<string, RulePpvEntry>> | null = null;
+function loadPpv(): Promise<Record<string, RulePpvEntry>> {
+  ppvCache ??= fetchRulePpv().then((r) => r.codes).catch(() => ({}));
+  return ppvCache;
+}
+
+function useRulePpv(): Record<string, RulePpvEntry> {
+  const [m, setM] = useState<Record<string, RulePpvEntry>>({});
+  useEffect(() => { let on = true; loadPpv().then((x) => { if (on) setM(x); }); return () => { on = false; }; }, []);
+  return m;
+}
+
+function FindingItem({ f, vote, onVote, ppv }: { f: Finding; vote?: Verdict; onVote?: FeedbackFn; ppv?: Record<string, RulePpvEntry> }) {
   return (
     <div className={`finding sev-${f.severity}`}>
       <strong>{f.label}</strong>{" "}
       <span className={`badge ${f.severity}`}>{SEV_LABEL[f.severity]}</span>{" "}
       <span className="badge">{ORIGIN_LABEL[f.origin]}</span>{" "}
-      <span className="hint">{Math.round(f.confidence * 100)}%</span>
+      {f.origin === "rules" && ppv
+        ? <span className="hint" data-testid="ppv">{ppvLabel(ppv[f.code])}</span>
+        : <span className="hint">{Math.round(f.confidence * 100)}%</span>}
       {f.evidence.length > 0 && <ul>{f.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>}
       {onVote && <FeedbackButtons code={f.code} vote={vote} onVote={onVote} />}
     </div>
@@ -86,6 +109,7 @@ export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested
   const [copied, setCopied] = useState(false);
   const [votes, setVotes] = useState<Record<string, Verdict>>({});
   const [fbError, setFbError] = useState<string | null>(null);
+  const ppv = useRulePpv();
   const vote: FeedbackFn | undefined = feedback ? (code, verdict) => {
     setFbError(null);
     setVotes((v) => ({ ...v, [code]: verdict }));
@@ -113,7 +137,7 @@ export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested
 
       <h3>Achados por regras e medidas</h3>
       {fbError && <p className="error" role="alert">Feedback não gravado: {fbError}</p>}
-      {findings.length ? findings.map((f) => <FindingItem key={f.code + f.label} f={f} vote={votes[f.code]} onVote={vote} />)
+      {findings.length ? findings.map((f) => <FindingItem key={f.code + f.label} f={f} vote={votes[f.code]} onVote={vote} ppv={ppv} />)
         : <p className="hint">Nenhum achado automático.</p>}
 
       {ai?.available ? (

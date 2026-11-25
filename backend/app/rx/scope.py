@@ -13,7 +13,7 @@ import numpy as np
 from ..schemas import BodyRegion
 
 BLANK_STD_MAX = 12.0          # 8-bit std below this = blank / uniform image
-LINEART_TOP_MIN = 0.55        # share of pixels within +-4 grey levels of the dominant tone
+LINEART_TOP_MIN = 0.80        # share of pixels within +-4 grey levels of the dominant tone (real radiographs: <= 0.50)
 LINEART_ENTROPY_MAX = 5.5     # bits; radiographs sit at >= 6.3 (JSRT/IU/PAX-Ray dev sample)
 MIN_SIDE_PX = 64
 

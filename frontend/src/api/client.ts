@@ -78,6 +78,10 @@ export const analyzeRX = (
 export const fetchAI = (kind: "ecg" | "rx", studyId: string, base = API_BASE) =>
   fetch(`${base}/${kind}/${studyId}/ai`, json({})).then(parse<AIReport>);
 
+export interface RulePpvEntry { ppv: number; ic_inf: number; ic_sup: number; n: number; fonte: string }
+export interface RulePpv { _meta: Record<string, unknown>; codes: Record<string, RulePpvEntry> }
+export const fetchRulePpv = (base = API_BASE) => fetch(`${base}/rule-ppv`).then(parse<RulePpv>);
+
 export const sendFeedback = (
   studyId: string, body: { kind: "ecg" | "rx"; code: string; verdict: "agree" | "disagree" }, base = API_BASE,
 ) => fetch(`${base}/feedback/${studyId}`, json(body)).then(parse<{ ok: boolean }>);

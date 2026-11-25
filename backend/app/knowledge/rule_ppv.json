@@ -1,0 +1,397 @@
+{
+ "_meta": {
+  "fonte": "PTB-XL dev",
+  "gerado_por": "python -m bench.rule_ppv --tag R3T5L",
+  "n_registros": 9183,
+  "tag": "R3T5L"
+ },
+ "codes": {
+  "ecg.atrial_fibrillation": {
+   "fonte": "PTB-XL dev",
+   "gold": "AF",
+   "ic_inf": 0.824,
+   "ic_sup": 0.868,
+   "n": 1002,
+   "ppv": 0.847,
+   "tp": 849
+  },
+  "ecg.atrial_flutter": {
+   "fonte": "PTB-XL dev",
+   "gold": "AF_AFL",
+   "ic_inf": 0.197,
+   "ic_sup": 0.346,
+   "n": 132,
+   "ppv": 0.265,
+   "tp": 35
+  },
+  "ecg.av_block_1": {
+   "fonte": "PTB-XL dev",
+   "gold": "AV1",
+   "ic_inf": 0.497,
+   "ic_sup": 0.588,
+   "n": 455,
+   "ppv": 0.543,
+   "tp": 247
+  },
+  "ecg.av_block_2": {
+   "fonte": "PTB-XL dev",
+   "gold": "AV2",
+   "ic_inf": 0.0,
+   "ic_sup": 0.354,
+   "n": 7,
+   "ppv": 0.0,
+   "tp": 0
+  },
+  "ecg.av_block_2_21": {
+   "fonte": "PTB-XL dev",
+   "gold": "AV2",
+   "ic_inf": 0.0,
+   "ic_sup": 0.658,
+   "n": 2,
+   "ppv": 0.0,
+   "tp": 0
+  },
+  "ecg.av_block_2_mobitz1": {
+   "fonte": "PTB-XL dev",
+   "gold": "AV2",
+   "ic_inf": 0.0,
+   "ic_sup": 0.354,
+   "n": 7,
+   "ppv": 0.0,
+   "tp": 0
+  },
+  "ecg.av_block_2_mobitz2": {
+   "fonte": "PTB-XL dev",
+   "gold": "AV2",
+   "ic_inf": 0.0,
+   "ic_sup": 0.278,
+   "n": 10,
+   "ppv": 0.0,
+   "tp": 0
+  },
+  "ecg.av_block_3": {
+   "fonte": "PTB-XL dev",
+   "gold": "AV3",
+   "ic_inf": 0.073,
+   "ic_sup": 0.385,
+   "n": 22,
+   "ppv": 0.182,
+   "tp": 4
+  },
+  "ecg.ilbbb": {
+   "fonte": "PTB-XL dev",
+   "gold": "LBBB_any",
+   "ic_inf": 0.021,
+   "ic_sup": 0.096,
+   "n": 132,
+   "ppv": 0.045,
+   "tp": 6
+  },
+  "ecg.irbbb": {
+   "fonte": "PTB-XL dev",
+   "gold": "RBBB_incomplete",
+   "ic_inf": 0.526,
+   "ic_sup": 0.651,
+   "n": 234,
+   "ppv": 0.59,
+   "tp": 138
+  },
+  "ecg.lae": {
+   "fonte": "PTB-XL dev",
+   "gold": "LAE",
+   "ic_inf": 0.049,
+   "ic_sup": 0.092,
+   "n": 521,
+   "ppv": 0.067,
+   "tp": 35
+  },
+  "ecg.lafb": {
+   "fonte": "PTB-XL dev",
+   "gold": "LAFB",
+   "ic_inf": 0.66,
+   "ic_sup": 0.795,
+   "n": 161,
+   "ppv": 0.733,
+   "tp": 118
+  },
+  "ecg.lbbb": {
+   "fonte": "PTB-XL dev",
+   "gold": "LBBB_complete",
+   "ic_inf": 0.453,
+   "ic_sup": 0.527,
+   "n": 686,
+   "ppv": 0.49,
+   "tp": 336
+  },
+  "ecg.long_qt": {
+   "fonte": "PTB-XL dev",
+   "gold": "LQT",
+   "ic_inf": 0.061,
+   "ic_sup": 0.1,
+   "n": 715,
+   "ppv": 0.078,
+   "tp": 56
+  },
+  "ecg.low_voltage": {
+   "fonte": "PTB-XL dev",
+   "gold": "LOWV",
+   "ic_inf": 0.125,
+   "ic_sup": 0.267,
+   "n": 113,
+   "ppv": 0.186,
+   "tp": 21
+  },
+  "ecg.low_voltage_precordial": {
+   "fonte": "PTB-XL dev",
+   "gold": "LOWV",
+   "ic_inf": 0.002,
+   "ic_sup": 0.065,
+   "n": 83,
+   "ppv": 0.012,
+   "tp": 1
+  },
+  "ecg.lpfb": {
+   "fonte": "PTB-XL dev",
+   "gold": "LPFB",
+   "ic_inf": 0.16,
+   "ic_sup": 0.345,
+   "n": 79,
+   "ppv": 0.241,
+   "tp": 19
+  },
+  "ecg.lvh": {
+   "fonte": "PTB-XL dev",
+   "gold": "LVH",
+   "ic_inf": 0.419,
+   "ic_sup": 0.463,
+   "n": 1958,
+   "ppv": 0.441,
+   "tp": 864
+  },
+  "ecg.paced_rhythm": {
+   "fonte": "PTB-XL dev",
+   "gold": "PACE",
+   "ic_inf": 0.898,
+   "ic_sup": 0.98,
+   "n": 110,
+   "ppv": 0.955,
+   "tp": 105
+  },
+  "ecg.pathologic_q_anterior": {
+   "fonte": "PTB-XL dev",
+   "gold": "MI_anterior",
+   "ic_inf": 0.829,
+   "ic_sup": 0.897,
+   "n": 390,
+   "ppv": 0.867,
+   "tp": 338
+  },
+  "ecg.pathologic_q_anterolateral": {
+   "fonte": "PTB-XL dev",
+   "gold": "MI_anterior",
+   "ic_inf": 0.704,
+   "ic_sup": 0.886,
+   "n": 69,
+   "ppv": 0.812,
+   "tp": 56
+  },
+  "ecg.pathologic_q_inferior": {
+   "fonte": "PTB-XL dev",
+   "gold": "MI_inferior",
+   "ic_inf": 0.71,
+   "ic_sup": 0.802,
+   "n": 332,
+   "ppv": 0.759,
+   "tp": 252
+  },
+  "ecg.pathologic_q_lateral": {
+   "fonte": "PTB-XL dev",
+   "gold": "MI_lateral",
+   "ic_inf": 0.433,
+   "ic_sup": 0.605,
+   "n": 127,
+   "ppv": 0.52,
+   "tp": 66
+  },
+  "ecg.preexcitation": {
+   "fonte": "PTB-XL dev",
+   "gold": "WPW",
+   "ic_inf": 0.272,
+   "ic_sup": 0.462,
+   "n": 94,
+   "ppv": 0.362,
+   "tp": 34
+  },
+  "ecg.rae": {
+   "fonte": "PTB-XL dev",
+   "gold": "RAE",
+   "ic_inf": 0.106,
+   "ic_sup": 0.222,
+   "n": 148,
+   "ppv": 0.155,
+   "tp": 23
+  },
+  "ecg.rbbb": {
+   "fonte": "PTB-XL dev",
+   "gold": "RBBB_complete",
+   "ic_inf": 0.643,
+   "ic_sup": 0.738,
+   "n": 361,
+   "ppv": 0.693,
+   "tp": 250
+  },
+  "ecg.rvh": {
+   "fonte": "PTB-XL dev",
+   "gold": "RVH",
+   "ic_inf": 0.135,
+   "ic_sup": 0.231,
+   "n": 247,
+   "ppv": 0.178,
+   "tp": 44
+  },
+  "ecg.sinus_bradycardia": {
+   "fonte": "PTB-XL dev",
+   "gold": "SBRAD",
+   "ic_inf": 0.9,
+   "ic_sup": 0.953,
+   "n": 361,
+   "ppv": 0.931,
+   "tp": 336
+  },
+  "ecg.sinus_rhythm": {
+   "fonte": "PTB-XL dev",
+   "gold": "SR",
+   "ic_inf": 0.909,
+   "ic_sup": 0.923,
+   "n": 5918,
+   "ppv": 0.916,
+   "tp": 5422
+  },
+  "ecg.sinus_tachycardia": {
+   "fonte": "PTB-XL dev",
+   "gold": "STACH",
+   "ic_inf": 0.821,
+   "ic_sup": 0.875,
+   "n": 661,
+   "ppv": 0.85,
+   "tp": 562
+  },
+  "ecg.st_depression_anterior": {
+   "fonte": "PTB-XL dev",
+   "gold": "STD_isch",
+   "ic_inf": 0.453,
+   "ic_sup": 0.627,
+   "n": 122,
+   "ppv": 0.541,
+   "tp": 66
+  },
+  "ecg.st_depression_anterolateral": {
+   "fonte": "PTB-XL dev",
+   "gold": "STD_isch",
+   "ic_inf": 0.664,
+   "ic_sup": 0.77,
+   "n": 275,
+   "ppv": 0.72,
+   "tp": 198
+  },
+  "ecg.st_depression_inferior": {
+   "fonte": "PTB-XL dev",
+   "gold": "STD_isch",
+   "ic_inf": 0.642,
+   "ic_sup": 0.717,
+   "n": 589,
+   "ppv": 0.681,
+   "tp": 401
+  },
+  "ecg.st_depression_lateral": {
+   "fonte": "PTB-XL dev",
+   "gold": "STD_isch",
+   "ic_inf": 0.682,
+   "ic_sup": 0.732,
+   "n": 1228,
+   "ppv": 0.708,
+   "tp": 869
+  },
+  "ecg.st_elevation_anterior": {
+   "fonte": "PTB-XL dev",
+   "gold": "STE_acute",
+   "ic_inf": 0.107,
+   "ic_sup": 0.196,
+   "n": 240,
+   "ppv": 0.146,
+   "tp": 35
+  },
+  "ecg.st_elevation_anterolateral": {
+   "fonte": "PTB-XL dev",
+   "gold": "STE_acute",
+   "ic_inf": 0.156,
+   "ic_sup": 0.454,
+   "n": 32,
+   "ppv": 0.281,
+   "tp": 9
+  },
+  "ecg.st_elevation_inferior": {
+   "fonte": "PTB-XL dev",
+   "gold": "STE_acute",
+   "ic_inf": 0.186,
+   "ic_sup": 0.357,
+   "n": 99,
+   "ppv": 0.263,
+   "tp": 26
+  },
+  "ecg.st_elevation_lateral": {
+   "fonte": "PTB-XL dev",
+   "gold": "STE_acute",
+   "ic_inf": 0.017,
+   "ic_sup": 0.196,
+   "n": 33,
+   "ppv": 0.061,
+   "tp": 2
+  },
+  "ecg.t_inversion_anterior": {
+   "fonte": "PTB-XL dev",
+   "gold": "STTC",
+   "ic_inf": 0.36,
+   "ic_sup": 0.493,
+   "n": 207,
+   "ppv": 0.425,
+   "tp": 88
+  },
+  "ecg.t_inversion_anterolateral": {
+   "fonte": "PTB-XL dev",
+   "gold": "STTC",
+   "ic_inf": 0.382,
+   "ic_sup": 0.534,
+   "n": 162,
+   "ppv": 0.457,
+   "tp": 74
+  },
+  "ecg.t_inversion_inferior": {
+   "fonte": "PTB-XL dev",
+   "gold": "STTC",
+   "ic_inf": 0.551,
+   "ic_sup": 0.669,
+   "n": 260,
+   "ppv": 0.612,
+   "tp": 159
+  },
+  "ecg.t_inversion_lateral": {
+   "fonte": "PTB-XL dev",
+   "gold": "STTC",
+   "ic_inf": 0.603,
+   "ic_sup": 0.7,
+   "n": 369,
+   "ppv": 0.653,
+   "tp": 241
+  },
+  "ecg.within_normal_limits": {
+   "fonte": "PTB-XL dev",
+   "gold": "NORM",
+   "ic_inf": 0.628,
+   "ic_sup": 0.661,
+   "n": 3258,
+   "ppv": 0.645,
+   "tp": 2101
+  }
+ }
+}
