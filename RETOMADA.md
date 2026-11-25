@@ -113,3 +113,13 @@ Modelos SEMPRE em nuvem via OpenRouter (nunca locais). Saldo OpenRouter ~US$ 2,6
 ## ESTADO 2026-11-25 (R4 mesclado)
 - Decisões do Opus aplicadas e mescladas (R4: 314f574..876f83d): strain só anota (STD sens 56,6%, FP STE_acute 310), Sokolow >=, texto RX anonimizado + aviso UI, BRE/marcapasso = "ST não interpretável". Refs com o JPG apagadas + gc (histórico limpo).
 - Pendente: Playwright do aviso/checkbox RX (320/768/1024/1440); regenerar ecg.md/rx.md completos; CODE-test 1x no fim; QRS largo sem BRE ainda "borderline"; limpar worktrees wt/* e .claude/worktrees/*; push/deploy pelo dono.
+
+## Laudo RX confiável 2026-11-25 (worktree rx-laudo, branch wt/rx-laudo, base ce44e05; sem push/deploy)
+Spec: `docs/RX-LAUDO-CONFIAVEL-SPEC.md` (§8 tarefas 1-10). Decisões do dono = recomendações §5 (D1 caixa separada, D2 "sugere aumento da silhueta cardíaca", D3 IA do laudo off por padrão `MEDLENS_RX_LAUDO_IA=0`).
+Python: `PYTHONPATH=backend /Users/macbook/medlens/backend/.venv/bin/python -m pytest -q -W ignore` (rodar de `backend/`); frontend: node_modules por symlink (excluído em .git/info/exclude).
+- [x] T1 validador RX: `backend/app/rx/claim_check.py` + gancho em `llm/__init__.py::rx_report`; teste `backend/tests/test_rx_validator_qualitative.py` (31). Sondas antes: 6/6 frases sem lastro MANTIDAS, 0 discordâncias; depois: 6/6 removidas (+ negações), "ICT 0,46" mantida.
+- [x] T2 "infiltrado" -> "opacidade" (`PATHO_PT`), teste `test_rx_terminologia_fleischner.py`.
+- [x] T3 `knowledge/rx_report_sources.yaml` (S1-S9 verificadas, N1-N10 pendentes) + `backend/app/rx/fontes.py` (`citar()` falha com fonte não verificada) + `test_rx_fontes.py`.
+- [ ] T4 ficha `rx_ficha/v1` (`backend/app/rx/ficha.py`): desenho decidido (Fato frozen id F1.. por ordem; nivel MEDIDO/REGRA/SUGERIDO_MODELO/NAO_AVALIADO/QUALIDADE; cobertura por região pleura/pulmoes/mediastino_hilos/coracao_vasos/diafragma/ossos_partes_moles/dispositivos; ICT com segmentação heurística = NAO_AVALIADO; AP = ressalva; escore `nao_sugerido` não vira fato; Pneumothorax sempre indeterminado). Não iniciado.
+- [ ] T5 léxico, T6 laudo determinístico, T7 API, T8 contrato IA, T9 UI, T10 casos-ouro/kit: não iniciados.
+Limites T1: estrito (mesmo com imagem enviada, tópico sem fato é removido; lateralidade/lobo só passam com imagem); `validate.py` não foi alterado (ECG intacto).
