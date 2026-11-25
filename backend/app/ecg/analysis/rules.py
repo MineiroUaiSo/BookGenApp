@@ -445,7 +445,7 @@ def build_findings(c):
         morris = p1 is not None and p1.extra.get("neg_depth") is not None and p1.extra["neg_depth"] >= 0.1 \
             and p1.extra.get("neg_dur_ms", 0) >= 40
         # P >= 120 ms in D2 is enough on its own (SBC 2022), as is the Morris index (AHA 2009 Part V)
-        lae_ctx = gm.sokolow_lyon_mv is not None and gm.sokolow_lyon_mv > 3.5   # isolated P >= 120 ms counts only with LVH voltage
+        lae_ctx = gm.sokolow_lyon_mv is not None and gm.sokolow_lyon_mv >= 3.5 - 1e-9   # isolated P >= 120 ms counts only with LVH voltage
         if (p_long and (bifid or lae_ctx)) or morris:
             if p_long:
                 ev_l.append(f"P em D2 com {pII.p_duration_ms:.0f} ms (>120)")
@@ -478,10 +478,10 @@ def build_findings(c):
         (L[l].st_j60_mv is not None and L[l].st_j60_mv <= -0.05) or
         (L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -0.1))]
     strong, weak = [], []
-    if sl is not None and sl > sl_thr:
+    if sl is not None and sl >= sl_thr - 1e-9:
         # E4: < 40 anos a voltagem de Sokolow-Lyon sozinha e achado limitrofe; so vira HVE com strain lateral
         (strong if (age_ is None or age_ >= 40 or strain_l) else weak).append(
-            f"Sokolow-Lyon {sl*10:.0f} mm (>{sl_thr*10:.0f} mm)")
+            f"Sokolow-Lyon {sl*10:.0f} mm (≥{sl_thr*10:.0f} mm)")
     if r56 > LVH_R56_MV:
         strong.append(f"R em V5/V6 {r56*10:.0f} mm (>{LVH_R56_MV*10:.0f} mm)")
     if cn is not None and cn > cn_thr:
