@@ -169,6 +169,8 @@ STACH_PFRAC, STACH_PR_SD = 0.4, 30.0   # P locked to the QRS (looser than AF_PFR
 # wave locked to the QRS (Goldberger 10th ed. ch. 'atrial fibrillation'; AHA/ACC/HRS AF guideline 2023)
 AF_CV, AF_RMSSD, AF_DFRAC = 0.09, 0.10, 0.30
 AF_PFRAC, AF_PR_SD = 0.5, 20.0
+QTC_LIM_M, QTC_LIM_F = 450.0, 460.0
+FLUTTER_F_RATIO = 0.75    # E3: F-wave peak ratio (240-340/min, best of II/III/aVF/V1) that outranks the AF test
 FLUTTER_RATIO = 0.35     # share of 1-15 Hz power within +-0.5 Hz of the 3.5-6.7 Hz peak (see rhythm.flutter_features)
 
 
@@ -184,7 +186,12 @@ def classify_rhythm(c):
         return "Bloqueio atrioventricular total com ritmo de escape (dissociação AV)", "av3"
     if (av.get("type") or "").startswith("av2"):
         return "Ritmo sinusal com bloqueio atrioventricular de 2º grau", "av2"
-    if irregular and not ectopy and not p_locked:
+    alt = bool(c.get("rr_alt"))
+    ff = c.get("flutter_f") or {}
+    if ff.get("peak_ratio", 0.0) >= FLUTTER_F_RATIO and not p_locked and not ectopy and not alt \
+            and ff.get("freq_hz") and 4.0 <= ff["freq_hz"] <= 5.67:
+        return "Flutter atrial", "flutter"
+    if irregular and not ectopy and not p_locked and not alt:
         return "Fibrilação atrial", "af"
     # atrial flutter: narrow spectral peak at 3.5-6.7 Hz in the QRS-blanked trace and no P locked to the QRS
     fl = c.get("flutter") or {}
@@ -202,7 +209,7 @@ def classify_rhythm(c):
         return "Taquicardia sinusal (provável; onda P fundida à T)", "sinus"
     if c["p_present"] and c["frac_p"] >= 0.6 and clear_nonsinus:
         return "Ritmo atrial ectópico ou juncional (onda P não sinusal)", "ectopic"
-    if (irregular or cv > 0.12) and (ectopy or p_locked or c["p_present"]):
+    if (irregular or cv > 0.12) and (ectopy or alt or p_locked or c["p_present"]):
         if hr is not None and hr > STACH_HR and av.get("p_frac", 0.0) >= STACH_PFRAC and av.get("pr_sd", 1e9) <= STACH_PR_SD:
             c["stach_prob"] = "irreg"
         return "Ritmo sinusal irregular (arritmia sinusal ou extrassístoles)", "sinus_irreg"
@@ -212,7 +219,7 @@ def classify_rhythm(c):
         if hr is not None and hr > STACH_HR:
             return "Taquicardia sinusal", "sinus"
         return "Ritmo sinusal regular", "sinus"
-    if irregular:
+    if irregular and not alt:
         return "Fibrilação atrial", "af"
     if tachy_reg:
         c["stach_prob"] = "fused"
@@ -450,7 +457,9 @@ def build_findings(c):
         (L[l].t_amplitude_mv is not None and L[l].t_amplitude_mv <= -0.1))]
     strong, weak = [], []
     if sl is not None and sl > sl_thr:
-        strong.append(f"Sokolow-Lyon {sl*10:.0f} mm (>{sl_thr*10:.0f} mm)")
+        # E4: < 40 anos a voltagem de Sokolow-Lyon sozinha e achado limitrofe; so vira HVE com strain lateral
+        (strong if (age_ is None or age_ >= 40 or strain_l) else weak).append(
+            f"Sokolow-Lyon {sl*10:.0f} mm (>{sl_thr*10:.0f} mm)")
     if r56 > LVH_R56_MV:
         strong.append(f"R em V5/V6 {r56*10:.0f} mm (>{LVH_R56_MV*10:.0f} mm)")
     if cn is not None and cn > cn_thr:
@@ -496,13 +505,14 @@ def build_findings(c):
             qt_dec -= qrs_adj - 100
         rr_s = gm.rr_mean_ms / 1000.0
         qt_baz, qt_fri = qt_dec / rr_s ** 0.5, qt_dec / rr_s ** (1 / 3)
+        qt_lim = QTC_LIM_F if c.get("sex") == "F" else QTC_LIM_M   # E4: mulher > 460, homem > 450 (ms)
         use_fr = hr is not None and (hr < 60 or hr > 100)
         qtc_val = qt_fri if use_fr else qt_baz
         nm = "Fridericia" if use_fr else "Bazett"
         evq = [f"QT {gm.qt_ms:.0f} ms (global), {qt_dec:.0f} ms (mediana das derivações, ajustada ao QRS)",
                f"QTc {nm} {qtc_val:.0f} ms (Bazett {qt_baz:.0f}, Fridericia {qt_fri:.0f})",
-               "limiares sem distinção de sexo: >450 limítrofe, >470 alterado, >500 crítico"]
-        if qtc_val > 450:
+               f"limiares: >{qt_lim:.0f} limítrofe ({'mulher' if c.get('sex') == 'F' else 'homem/sexo não informado'}), >470 alterado, >500 crítico"]
+        if qtc_val > qt_lim:
             sev = "critical" if qtc_val > 500 else ("abnormal" if qtc_val > 470 else "borderline")
             out.append(_f("ecg.long_qt", "QT longo", sev, evq, [R_SBC, R_GOLD], 0.6))
         elif qtc_val <= 340:
@@ -613,7 +623,10 @@ def build_findings(c):
                       "(esperadas com o bloqueio de ramo)", "borderline",
                       ["ST-T discordante do QRS, não interpretado como isquemia"], [R_AHA, R_SBC], 0.5))
     for name, lds in territories(list(tinv)):
-        out.append(_f("ecg.t_inversion_" + name, f"Inversão da onda T ({name}: {pl(lds)})", "abnormal",
+        # E4: T invertida isolada em V2-V3 de mulher < 40 anos = variante habitual (limitrofe)
+        variant = c.get("sex") == "F" and c.get("age") is not None and c["age"] < 40 and set(lds) <= {"V1", "V2", "V3"}
+        out.append(_f("ecg.t_inversion_" + name, f"Inversão da onda T ({name}: {pl(lds)})",
+                      "borderline" if variant else "abnormal",
                       ["T: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} {tinv[l]*10:.1f} mm" for l in lds),
                        "limiar: T <= -1 mm em 2 derivações contíguas"] + caution, [R_UDMI, R_SBC, R_GOLD], 0.5))
 

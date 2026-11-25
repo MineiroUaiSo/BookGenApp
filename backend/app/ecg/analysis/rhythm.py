@@ -239,7 +239,7 @@ def _av_core(p_ms, beats_ms, fs):
     return res
 
 
-def flutter_features(x, fs, beats):
+def flutter_features(x, fs, beats, band_hz=(3.5, 6.7)):
     """Atrial flutter descriptors from one lead (II preferred): QRS blanked by interpolation, baseline removed,
     then the spectrum of the remaining atrial/ST-T activity is searched for a narrow peak at 3.5-6.7 Hz
     (210-400/min; typical flutter ~300/min, AHA/ACC/ESC SVT guideline 2015). Returns dict(freq_hz, peak_ratio,
@@ -260,7 +260,7 @@ def flutter_features(x, fs, beats):
     sp = np.abs(np.fft.rfft(y, nfft)) ** 2
     fr = np.fft.rfftfreq(nfft, 1.0 / fs)
     tot = sp[(fr >= 1.0) & (fr <= 15.0)].sum()
-    band = (fr >= 3.5) & (fr <= 6.7)
+    band = (fr >= band_hz[0]) & (fr <= band_hz[1])
     if tot <= 0 or not band.any():
         return dict(freq_hz=None, peak_ratio=0.0, harmonic=False)
     k = np.argmax(np.where(band, sp, 0))
@@ -270,6 +270,43 @@ def flutter_features(x, fs, beats):
     hr_hz = 1000.0 / (np.mean(np.diff(q)) * 1000.0 / fs) if len(q) > 1 else 0.0
     harm = bool(hr_hz > 0 and any(abs(fr[k] / hr_hz - m) < 0.1 * m for m in (2, 3, 4)))
     return dict(freq_hz=float(fr[k]), peak_ratio=float(sp[near].sum() / tot), harmonic=harm)
+
+
+FLUTTER_LEADS = ("II", "III", "aVF", "V1")
+FLUTTER_BAND_HZ = (4.0, 5.67)    # E3: atrial rate 240-340/min
+ALT_MIN_RR = 8
+ALT_AC2, ALT_AC1 = 0.5, -0.3
+
+
+def flutter_multilead(dlt_by_lead, fs, beats, leads=FLUTTER_LEADS, band_hz=FLUTTER_BAND_HZ, min_ratio=0.35):
+    """E3: F-wave search in II/III/aVF/V1 within 240-340/min; returns the best lead (largest peak_ratio) plus
+    n_leads = leads whose own ratio reaches min_ratio."""
+    best, n_ok = dict(freq_hz=None, peak_ratio=0.0, harmonic=False, lead=None), 0
+    for ln in leads:
+        x = dlt_by_lead.get(ln)
+        if x is None:
+            continue
+        f = flutter_features(x, fs, beats, band_hz)
+        if f["peak_ratio"] >= min_ratio:
+            n_ok += 1
+        if f["peak_ratio"] > best["peak_ratio"]:
+            best = dict(f, lead=ln)
+    return dict(best, n_leads=n_ok)
+
+
+def rr_alternation(peaks_ms):
+    """E3: long-short alternation (bigeminy / PAC-PVC every other beat): strong positive lag-2 and negative
+    lag-1 autocorrelation of the RR deviations. Random AF RR has neither."""
+    rr = np.diff(np.asarray(peaks_ms, float))
+    if len(rr) < ALT_MIN_RR:
+        return False
+    d = rr - rr.mean()
+    den = float((d * d).sum())
+    if den <= 0:
+        return False
+    ac1 = float((d[:-1] * d[1:]).sum()) / den
+    ac2 = float((d[:-2] * d[2:]).sum()) / den
+    return ac2 >= ALT_AC2 and ac1 <= ALT_AC1
 
 
 ATRIAL_LEADS = ("II", "V1", "aVF")
