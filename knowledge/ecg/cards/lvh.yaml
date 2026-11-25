@@ -13,6 +13,7 @@ cartoes:
   gatilhos:
   - ecg.lvh
   - ecg.lvh_voltage
+  - ecg.secondary_repolarization_lvh
   armadilhas:
   - Alta sensibilidade em jovens, magros e atletas gera falsos positivos.
   - Conferir a calibração de 10 mm/mV.

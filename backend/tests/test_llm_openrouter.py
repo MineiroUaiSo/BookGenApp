@@ -70,7 +70,7 @@ def test_openrouter_ecg_report_two_stage(or_env, monkeypatch):
     assert p1["messages"][0]["role"] == "system"
     parts = p1["messages"][1]["content"]
     imgs = [x for x in parts if x["type"] == "image_url"]
-    assert len(imgs) == 2 and imgs[0]["image_url"]["url"].startswith("data:image/png;base64,")
+    assert len(imgs) == 1 and imgs[0]["image_url"]["url"].startswith("data:image/png;base64,")
     assert "descrição etapa 1" in json.dumps(p2["messages"], ensure_ascii=False)
 
 
