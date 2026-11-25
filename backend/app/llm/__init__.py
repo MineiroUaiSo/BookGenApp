@@ -204,13 +204,15 @@ def ecg_laudo_fields(summary: dict, *, printed_header: Optional[dict] = None, se
         return {}
 
 
-def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None, *, printed_header: Optional[dict] = None,
+def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None, *,  # noqa: ARG001 printed_header: Optional[dict] = None,
                sexo: Optional[str] = None) -> AIReport:
     if not ai_available():
         return unavailable()
+    # LGPD: a foto/captura original do ECG (cabeçalho com nome, data de nascimento etc.) NUNCA vai ao
+    # provedor externo. image_png é aceito só por compatibilidade de assinatura e é ignorado; ao LLM vai
+    # apenas o plot renderizado do sinal digitalizado (sem cabeçalho) e o texto das medidas/achados.
+    del image_png
     images: list[tuple[str, bytes]] = []
-    if image_png:
-        images.append(("Imagem original do ECG (foto/impressão/captura):", image_png))
     plot = render_ecg_plot(analysis)
     if plot:
         images.append(("Plot dos 12 derivações a partir do sinal processado, em grade 25 mm/s e 10 mm/mV:", plot))

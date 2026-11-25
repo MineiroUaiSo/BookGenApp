@@ -121,8 +121,25 @@ def test_ecg_report_two_stage(monkeypatch):
     assert c2["output_config"]["format"]["type"] == "json_schema"
     assert c1["system"][-1]["cache_control"] == {"type": "ephemeral"}
     types = [b["type"] for b in c1["messages"][0]["content"]]
-    assert types.count("image") == 2  # imagem original + plot
+    assert types.count("image") == 1  # só o plot do sinal; foto original nunca (LGPD)
     assert "descrição etapa 1" in json.dumps(c2["messages"], ensure_ascii=False)
+
+
+def test_ecg_report_never_sends_original_image(monkeypatch):
+    """LGPD: a foto original do ECG (cabeçalho/PHI) não pode aparecer em nenhum payload ao provedor."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    monkeypatch.setenv("MEDLENS_LAUDO", "0")
+    original = _png(size=(97, 53), color=(7, 200, 33))
+    original_b64 = base64.b64encode(original).decode()
+    fake = FakeClient(["descrição etapa 1", json.dumps(GOOD)])
+    monkeypatch.setattr(C, "make_client", lambda: fake)
+    llm.ecg_report(_ecg(), original)
+    assert len(fake.calls) == 2
+    for call in fake.calls:
+        payload = json.dumps(call, ensure_ascii=False, default=str)
+        assert original_b64 not in payload
+    imgs = [b for b in fake.calls[0]["messages"][0]["content"] if b["type"] == "image"]
+    assert len(imgs) == 1 and imgs[0]["source"]["data"] != original_b64
 
 
 def test_rx_report_with_overlay(monkeypatch):
