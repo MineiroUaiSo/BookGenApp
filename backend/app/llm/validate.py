@@ -6,17 +6,20 @@ Não é um dispositivo de decisão: só marca divergências para o médico. Sem 
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable, Optional
 
 from ..knowledge.cards import gatilho_casa
 from ..schemas import AIReport, Finding
+from . import ecg_claim_check as EC
 from .claim_semantics import semantic_issues
 
 if TYPE_CHECKING:   # só tipagem: validate não depende de ecg.features em tempo de importação
     from ..ecg.features import CartaoRef, Fato, Ficha
 
+log = logging.getLogger("medlens.validate")
 NOT_APPLICABLE = "não aplicável"
 FLAG_DIVERGENT = "valor divergente da medida"
 FLAG_UNSUPPORTED = "não corroborado"
@@ -344,16 +347,56 @@ def _mark_description(desc: str, ref: dict, stats: dict, disc: list[str]) -> str
     return "".join(parts)
 
 
+def _barreira_qualitativa(rep: AIReport, summary: dict) -> tuple[AIReport, int, bool]:
+    """Falha fechada (EC): remove frases/achados sem lastro. Exceção => descarta a narrativa (descrição, achados,
+    diferenciais), mantendo medidas/regras do chamador; o log não leva texto."""
+    try:
+        removed = 0
+        desc, n = EC.filter_text(rep.description, summary)
+        removed += n
+        findings = []
+        for f in rep.findings:
+            upd: dict = {}
+            if f.severity in ("critical", "normal") and EC.finding_problem(f.code, f.label, summary):
+                if f.severity == "normal":
+                    removed += 1
+                    continue
+                # crítico sem regra correspondente: rebaixado e sinalizado (nunca exibido como crítico)
+                upd = {"severity": "borderline", "validation_flags": sorted({*f.validation_flags, FLAG_UNSUPPORTED}),
+                       "label": f.label if FLAG_UNSUPPORTED in f.label else f"{f.label} ({FLAG_UNSUPPORTED})"}
+            ev, n = EC.filter_items(list(f.evidence), summary)
+            removed += n
+            findings.append(f.model_copy(update={**upd, "evidence": ev}))
+        diffs = []
+        for d in rep.differentials:
+            rationale, n = EC.filter_text(d.rationale, summary)
+            removed += n
+            diffs.append(d.model_copy(update={"rationale": rationale}))
+        return rep.model_copy(update={"description": desc, "findings": findings, "differentials": diffs}), removed, False
+    except Exception as exc:  # noqa: BLE001 - falha fechada: nunca devolve o texto cru
+        log.error("barreira qualitativa do ECG falhou (%s); narrativa descartada", type(exc).__name__)
+        return rep.model_copy(update={"description": "", "findings": [], "differentials": []}), 0, True
+
+
 def validate_report(rep: AIReport, summary: dict, rule_findings: Optional[list[Finding]] = None) -> AIReport:
     """Devolve cópia do AIReport com marcações; nunca levanta (falha de validação = relatório intacto)."""
     if not rep.available:
         return rep
     stats = {"numeros_conferem": 0, "numeros_divergentes": 0, "numeros_nao_verificaveis": 0,
-             "criticos_sem_lastro": 0, "normal_com_regra_critica": 0}
+             "criticos_sem_lastro": 0, "normal_com_regra_critica": 0, "afirmacoes_removidas": 0}
     ref = reference_values(summary)
     disc: list[str] = list(rep.disagreements_with_measurements)
     limitations = list(rep.limitations)
     rules_conf = {f.code: f.confidence for f in (rule_findings or [])}
+    said_normal = says_normal(rep)
+    desc_original = rep.description   # antes da barreira: o alerta de regra crítica vale mesmo com a frase removida
+
+    rep, removed, failed = _barreira_qualitativa(rep, summary)
+    stats["afirmacoes_removidas"] = removed
+    if failed:
+        limitations.append(EC.FALHA_NOTE)
+    elif removed:
+        limitations.append(EC.removed_note(removed))
 
     desc = _mark_description(rep.description, ref, stats, disc) if rep.description else rep.description
 
@@ -409,7 +452,7 @@ def validate_report(rep: AIReport, summary: dict, rule_findings: Optional[list[F
     # críticos citados só na descrição
     already = {r.name for f in findings for r in critical_mentions(f.label + " " + f.code)} \
         | {r.name for d in diffs for r in critical_mentions(d.diagnosis)}
-    for rule in critical_mentions(rep.description or ""):
+    for rule in critical_mentions(desc_original or ""):
         if rule.name in already or is_supported(rule, summary):
             continue
         stats["criticos_sem_lastro"] += 1
@@ -417,7 +460,7 @@ def validate_report(rep: AIReport, summary: dict, rule_findings: Optional[list[F
                     f"medidas: {FLAG_UNSUPPORTED}.")
 
     fired = critical_rules_fired(summary)
-    if fired and says_normal(rep):
+    if fired and said_normal:
         stats["normal_com_regra_critica"] += 1
         msg = ("ALERTA: a IA descreve o exame como normal/sem alterações, mas há regra crítica disparada: "
                + "; ".join(sorted(set(fired))) + ". Revisão médica obrigatória.")
