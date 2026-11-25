@@ -1177,7 +1177,7 @@ def build_report() -> Path:
     summ = []
     allr = {s: load_cache(s) for s in ["ludb", "ptbxl", *IMAGE_SOURCES]}
     for s in list(allr):  # only records of the current manifest (caches may hold ids from older/other selections)
-        ids = {r["id"] for r in read_manifest(s)}
+        ids = {r["id"] for r in (ptbxl_large.large_dev_records(DATA_ROOT) if (SET == "large" and s == "ptbxl") else read_manifest(s))}
         if ids:
             allr[s] = {k: v for k, v in allr[s].items() if k in ids}
     missing = [s for s in ["ludb", "ptbxl", *IMAGE_SOURCES] if not allr[s]]

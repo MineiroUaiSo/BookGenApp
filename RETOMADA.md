@@ -69,3 +69,8 @@ Modelos SEMPRE em nuvem via OpenRouter (nunca locais). Saldo OpenRouter ~US$ 2,6
 - Branch claude/ecg-rx-ai-reader-nd20rs EMPURRADA ao GitHub (sem o JPG) até e23937e. Depois, só local: LGPD ecg_report sem foto, bench STD split, restrição de supressão de strain, trilha 7 (ST), E6 sombra, trilha 6 (P/BAV, 006facb). Suíte completa passou (exit 0) após merges.
 - Trilha 8 (FA/NORM) em andamento no worktree ~/medlens-wt/r3-t8 (branch wt/r3-t8): conferir commit/bench e mesclar. wt/r3-t6 é implementação concorrente DESCARTADA.
 - Pendente: gabarito caso1 (S de V3), piloto 5 laudos, trilha 5 (UX), regenerar ecg.md/rx.md, CODE-test uma vez, push das novidades (sem o JPG: backup/pre-filter-2026-11-25 e wt/* ainda o contêm; não empurrar).
+
+## ESTADO 2026-11-25 (trilha r3-docs)
+- docs/benchmarks/ecg.md e rx.md regenerados no codigo c9a5a49 (ECG large N=9183 via cache R3T5L, codigo ECG inalterado desde 4b13b7d; RX masks completo + gate T2 4,4% fora de escopo; calibracao nao rerodada). Detalhes e decisoes abertas no rodape de cada md.
+- Fix bench/ecg_bench.py: build_report respeita --set large. Secao Images do ecg.md e Montgomery/Shenzhen do rx.md saem (datasets ausentes).
+- Pendente: CODE-test (1x no fim), push/deploy pelo dono, credenciais VinDr/BRAX/VinBig, re-rodar calibracao IU (~16 h) se desejado.
