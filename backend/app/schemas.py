@@ -281,6 +281,8 @@ class RXAnalysis(BaseModel):
     ai: Optional[AIReport] = None
     recon3d_available: bool = False          # true when PA/AP + LATERAL present
     warnings: list[str] = []
+    laudo_rx: Optional[dict] = None          # rx_laudo/v1 determinístico (app/rx/laudo.py); rascunho para revisão médica
+    laudo_rx_markdown: str = ""              # o mesmo laudo em markdown copiável
 
 
 # ---------------------------------------------------------------- 3D

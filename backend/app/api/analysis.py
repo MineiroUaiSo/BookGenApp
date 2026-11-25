@@ -1,6 +1,7 @@
 """ECG / RX / 3D routes. Heavy modules are imported lazily inside handlers."""
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -268,6 +269,25 @@ def _has_biplane(images: list[RXImageAnalysis]) -> bool:
     return RXView.LATERAL in views and bool(views & {RXView.PA, RXView.AP})
 
 
+def _anexar_laudo_rx(result: RXAnalysis) -> None:
+    """Laudo determinístico (rx_laudo/v1). Barreira LGPD: texto com padrão de PHI é descartado, nunca enviado."""
+    try:
+        from app.llm.guard import scan_text
+        from app.rx import laudo as _laudo
+
+        l = _laudo.build_laudo(result)
+        md = _laudo.render_markdown(l)
+        padrao = scan_text(md)
+        if padrao:
+            result.warnings.append(f"Laudo estruturado descartado: possível dado pessoal no texto ({padrao}).")
+            return
+        result.laudo_rx = l.model_dump(mode="json")
+        result.laudo_rx_markdown = md
+    except Exception:  # o laudo estruturado nunca derruba a análise
+        logging.getLogger(__name__).exception("laudo_rx failure")
+        result.warnings.append("Laudo estruturado indisponível nesta análise.")
+
+
 @router.post("/rx/{study_id}/analyze", response_model=RXAnalysis)
 def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False):
     study = _study(study_id)
@@ -282,6 +302,7 @@ def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False
         raise _not_installed(e)
     result = RXAnalysis(study_id=study_id, images=images, findings=findings,
                         recon3d_available=_has_biplane(images))
+    _anexar_laudo_rx(result)
     for im in images:
         if im.region_uncertain:
             result.warnings.append(f"{im.instance_id}: região incerta (tag DICOM x imagem); achados suspensos até "
