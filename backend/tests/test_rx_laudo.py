@@ -94,9 +94,10 @@ def test_rx_laudo_sem_phi_no_markdown(nome):
     assert guard.scan_text(LA.render_markdown(LA.build_laudo(CENARIOS[nome]))) is None
 
 
-def test_rx_laudo_ict_pa_baixo_usa_frase_molde():
+def test_rx_laudo_ict_pa_baixo_declara_incerteza_sem_afirmar_normal():
     t = [fr.texto for fr in _secao(LA.build_laudo(CENARIOS["pa_modelo"]), "achados").frases]
-    assert "Índice cardiotorácico medido 0,46 (limite clássico 0,50 em PA)." in t
+    assert ("Índice cardiotorácico medido 0,46, com incerteza (±0,05; pode estar subestimado): "
+            "não exclui aumento da silhueta cardíaca.") in t
 
 
 def test_rx_laudo_ict_pa_alto_sugere_aumento_e_entra_na_impressao():

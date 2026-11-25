@@ -198,7 +198,7 @@ def _negacao_ok(t: Topico, f: Fatos) -> bool:
     if f.regra(t.codigos):
         return False
     if t.nome == "cardiomegalia":
-        return f.medidas.get("cardiothoracic_ratio", 1.0) <= 0.50
+        return False      # ICT de modelo tem incerteza (±0,05) e tende a subestimar: nunca exclui cardiomegalia (H1)
     return True
 
 

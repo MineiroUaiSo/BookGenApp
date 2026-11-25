@@ -11,6 +11,11 @@ from scipy.signal import find_peaks
 from ..schemas import RXMeasurement
 
 
+ICT_INCERTEZA_VALOR = 0.05
+ICT_INCERTEZA_TXT = ("ICT de segmentação por modelo com incerteza de ±0,05: a máscara do coração pode estar subestimada "
+                     "(borda esquerda curta); não usar para excluir aumento da silhueta cardíaca")
+
+
 class Conv:
     """work-pixel -> physical conversion (mm if spacing known, else full-res px)."""
 
@@ -99,7 +104,7 @@ def hemidiaphragm_apex(mask: np.ndarray, lateral_sign: int) -> Optional[tuple[fl
     return float(cols[i]), float(y[i])
 
 
-def measure_frontal(masks: dict[str, np.ndarray], conv: Conv, view: str):
+def measure_frontal(masks: dict[str, np.ndarray], conv: Conv, view: str, origin: str = "heuristic"):
     """Returns (measurements, extras dict)."""
     ms: list[RXMeasurement] = []
     ex: dict = {}
@@ -124,6 +129,7 @@ def measure_frontal(masks: dict[str, np.ndarray], conv: Conv, view: str):
         ms.append(RXMeasurement(
             key="cardiothoracic_ratio", label="Índice cardiotorácico", value=round(float(ctr), 3), unit="",
             normal_range="< 0,50 (PA); AP magnifica a silhueta",
+            limitations=[ICT_INCERTEZA_TXT] if origin in ("model", "cxas") else [],
             drawing=[conv.seg(hx0, rowmid, hx1, rowmid), conv.seg(ux0, uy1 - 0.1 * Hl, ux1, uy1 - 0.1 * Hl)]))
         ms.append(RXMeasurement(key="heart_width", label="Largura máxima da silhueta cardíaca",
                                 value=round(float(hw * conv.kx), 1), unit=conv.unit))

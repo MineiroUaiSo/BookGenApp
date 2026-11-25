@@ -64,8 +64,8 @@ def test_rx_claim_check_seis_frases_da_sonda_juntas():
 def test_rx_claim_check_remove_de_findings_e_diferenciais():
     s = _summary()
     f_ruim = Finding(code="x.pneumo", label="Pneumotórax à esquerda", severity="critical", evidence=["colapso"])
-    f_ok = Finding(code="rx.cardiothoracic_ratio_normal", label="Índice cardiotorácico dentro do limite (≤ 0,50)",
-                   severity="normal", evidence=["ICT 0,46"])
+    f_ok = Finding(code="rx.technique_limitations", label="Limitações técnicas que afetam as medidas",
+                   severity="borderline", evidence=["possível rotação"])
     d_ruim = Differential(diagnosis="Pneumonia lobar", rationale="Consolidação no lobo inferior direito.")
     out = claim_check.sanitize_report(_rep("", [f_ruim, f_ok], [d_ruim]), s)
     assert [f.label for f in out.findings] == [f_ok.label]
@@ -129,10 +129,11 @@ def test_rx_claim_check_numero_certo_continua_aceito():
     assert out.disagreements_with_measurements == []
 
 
-def test_rx_claim_check_negacao_com_medida_na_faixa_vale():
+def test_rx_claim_check_negacao_de_cardiomegalia_com_ict_de_modelo_some():
+    """H1: ICT de modelo tem incerteza (±0,05) e tende a subestimar; nunca sustenta 'sem cardiomegalia'."""
     s = _summary(ict=0.46)
     out = claim_check.sanitize_report(_rep("Sem cardiomegalia (ICT 0,46)."), s)
-    assert "Sem cardiomegalia" in out.description
+    assert "Sem cardiomegalia" not in out.description
 
 
 def test_rx_claim_check_negacao_sem_medida_some():
@@ -237,9 +238,9 @@ def test_rx_claim_check_a2_frase_sem_lastro_e_removida(frase):
     assert claim_check.problema_da_frase(frase, fatos) is not None
 
 
-def test_rx_claim_check_area_cardiaca_normal_com_ict_de_modelo_pa_passa():
+def test_rx_claim_check_area_cardiaca_normal_com_ict_de_modelo_pa_nao_passa():
     fatos = claim_check.Fatos.de(_summary(ict=0.46))
-    assert claim_check.problema_da_frase("Área cardíaca normal.", fatos) is None
+    assert claim_check.problema_da_frase("Área cardíaca normal.", fatos) is not None
 
 
 def test_rx_claim_check_cardiomegalia_com_ict_heuristico_removida():
@@ -285,5 +286,6 @@ def test_rx_claim_check_abstencao_pura_continua_passando(frase):
 
 def test_rx_claim_check_limite_nao_e_termo_desconhecido():
     f = claim_check.Fatos.de(_summary())
-    assert claim_check.problema_da_frase("Índice cardiotorácico dentro do limite de referência.", f) is None
+    # "limite" não é termo desconhecido; a frase só cai por afirmar normalidade cardíaca (H1: ICT tem incerteza)
+    assert "desconhec" not in (claim_check.problema_da_frase("Índice cardiotorácico dentro do limite de referência.", f) or "")
     assert claim_check.problema_da_frase("ICT 0,46 e técnica adequada.", f) is None

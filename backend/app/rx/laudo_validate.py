@@ -36,7 +36,7 @@ _ROTULOS = {n.lower() for n in NOMES.values()} | {"modelo auxiliar"}
 _ROTULO_ABST = re.compile(r"^\s*([^:.]{1,40}):\s*(.+)$", re.DOTALL)
 _LISTA_TOPICOS = re.compile(r"^[^.:;]{0,120}$")
 _GRAU = re.compile(r"\bsuger\w*|\bsugestiv\w+|\bposs[ií]ve(?:l|is)\b|\bpossivelmente\b", re.IGNORECASE)
-_CONSTANTES = (0.50, 0.5)      # limite clássico do ICT citado nos moldes
+_CONSTANTES = (0.50, 0.5, 0.05)      # limite clássico do ICT e incerteza (±0,05) citados nos moldes
 
 
 @dataclass(frozen=True)

@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 from ..schemas import BodyRegion, Finding, RXAnalysis, RXImageAnalysis, RXView
 from . import calibration as CAL
 from .findings import PATHO_PT, model_threshold
+from .measure import ICT_INCERTEZA_TXT
 
 VERSAO = "rx_ficha/v1"
 REGIOES = ("pleura", "pulmoes", "mediastino_hilos", "coracao_vasos", "diafragma", "ossos_partes_moles", "dispositivos")
@@ -137,8 +138,8 @@ def _ict(b: _Builder, img: RXImageAnalysis, n: int) -> None:
         return
     ap = img.view == RXView.AP
     nivel = Nivel.REGRA if m[0] > LIMITE_ICT else Nivel.MEDIDO
-    b.add("ict", m[0], nivel, "coracao_vasos", "modelo", n, fontes=("S6",),
-          ressalvas=("incidência AP magnifica a silhueta cardíaca; não usar para afirmar cardiomegalia",) if ap else ())
+    ress = (("incidência AP magnifica a silhueta cardíaca; não usar para afirmar cardiomegalia",) if ap else ())
+    b.add("ict", m[0], nivel, "coracao_vasos", "modelo", n, fontes=("S6",), ressalvas=ress + (ICT_INCERTEZA_TXT,))
 
 
 _OUTRAS = (  # chave da ficha, medida, região, prefixos de regra, estruturas de origem, nome do tópico
