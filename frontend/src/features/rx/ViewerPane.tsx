@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RXImageAnalysis, Structure } from "../../types/api";
 import { renderUrl } from "../../api/client";
 import { centroid, pointInPolygon, tintMask } from "./maskUtils";
+import { placeLabel } from "./labelLayout";
 
 export interface PaneProps {
   image: RXImageAnalysis;
@@ -148,6 +149,11 @@ export default function ViewerPane(p: PaneProps) {
     if (!cv || !ctx) return;
     ctx.clearRect(0, 0, cv.width, cv.height);
     const px = 1 / s;
+    // viewport visível (em coordenadas de imagem) para posicionar rótulos sem corte
+    const view = {
+      left: Math.max(0, -tx / s), top: Math.max(0, -ty / s),
+      right: Math.min(image.width, (size.w - tx) / s), bottom: Math.min(image.height, (size.h - ty) / s),
+    };
     for (const st of image.structures) {
       if (p.hidden.has(st.key)) continue;
       const hov = p.hoverKey === st.key;
@@ -189,12 +195,17 @@ export default function ViewerPane(p: PaneProps) {
         for (const [x, y] of me.drawing) { ctx.beginPath(); ctx.arc(x, y, 3 * px, 0, Math.PI * 2); ctx.fillStyle = MEAS_COLOR; ctx.fill(); }
         const mid = me.drawing[Math.floor(me.drawing.length / 2)];
         const txt = `${me.label}${me.value != null ? `: ${me.value}${me.unit ?? ""}` : ""}`;
-        ctx.font = `${Math.round(12 * px)}px system-ui, sans-serif`; ctx.textAlign = "left";
-        ctx.lineWidth = 3 * px; ctx.strokeStyle = "rgba(0,0,0,.85)"; ctx.strokeText(txt, mid[0] + 5 * px, mid[1] - 6 * px);
-        ctx.fillStyle = MEAS_COLOR; ctx.fillText(txt, mid[0] + 5 * px, mid[1] - 6 * px);
+        ctx.font = `${Math.round(12 * px)}px system-ui, sans-serif`;
+        ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        const pl = placeLabel(txt, (t) => ctx.measureText(t).width, [mid[0], mid[1]], view, px);
+        pl.lines.forEach((ln, i) => {
+          const ly = pl.y + i * pl.lineHeight;
+          ctx.lineWidth = 3 * px; ctx.strokeStyle = "rgba(0,0,0,.85)"; ctx.strokeText(ln, pl.x, ly);
+          ctx.fillStyle = MEAS_COLOR; ctx.fillText(ln, pl.x, ly);
+        });
       }
     }
-  }, [image, masks, s, p.hidden, p.opacity, p.outlines, p.labels, p.measurements, p.hoverKey, p.highlightMeas]);
+  }, [image, masks, s, tx, ty, size.w, size.h, p.hidden, p.opacity, p.outlines, p.labels, p.measurements, p.hoverKey, p.highlightMeas]);
 
   const src = useMemo(
     () => (p.wl ? renderUrl(image.instance_id, p.wl.wc, p.wl.ww, p.apiBase) : `data:image/png;base64,${image.image_png_b64}`),
