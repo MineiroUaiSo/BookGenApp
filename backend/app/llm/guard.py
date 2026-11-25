@@ -17,6 +17,7 @@ class PayloadBloqueado(Exception):
 
 
 _MESES = (r"janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro")
+_MES_ABREV = r"jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez"
 _DIA = r"(?:0?[1-9]|[12]\d|3[01])"
 _MES = r"(?:0?[1-9]|1[0-2])"
 _ANO = r"(?:19|20)\d{2}"
@@ -30,12 +31,15 @@ _PADROES: list[tuple[re.Pattern, str]] = [
     (re.compile(rf"(?<![\d/.-]){_ANO}[/.-]{_MES}[/.-]{_DIA}(?![\d/.-])"), "data (ISO)"),
     (re.compile(rf"\b{_DIA}\s+de\s+(?:{_MESES})(?:\s+de\s+{_ANO})?\b", re.I), "data por extenso"),
     (re.compile(rf"\b(?:{_MESES})\s+de\s+{_ANO}\b", re.I), "data por extenso (mês/ano)"),
+    (re.compile(rf"\b(?:{_MES_ABREV})[a-zç]*\.?\s*(?:/|-|\bde\b)\s*{_ANO}\b", re.I), "data (mês abreviado/ano)"),
     (re.compile(r"\bORDER\s*ECG\w*|\bECG\d{6,}\b", re.I), "identificador de exame"),
     (re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+"), "e-mail"),
     (re.compile(r"\(\d{2}\)\s*9?\d{4}[-.\s]?\d{4}(?!\d)"), "telefone"),
     (re.compile(r"(?<!\d)\+55[\s-]?\(?\d{2}\)?[\s-]?9?\d{4}[-.\s]?\d{4}(?!\d)"), "telefone"),
     (re.compile(r"(?<![\d.])\d{2}[\s.-]9\d{4}[-.\s]\d{4}(?!\d)"), "telefone"),
-    (re.compile(r"\b(?:CPF|RG|CNS|MRN|prontu[aá]rio)\b[^\n\d]{0,8}\d{4,}", re.I), "documento/identificador rotulado"),
+    (re.compile(r"(?<![\d.])\(?\d{2}\)?\s?9\d{8}(?!\d)"), "telefone"),
+    (re.compile(r"\b(?:fone|tel|telefone|celular|whats\w*|zap|contato)\b[^\n\d]{0,8}\d[\d() +.-]{6,}", re.I), "telefone rotulado"),
+    (re.compile(r"\b(?:CPF|RG|CNS|MRN|prontu[aá]rio)\b[^\n\d]{0,8}\d[\d.xX/-]{3,}", re.I), "documento/identificador rotulado"),
     (re.compile(r"(?<![\d.])\d{1,2}\.\d{3}\.\d{3}-[\dXx](?!\d)"), "RG"),
 ]
 _CPF_PLANO = re.compile(r"(?<![\d.-])\d{11}(?![\d.-])")
