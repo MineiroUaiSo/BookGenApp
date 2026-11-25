@@ -1,0 +1,186 @@
+# Registro de fontes do laudo de RX de tórax estruturado (rx_laudo/v1). Spec: docs/RX-LAUDO-CONFIAVEL-SPEC.md §6 e §7.
+# Regra: o laudo só cita fontes com verificado: true (lidas de fato). Entradas verificado: false são pendências de
+# leitura e NUNCA podem aparecer em frase do laudo. Só paráfrase própria; nenhum texto protegido é copiado.
+# secoes: identificacao_tecnica | qualidade | achados | sinais_modelo | impressao | recomendacoes | revisao_medica
+fontes:
+  - id: S1
+    titulo: "ACR–SPR–STR Practice Parameter for the Performance of Chest Radiography"
+    entidade: "ACR / SPR / STR"
+    ano: 2022
+    url: "https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=129"
+    direitos: "© ACR; uso educacional; só paráfrase e citação curta"
+    secoes: [identificacao_tecnica, qualidade]
+    verificado: true
+    lido: "padrão PA + perfil esquerdo, em pé, inspiração plena; AP sentado/supino como substituto; incluir ápices e seios costofrênicos; coluna centrada entre as clavículas; corpos vertebrais torácicos baixos e vasos retrocardíacos definidos"
+    nota: "revisado 2022 (Res. 11), emendado 2023; o PDF em acr.org retornou HTML de bloqueio"
+  - id: S2
+    titulo: "ACR Practice Parameter for Communication of Diagnostic Imaging Findings"
+    entidade: "ACR"
+    ano: 2025
+    url: "https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=74"
+    direitos: "© ACR; só paráfrase"
+    secoes: [identificacao_tecnica, impressao, recomendacoes, revisao_medica]
+    verificado: true
+    lido: "componentes do laudo; laudo preliminar rotulado; comunicação não rotineira (pneumotórax, pneumoperitônio, tubo/cateter mal posicionado) documentada com data, hora, meio e destinatário"
+    nota: "revisado 2025 (Res. 9)"
+  - id: S3
+    titulo: "ACR–SPR–STR Practice Parameter for Portable (Mobile Unit) Chest Radiography"
+    entidade: "ACR / SPR / STR"
+    ano: null
+    url: "https://gravitas.acr.org/PPTS/DownloadPreviewDocument?DocId=149"
+    direitos: "© ACR"
+    secoes: [qualidade]
+    verificado: true
+    lido: "só título e cabeçalho"
+    nota: "ler o conteúdo antes de citar qualquer critério de técnica em AP; hoje só vale como referência ao documento"
+  - id: S4
+    titulo: "Fleischner Society: Glossary of Terms for Thoracic Imaging"
+    entidade: "Bankier AA et al. Radiology 2024;310(2):e232558"
+    ano: 2024
+    url: "https://doi.org/10.1148/radiol.232558"
+    direitos: "© RSNA 2024; sem acesso aberto; só termos e paráfrase curta"
+    secoes: [achados]
+    verificado: true
+    lido: "nódulo ate 30 mm, massa acima de 30 mm; consolidação e opacidade como descritores inespecíficos; 'infiltrate' obsoleto; broncograma aéreo"
+    nota: "substitui os glossários de 1984, 1996 e 2008"
+  - id: S5
+    titulo: "How Sure Are You, Doctor? A Standardized Lexicon to Describe the Radiologist's Level of Certainty"
+    entidade: "Panicek DM, Hricak H. AJR 2016;207(1):2-3"
+    ano: 2016
+    url: "https://doi.org/10.2214/AJR.15.15895"
+    direitos: "© ARRS; sem acesso aberto"
+    secoes: [impressao, sinais_modelo]
+    verificado: true
+    lido: "só o resumo: léxico padronizado de certeza"
+    nota: "percentuais da escala NAO verificados (ver pendência N3)"
+  - id: S6
+    titulo: "Diagnostic performance of chest radiography measurements for the assessment of cardiac chamber enlargement"
+    entidade: "CMAJ 2021;193(44):E1683"
+    ano: 2021
+    url: "https://doi.org/10.1503/cmaj.210083"
+    direitos: "CC BY-NC-ND"
+    secoes: [achados, impressao]
+    verificado: true
+    lido: "resumo: n=152 com RM; ICT 0,50 em PA com sensibilidade 72% e especificidade 72%; o corte 0,5 tem valor limitado"
+    nota: "base da decisão D2 (sugere aumento da silhueta cardíaca)"
+  - id: S7
+    titulo: "Laudo radiológico: qual a opinião do médico solicitante?"
+    entidade: "Ignácio FCGR et al. Radiol Bras 2018;51(5):308-312"
+    ano: 2018
+    url: "https://rb.org.br/export-pdf/3084/v51n5a08.pdf"
+    direitos: "acesso aberto (SciELO)"
+    secoes: [identificacao_tecnica]
+    verificado: true
+    lido: "o CBR criou grupo de trabalho com recomendações mínimas para laudo; solicitantes preferem laudo estruturado"
+    nota: "a lista de recomendações mínimas (ref. 3) NAO foi lida"
+  - id: S8
+    titulo: "CBR, Nota oficial sobre a Resolução CFM nº 2.454/2026 (uso de IA na medicina)"
+    entidade: "Colégio Brasileiro de Radiologia"
+    ano: 2026
+    url: "https://cbr.org.br/wp-content/uploads/2026/03/Normatizacao-do-Uso-da-Inteligencia-Artificial-na-Medicina.pdf"
+    direitos: "documento público institucional"
+    secoes: [revisao_medica]
+    verificado: true
+    lido: "decisão final sempre do médico; sem aprovação automática de laudos; paciente informado do uso de IA; nota padronizada no laudo em construção pelo CBR"
+    nota: "nota recente (ano 2026); texto integral da resolução não lido"
+  - id: S9
+    titulo: "Wikimedia Commons, Category:X-rays of the chest"
+    entidade: "Wikimedia Commons"
+    ano: 2026
+    url: "https://commons.wikimedia.org/wiki/Category:X-rays_of_the_chest"
+    direitos: "por arquivo (extmetadata LicenseShortName)"
+    secoes: []
+    verificado: true
+    lido: "contagem de licenças e nomes de arquivos CC0/domínio público"
+    nota: "usada só para casos-ouro (bench), nunca citada em frase de laudo"
+  # ------------------------------------------------------------------ §7: a confirmar (NÃO citar)
+  - id: N1
+    titulo: "RSNA RadReport: template de RX de tórax"
+    entidade: "RSNA"
+    ano: null
+    url: "https://reportingwiki.rsna.org/index.php/Template_License"
+    direitos: "licença não lida (site em manutenção)"
+    secoes: []
+    verificado: false
+    nota: "não usar os campos do template até ler a licença"
+  - id: N2
+    titulo: "Fleischner Society glossary 2008"
+    entidade: "Hansell DM et al. Radiology 2008;246(3):697-722"
+    ano: 2008
+    url: null
+    direitos: "© RSNA"
+    secoes: []
+    verificado: false
+    nota: "só registro bibliográfico; substituído por S4"
+  - id: N3
+    titulo: "Percentuais da escala de certeza (>90%, ~75%, ~50%, ~25%, <10%)"
+    entidade: "visto em resumo ACR 2017 (Lakhani)"
+    ano: 2017
+    url: null
+    direitos: "n/a"
+    secoes: []
+    verificado: false
+    nota: "ler o texto completo de S5 antes de exibir percentuais"
+  - id: N4
+    titulo: "Felson's Principles of Chest Roentgenology (id felson_2025 no código)"
+    entidade: "Felson / Goodman"
+    ano: null
+    url: null
+    direitos: "livro; só paráfrase"
+    secoes: []
+    verificado: false
+    nota: "edição e páginas não confirmadas"
+  - id: N5
+    titulo: "Squire's Fundamentals of Radiology"
+    entidade: "Squire / Novelline"
+    ano: null
+    url: null
+    direitos: "livro; só paráfrase"
+    secoes: []
+    verificado: false
+    nota: "edição e páginas não confirmadas"
+  - id: N6
+    titulo: "Danzer 1919 (origem do índice cardiotorácico)"
+    entidade: "Danzer CS"
+    ano: 1919
+    url: null
+    direitos: "n/a"
+    secoes: []
+    verificado: false
+    nota: "só citação secundária"
+  - id: N7
+    titulo: "Limiares locais sem fonte primária lida"
+    entidade: "inspiração >= 9 arcos posteriores; mediastino < ~80 mm / < ~30%; ângulo costofrênico >= 95 graus; desvio traqueal > 3%/> 5%; cúpulas (-5%/+14%); razão de área 0,55-1,3"
+    ano: null
+    url: null
+    direitos: "n/a"
+    secoes: []
+    verificado: false
+    nota: "até haver fonte a frase sai como REGRA 'heurística local' ou fica fora da Impressão"
+  - id: N8
+    titulo: "Recomendações mínimas do CBR (ref. 3 de S7) e texto integral da Resolução CFM 2.454/2026"
+    entidade: "CBR / CFM"
+    ano: 2026
+    url: null
+    direitos: "n/a"
+    secoes: []
+    verificado: false
+    nota: "lida só a nota do CBR (S8)"
+  - id: N9
+    titulo: "Licenças de JSRT, Montgomery/Shenzhen (NLM), NIH ChestX-ray14 e IU/Open-i para uso em produto"
+    entidade: "vários"
+    ano: null
+    url: null
+    direitos: "não lidas"
+    secoes: []
+    verificado: false
+    nota: "uso só local no bench"
+  - id: N10
+    titulo: "Radiopaedia"
+    entidade: "Radiopaedia"
+    ano: null
+    url: null
+    direitos: "CC BY-NC-SA (de memória, não lido); não comercial"
+    secoes: []
+    verificado: false
+    nota: "não usar como fonte de texto"

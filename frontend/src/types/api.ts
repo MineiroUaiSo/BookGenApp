@@ -206,6 +206,11 @@ export interface RXImageAnalysis {
   scope_reason?: string | null;
 }
 
+export type NivelLaudo = "MEDIDO" | "REGRA" | "SUGERIDO_MODELO" | "NAO_AVALIADO" | "QUALIDADE";
+export interface FraseLaudo { secao: string; texto: string; fatos: string[]; fontes: string[]; nivel: NivelLaudo }
+export interface SecaoLaudo { id: string; titulo: string; frases: FraseLaudo[] }
+export interface LaudoRX { versao: string; status: string; secoes: SecaoLaudo[] }
+
 export interface RXAnalysis {
   study_id: string;
   images: RXImageAnalysis[];
@@ -213,6 +218,8 @@ export interface RXAnalysis {
   ai?: AIReport | null;
   recon3d_available: boolean;
   warnings: string[];
+  laudo_rx?: LaudoRX | null;
+  laudo_rx_markdown?: string;
 }
 
 // ---------------- 3D

@@ -135,3 +135,17 @@ table.meas tr.hl { background: var(--bg-3); }
 .reliability-alert .ra-icon { font-size: 1.3rem; line-height: 1.2; }
 .reliability-alert ul { margin: .25rem 0 0; padding-left: 1.1rem; font-size: .88rem; }
 
+
+/* Laudo estruturado RX (rx_laudo/v1) */
+.laudo-estruturado ul { list-style: none; padding: 0; margin: .25rem 0 .5rem; }
+.laudo-frase { padding: .3rem 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.laudo-nivel { display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .03em; padding: .05rem .4rem;
+  border-radius: 4px; border: 1px solid var(--border); background: var(--bg-3); color: var(--fg-dim); }
+.nivel-regra .laudo-nivel { border-color: var(--warn); color: var(--warn); }
+.nivel-nao_avaliado .laudo-nivel { border-style: dashed; }
+.laudo-fonte { cursor: help; color: var(--accent); margin-left: .15rem; }
+.laudo-modelo { border: 1px dashed var(--border); border-radius: 8px; padding: .5rem .75rem; margin: .75rem 0; background: var(--bg-3); }
+.laudo-comentario, .laudo-comunicacao { display: block; margin: .5rem 0; }
+.laudo-comentario textarea, .laudo-comunicacao textarea { width: 100%; min-height: 44px; box-sizing: border-box; font: inherit;
+  color: var(--fg); background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: .4rem; }
+.laudo-secao .feedback .btn { min-height: 44px; }

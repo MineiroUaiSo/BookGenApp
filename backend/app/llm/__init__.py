@@ -11,6 +11,7 @@ from typing import Any, Optional
 from ..dicom.burned_text import scrub_enabled
 from ..knowledge import (format_items, format_references, known_reference_ids, load_criteria,
                          select_relevant)
+from ..rx import claim_check
 from ..schemas import AIReport, ECGAnalysis, RXAnalysis
 from . import client as _client
 from . import laudo as laudo_mod
@@ -331,6 +332,10 @@ def rx_report(analysis: RXAnalysis, send_images: bool = False) -> AIReport:
         return AIReport(available=False, model=model_name(),
                         limitations=[f"Envio à IA bloqueado pela barreira LGPD ({e}); nada foi enviado."])
     rep = _two_stage("rx", images, ctx, rx_data_summary(analysis), analysis.findings)
+    try:   # barreira qualitativa do RX: sem lastro nos fatos, a frase sai (spec RX-LAUDO-CONFIAVEL §3.1)
+        rep = claim_check.sanitize_report(rep, rx_data_summary(analysis), image_sent=motivo_sem_imagem is None)
+    except Exception:  # a barreira nunca derruba o laudo
+        log.exception("rx claim_check failure")
     if motivo_sem_imagem is not None:
         rep.limitations.append(f"Imagem NÃO enviada à IA ({motivo_sem_imagem}); análise apenas pelas medidas e regras locais.")
     return rep
