@@ -74,6 +74,16 @@ def _origin_conf(img: RXImageAnalysis, key: str, base_model: float, base_heur: f
     return base_heur
 
 
+def _ict_from_model(img: RXImageAnalysis) -> bool:
+    """True se a segmentacao do coracao veio de modelo (mesmo criterio de ficha._origem_img). Heuristica: sem achado de ICT."""
+    for s in img.structures:
+        if s.key == "heart":
+            return s.origin in ("model", "cxas")
+    if img.structures:
+        return img.structures[0].origin in ("model", "cxas")
+    return False
+
+
 def _fmt_unit(m: RXMeasurement) -> str:
     return f"{m.value:g} {m.unit}".strip() if m.unit else f"{m.value:g}"
 
@@ -84,7 +94,7 @@ def _frontal_findings(img: RXImageAnalysis, tag: str) -> list[Finding]:
     vname = img.view.value
 
     ctr = _m(img, "cardiothoracic_ratio")
-    if ctr is not None:
+    if ctr is not None and _ict_from_model(img):   # ICT de segmentacao heuristica nao vira achado (R7)
         v = float(ctr.value)
         c = _origin_conf(img, "heart", 0.7, 0.45)
         ev = [f"índice cardiotorácico = {v:.2f} (incidência {vname}{tag})"]
@@ -94,7 +104,7 @@ def _frontal_findings(img: RXImageAnalysis, tag: str) -> list[Finding]:
                                    severity="borderline", evidence=ev + ["em AP o ICT é superestimado; confirmar em PA/perfil"],
                                    references=[REF_FELSON, REF_SQUIRE], confidence=c * 0.8))
             else:
-                out.append(Finding(code="rx.cardiomegaly", label="Cardiomegalia (ICT > 0,50 em PA)",
+                out.append(Finding(code="rx.cardiomegaly", label="Sugere aumento da silhueta cardíaca (ICT > 0,50 em PA)",
                                    severity="abnormal" if v >= 0.55 else "borderline",
                                    evidence=ev, references=[REF_FELSON, REF_SQUIRE], confidence=c))
         else:
