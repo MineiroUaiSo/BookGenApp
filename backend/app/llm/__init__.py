@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
+from ..dicom.burned_text import scrub_enabled
 from ..knowledge import (format_items, format_references, known_reference_ids, load_criteria,
                          select_relevant)
 from ..schemas import AIReport, ECGAnalysis, RXAnalysis
@@ -127,7 +128,7 @@ def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str,
         desc, _, prov1 = c.run_resilient(
             client, system,
             [{"role": "user", "content": content + [{"type": "text", "text": _prompt(f"{domain}_describe")}]}],
-            c.MAX_TOKENS_DESCRIBE, allow_images=True)
+            c.MAX_TOKENS_DESCRIBE, allow_images=bool(images))
         # Etapa 2: análise crítica com saída estruturada.
         refs = sorted(known_reference_ids())
         msgs = [{"role": "user", "content": content + [
@@ -135,7 +136,7 @@ def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str,
             {"type": "text", "text": _prompt("analyze")},
         ]}]
         text, final, prov2 = c.run_resilient(client, system, msgs, c.MAX_TOKENS_ANALYZE, schema=output_schema(refs),
-                                             allow_images=True)
+                                             allow_images=bool(images))
         data = c.parse_json(text)
         rep = to_report(data, getattr(final, "model", None) or model, description_fallback=desc)
         rep = rep.model_copy(update={"provider": prov2 if prov1 == prov2 else f"{prov1}+{prov2}"})
@@ -268,13 +269,43 @@ def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None, *, prin
     return rep
 
 
-def rx_report(analysis: RXAnalysis) -> AIReport:
+def rx_image_ai_mode() -> str:
+    """MEDLENS_RX_IMAGE_AI: 'optin' (padrão: a imagem só vai à IA com consentimento da requisição) | 'off' (nunca)."""
+    v = os.environ.get("MEDLENS_RX_IMAGE_AI", "optin").strip().lower()
+    return "off" if v in ("off", "0", "false", "no") else "optin"
+
+
+def blocked_scrub_off() -> AIReport:
+    """Com a máscara de texto queimado desligada não há garantia de imagem limpa: nada de imagem ao provedor externo."""
+    return AIReport(available=False, model=None, external_ai_blocked=True,
+                    limitations=["Imagem NÃO enviada à IA externa: a detecção de texto queimado está desligada "
+                                 "(MEDLENS_BURNED_TEXT=off), então não há garantia de que a imagem esteja livre de "
+                                 "identificação (regras e medidas locais permanecem válidas)."])
+
+
+_SEM_IMAGEM_CTX = ("\n\nNenhuma imagem anexada: a imagem da radiografia NÃO foi enviada. Baseie-se SOMENTE nas medidas e "
+                   "regras acima; não descreva nem presuma achados visuais.")
+
+
+def rx_report(analysis: RXAnalysis, send_images: bool = False) -> AIReport:
+    """Texto de IA do RX. A IMAGEM só sai com consentimento explícito (send_images) e sem texto queimado; sem isso a
+    análise usa apenas medidas/regras (sem imagem no payload) e a limitação fica explícita no laudo."""
     if not ai_available():
         return unavailable()
-    if any(im.external_ai_blocked for im in analysis.images[:6]):
-        return blocked_external(analysis)
+    motivo_sem_imagem = None
+    if rx_image_ai_mode() == "off":
+        motivo_sem_imagem = "envio de imagem desativado no servidor (MEDLENS_RX_IMAGE_AI=off)"
+    elif not send_images:
+        motivo_sem_imagem = "sem consentimento do usuário para enviar a imagem à IA na nuvem"
+    if motivo_sem_imagem is None:
+        if any(im.external_ai_blocked for im in analysis.images[:6]):
+            return blocked_external(analysis)
+        if not scrub_enabled():
+            return blocked_scrub_off()
     images: list[tuple[str, bytes]] = []
     for im in analysis.images[:6]:
+        if motivo_sem_imagem is not None:
+            break
         tag = f"{im.view.value} / {im.region.value} (id {im.instance_id})"
         images.append((f"Radiografia {tag}:", rx_image_png(im)))
         ov = rx_overlay_png(im)
@@ -282,4 +313,9 @@ def rx_report(analysis: RXAnalysis) -> AIReport:
             images.append((f"Sobreposição da segmentação automática com legenda de cores, {tag}:", ov))
     keys = [m.key for im in analysis.images for m in im.measurements]
     ctx = _user_context("rx", rx_data_summary(analysis), analysis.findings, keys)
-    return _two_stage("rx", images, ctx, rx_data_summary(analysis), analysis.findings)
+    if motivo_sem_imagem is not None:
+        ctx += _SEM_IMAGEM_CTX
+    rep = _two_stage("rx", images, ctx, rx_data_summary(analysis), analysis.findings)
+    if motivo_sem_imagem is not None:
+        rep.limitations.append(f"Imagem NÃO enviada à IA ({motivo_sem_imagem}); análise apenas pelas medidas e regras locais.")
+    return rep

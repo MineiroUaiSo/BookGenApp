@@ -139,7 +139,7 @@ def test_rx_report_blocked_never_calls_provider(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
     monkeypatch.setattr(llm._client, "make_client", lambda: (_ for _ in ()).throw(AssertionError("rede!")))
     r = analyze_image(_base(), "i4", _ds("YES"))
-    rep = llm.rx_report(RXAnalysis(study_id="s", images=[r]))
+    rep = llm.rx_report(RXAnalysis(study_id="s", images=[r]), send_images=True)    # com consentimento
     assert isinstance(rep, AIReport) and rep.external_ai_blocked and rep.available is False
     assert "texto queimado não enviada à IA externa" in rep.limitations[0]
 
@@ -155,5 +155,5 @@ def test_rx_report_not_blocked_goes_to_provider(monkeypatch):
 
     monkeypatch.setattr(llm._client, "run_resilient", fake_run)
     r = analyze_image(_base(), "i5", _ds("NO"))
-    llm.rx_report(RXAnalysis(study_id="s", images=[r]))
+    llm.rx_report(RXAnalysis(study_id="s", images=[r]), send_images=True)
     assert called

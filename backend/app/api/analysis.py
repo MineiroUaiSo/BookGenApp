@@ -26,6 +26,12 @@ class RXRequest(BaseModel):
     instance_ids: Optional[list[str]] = None
     # human-confirmed region per instance id (resolves region_uncertain / a wrong DICOM tag)
     region_overrides: Optional[dict[str, BodyRegion]] = None
+    # consentimento explícito para enviar a IMAGEM do RX à IA na nuvem (padrão: não; só medidas/regras vão ao texto)
+    send_images_to_ai: bool = False
+
+
+class RXAIRequest(BaseModel):
+    send_images_to_ai: bool = False
 
 
 class ReconRequest(BaseModel):
@@ -161,7 +167,7 @@ def _run_ecg_ai(result: ECGAnalysis, png: Optional[bytes]) -> AIReport:
         raise _not_installed(e)
 
 
-def _run_rx_ai(result: RXAnalysis) -> AIReport:
+def _run_rx_ai(result: RXAnalysis, send_images: bool = False) -> AIReport:
     try:
         from app.llm import ai_available
 
@@ -169,7 +175,7 @@ def _run_rx_ai(result: RXAnalysis) -> AIReport:
             return _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
         from app.llm import rx_report
 
-        return rx_report(result)
+        return rx_report(result, send_images=send_images)
     except ImportError as e:
         raise _not_installed(e)
 
@@ -187,11 +193,11 @@ def ecg_ai(study_id: str):
 
 
 @router.post("/rx/{study_id}/ai", response_model=AIReport)
-def rx_ai(study_id: str):
+def rx_ai(study_id: str, body: Optional[RXAIRequest] = None):
     _study(study_id)
     result, _ = _recall("rx", study_id)
     t0 = time.perf_counter()
-    rep = _run_rx_ai(result)  # type: ignore[arg-type]
+    rep = _run_rx_ai(result, bool(body and body.send_images_to_ai))  # type: ignore[arg-type]
     usage_log.log_event("ai", study_id, kind="rx", latency_ms={"ai": round((time.perf_counter() - t0) * 1000)},
                         ai_provider=rep.provider)
     return rep
@@ -289,7 +295,7 @@ def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False
     _remember("rx", study_id, result)
     lat = {"analysis": round((t1 - t0) * 1000)}
     if ai:
-        result = result.model_copy(update={"ai": _run_rx_ai(result)})
+        result = result.model_copy(update={"ai": _run_rx_ai(result, bool(body and body.send_images_to_ai))})
         lat["ai"] = round((time.perf_counter() - t1) * 1000)
     usage_log.log_event("analyze", study_id, kind="rx", latency_ms=lat, quality_flags=_rx_flags(result),
                         codes=[f.code for f in result.findings], n_findings=len(result.findings),

@@ -151,7 +151,7 @@ def test_rx_report_with_overlay(monkeypatch):
                                                           color="#ff0000", mask_png_b64=mask)])
     fake = FakeClient(["d", json.dumps(GOOD)])
     monkeypatch.setattr(C, "make_client", lambda: fake)
-    rep = llm.rx_report(RXAnalysis(study_id="s", images=[im]))
+    rep = llm.rx_report(RXAnalysis(study_id="s", images=[im]), send_images=True)   # opt-in explícito
     assert rep.available and rep.findings
     assert [b["type"] for b in fake.calls[0]["messages"][0]["content"]].count("image") == 2
 
