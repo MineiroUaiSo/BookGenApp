@@ -22,12 +22,13 @@ SONDAS = [
 ]
 
 
-def _summary(*, ict=0.46, probs=None, zones=None, codes=()):
+def _summary(*, ict=0.46, probs=None, zones=None, codes=(), origem="modelo", incidencia="PA"):
     medidas = []
     if ict is not None:
         medidas.append({"key": "cardiothoracic_ratio", "label": "ICT", "value": ict, "normal_range": "<= 0,50"})
     return {
-        "imagens": [{"incidencia": "PA", "regiao": "chest", "medidas": medidas,
+        "imagens": [{"incidencia": incidencia, "regiao": "chest", "medidas": medidas,
+                     "estruturas_segmentadas": [{"chave": "heart", "rotulo": "Coração", "origem": origem}],
                      "probabilidades_modelo_auxiliar": probs or {},
                      "zonas_modelo_auxiliar": zones or None}],
         "achados_por_regras": [{"code": c, "label": c, "severity": "borderline", "evidence": []} for c in codes],
@@ -191,14 +192,98 @@ def test_rx_report_aplica_claim_check_depois_do_two_stage(monkeypatch):
     assert out.validation.get("claims_rx_removidas", 0) >= len(SONDAS)
 
 
-def test_rx_report_claim_check_nunca_derruba(monkeypatch):
+def test_rx_report_claim_check_falha_descarta_narrativa(monkeypatch):
     monkeypatch.setattr(llm, "ai_available", lambda: True)
     monkeypatch.setenv("MEDLENS_RX_IMAGE_AI", "off")
     monkeypatch.setattr(llm, "_two_stage", lambda *a, **k: _rep("ICT 0,46."))
 
-    def boom(rep, summary):
+    def boom(rep, summary, **kw):
         raise RuntimeError("x")
 
     monkeypatch.setattr(claim_check, "sanitize_report", boom)
     out = llm.rx_report(_analysis())
-    assert out.description == "ICT 0,46."
+    assert out.description == ""
+    assert any("barreira de verificação falhou: narrativa descartada" in x for x in out.limitations)
+
+
+# ---------------------------------------------------------------- R2 / A.2: vazamentos da barreira
+SEM_LASTRO_A2 = [
+    "Derrame pleural volumoso à direita limitando avaliação do parênquima.",
+    "Hipotransparência em base direita.", "Condensação em base pulmonar esquerda.",
+    "Hipertransparência difusa bilateral.", "Pneumomediastino.",
+    "Cavitação em ápice direito sugestiva de tuberculose.", "Tuberculose pulmonar ativa.", "Abscesso pulmonar.",
+    "Bronquiectasias em bases.", "Calcificações pleurais.", "Aneurisma de aorta torácica.",
+    "Aorta alongada e ateromatosa.", "Tromboembolismo pulmonar.", "Sinais de insuficiência cardíaca descompensada.",
+    "Neoplasia pulmonar provável.", "Metástases pulmonares múltiplas.", "Achados compatíveis com DPOC.",
+    "Achados compatíveis com COVID-19.", "Escoliose torácica.", "Radiografia de tórax sem particularidades.",
+    "Tórax sem evidências de doença cardiopulmonar aguda.", "Nada digno de nota.",
+    "Parênquima pulmonar com transparência conservada.",
+    # as 7 que já eram barradas
+    "Pneumotórax hipertensivo à direita.", "Consolidação lobar no lobo inferior direito.",
+    "Linfonodomegalia hilar bilateral.", "Exame radiográfico sem achados agudos.",
+    "Não há derrame pleural, pneumotórax ou consolidação em nenhum dos hemitórax.",
+    "Mediastino sem alterações.", "Cardiomegalia.",
+]
+
+
+def test_rx_claim_check_a2_sao_30_sem_lastro():
+    assert len(SEM_LASTRO_A2) == 30
+
+
+@pytest.mark.parametrize("frase", SEM_LASTRO_A2)
+def test_rx_claim_check_a2_frase_sem_lastro_e_removida(frase):
+    fatos = claim_check.Fatos.de(_summary(probs={"Effusion": 0.1, "Pneumothorax": 0.1},
+                                          zones={"Effusion": "nao_sugerido"}))
+    assert claim_check.problema_da_frase(frase, fatos) is not None
+
+
+def test_rx_claim_check_area_cardiaca_normal_com_ict_de_modelo_pa_passa():
+    fatos = claim_check.Fatos.de(_summary(ict=0.46))
+    assert claim_check.problema_da_frase("Área cardíaca normal.", fatos) is None
+
+
+def test_rx_claim_check_cardiomegalia_com_ict_heuristico_removida():
+    fatos = claim_check.Fatos.de(_summary(ict=0.62, origem="heuristica"))
+    assert claim_check.problema_da_frase("Cardiomegalia importante.", fatos) is not None
+
+
+def test_rx_claim_check_area_cardiaca_normal_com_ict_heuristico_removida():
+    fatos = claim_check.Fatos.de(_summary(ict=0.46, origem="heuristica"))
+    assert claim_check.problema_da_frase("Área cardíaca normal.", fatos) is not None
+
+
+def test_rx_claim_check_ict_em_ap_nao_sustenta_cardiomegalia_nem_normal():
+    fatos = claim_check.Fatos.de(_summary(ict=0.62, incidencia="AP"))
+    assert claim_check.problema_da_frase("Cardiomegalia.", fatos) is not None
+    fatos = claim_check.Fatos.de(_summary(ict=0.46, incidencia="AP"))
+    assert claim_check.problema_da_frase("Área cardíaca normal.", fatos) is not None
+
+
+def test_rx_claim_check_ict_sem_info_de_origem_nao_e_lastro():
+    s = _summary(ict=0.46)
+    s["imagens"][0].pop("estruturas_segmentadas")
+    assert claim_check.problema_da_frase("Área cardíaca normal.", claim_check.Fatos.de(s)) is not None
+
+
+@pytest.mark.parametrize("frase", [
+    "Derrame volumoso, não permite avaliar o parênquima.",
+    "Derrame pleural extenso à direita limitando a avaliação.",
+    "Pneumomediastino impede a avaliação? Limitando avaliação do mediastino.",
+])
+def test_rx_claim_check_abstencao_nao_libera_achado_afirmado(frase):
+    assert claim_check.problema_da_frase(frase, claim_check.Fatos.de(_summary())) is not None
+
+
+@pytest.mark.parametrize("frase", [
+    "Limitando a avaliação, a rotação do paciente.",
+    "Avaliação do parênquima limitada pela técnica.",
+    "Tuberculose não avaliada nesta análise.",
+])
+def test_rx_claim_check_abstencao_pura_continua_passando(frase):
+    assert claim_check.problema_da_frase(frase, claim_check.Fatos.de(_summary())) is None
+
+
+def test_rx_claim_check_limite_nao_e_termo_desconhecido():
+    f = claim_check.Fatos.de(_summary())
+    assert claim_check.problema_da_frase("Índice cardiotorácico dentro do limite de referência.", f) is None
+    assert claim_check.problema_da_frase("ICT 0,46 e técnica adequada.", f) is None

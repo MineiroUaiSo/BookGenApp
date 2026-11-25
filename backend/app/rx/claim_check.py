@@ -104,11 +104,25 @@ _REF_NORMAL = _re(r"(?:limites?|valor(?:es)?|faixa|refer[eê]ncia|crit[eé]rio|e
 _NORMAL_GLOBAL = _re(r"\bnormal(?:is|idade)?\b|sem altera[cç][oõ]es|sem achados|sem anormalidades?|"
                      r"sem sinais de doen[cç]a|pulm[oõ]es limpos|campos? pulmonares? (?:limpos|livres|claros|"
                      r"transparentes)|exame (?:sem|dentro)|n[aã]o h[aá] altera[cç][oõ]es|aus[eê]ncia de altera\w+|"
-                     r"dentro d[oa]s? (?:limites? normais|normalidade)")
+                     r"dentro d[oa]s? (?:limites? normais|normalidade)|particularidades?|digno de nota|"
+                     r"sem evid[eê]ncias? de|sem intercorr[eê]ncias?|nada (?:a (?:acrescentar|relatar)|digno)|"
+                     r"transpar[eê]ncia (?:\w+ )?(?:conservad|preservad|normal|habitual)")
 _ABST = _re(r"n[aã]o (?:[eé]|s[aã]o|foi|foram) (?:poss[ií]vel|avaliad\w+|analisad\w+)|n[aã]o (?:avali\w+|analis\w+|permite|"
             r"h[aá] como|se pode|confirma nem afasta|se aplica)|n[aã]o (?:poss[ií]vel )?(?:avali\w+|afirmar)|"
             r"indeterminad\w+|inconclusiv\w+|sem avalia[cç][aã]o|n[aã]o pode ser (?:avaliad\w+|afirmad\w+|exclu\w+)|"
             r"limita(?:r|ndo|m)? (?:a )?avalia[cç][aã]o|revisar a imagem")
+# Léxico de termo clínico FORA dos tópicos acima: o app não tem fato algum sobre eles, então citar = afirmar sem lastro.
+_DESCONHECIDO = _re(
+    r"\b\w{3,}ites?\b|\b\w{3,}oses?\b|\b\w{3,}omas?\b|\w*megalia|ectasias?|aneurism\w*|neoplas\w*|"
+    r"met[aá]st\w*|embol\w*|tubercul\w*|cavit\w*|calcific\w*|\ba[oó]rt\w*|a?bsc?ess\w*|pneumomediast\w*|"
+    r"\bDPOC\b|\bCOVID(?:-?19)?\b|insufici[eê]ncia card[ií]aca|\bICC\b|hipotranspar[eê]nc\w*|"
+    r"hipertranspar[eê]nc\w*|condensa[cç]\w*|linfonod\w*|adenopat\w*|cardiopatia|cisto|c[ií]stic\w*|"
+    r"granulom\w*|sarcoid\w*|pneumatoc\w*|bronquiect\w*|ateroma\w*")
+_NAO_DESCONHECIDO = frozenset({"limite", "limites", "sintoma", "sintomas", "diagnose", "elite"})
+_INTENSIDADE = _re(r"\b(?:volumos\w*|extens\w*|import\w+|grandes?|maci[cç]\w*|moderad\w*|acentuad\w*|discret\w*|"
+                   r"leves?|pequen\w*|signific\w*|evidentes?|franc\w*|massiv\w*|avan[cç]ad\w*|sever\w*|graves?|"
+                   r"ativ[oa]s?)\b")
+_ABST_CONSEQUENCIA = _re(r"limita(?:r|ndo|m)? (?:a )?avalia[cç][aã]o|revisar a imagem")
 _SIZE = _re(r"\b\d+(?:[.,]\d+)?\s*(?:mm|cm)\b")
 _VISUAL = _re(r"\blobos?\b|\bl[oó]bulo\b|\bsegmento\b|\bl[ií]ngula\b|broncograma|\bapic\w+|\bbasal\b|\bbasais\b|"
               r"perihilar|\bcontorno\w*|a imagem (?:mostra|revela|demonstra)|arcos? costais?|\bdireit[oa]s?\b|"
@@ -119,6 +133,16 @@ _CODE_NOISE = re.compile(r"[._]+")
 
 
 # ---------------------------------------------------------------- lastro
+def _ict_confiavel(im: dict) -> bool:
+    """ICT só vale como lastro (cardiomegalia / "área cardíaca normal") com coração segmentado por modelo e fora de
+    AP (magnifica a silhueta). Mesma regra de `ficha._ict`/`_origem_img`; sem informação de origem = não confiável."""
+    if str(im.get("incidencia", "")).upper() == "AP":
+        return False
+    est = im.get("estruturas_segmentadas") or []
+    alvo = next((e for e in est if e.get("chave") == "heart"), est[0] if est else None)
+    return bool(alvo) and alvo.get("origem") == "modelo"
+
+
 @dataclass(frozen=True)
 class Fatos:
     medidas: dict[str, float]
@@ -132,8 +156,11 @@ class Fatos:
         zonas: dict[str, str] = {}
         probs: dict[str, float] = {}
         for im in summary.get("imagens") or []:
+            ict_ok = _ict_confiavel(im)
             for m in im.get("medidas") or []:
                 v = m.get("value")
+                if m.get("key") == "cardiothoracic_ratio" and not ict_ok:
+                    continue                          # ICT sem origem de modelo (ou em AP) não é lastro
                 if isinstance(v, (int, float)) and m.get("key") and m["key"] not in medidas:
                     medidas[str(m["key"])] = float(v)
             for k, z in (im.get("zonas_modelo_auxiliar") or {}).items():
@@ -190,17 +217,46 @@ def _negada(clausula: str, m: re.Match) -> bool:
     return bool(_NEG.search(antes) or _LIVRE.search(depois) or _LIVRE.search(_REF_NORMAL.sub(" ", antes[-18:])))
 
 
-def _clausula_problema(clausula: str, fatos: Fatos, imagem: bool, so_afirmacao: bool) -> Optional[str]:
+def _termo_desconhecido(clausula: str, cobertos: tuple[tuple[int, int], ...] = ()) -> Optional[str]:
+    """Termo clínico fora dos tópicos (sem fato algum no app) que não está dentro de um trecho já verificado."""
+    for m in _DESCONHECIDO.finditer(clausula):
+        if m.group(0).lower() in _NAO_DESCONHECIDO:
+            continue
+        if any(a <= m.start() and m.end() <= b for a, b in cobertos):
+            continue
+        return m.group(0)
+    return None
+
+
+def _afirma_achado(clausula: str) -> bool:
+    return any(t.achado.search(clausula) for t in TOPICOS) or _termo_desconhecido(clausula) is not None
+
+
+def _abstencao_pura(clausula: str) -> bool:
+    """'Não avaliado/indeterminado' legítimo. NÃO vale se a parte antes do marcador já afirma um achado
+    ('derrame volumoso ... limitando avaliação'): o marcador de consequência exige parte anterior sem achado, e o de
+    predicado exige que ela não traga grau/tamanho."""
     a = _ABST.search(clausula)
-    if a and not _NEG.search(clausula[:a.start()]):
+    if not a or _NEG.search(clausula[:a.start()]):
+        return False
+    antes = clausula[:a.start()]
+    if _INTENSIDADE.search(antes) or _SIZE.search(antes) or re.search(r"\d", antes):
+        return False
+    return not (_ABST_CONSEQUENCIA.match(a.group(0)) and _afirma_achado(antes))
+
+
+def _clausula_problema(clausula: str, fatos: Fatos, imagem: bool, so_afirmacao: bool) -> Optional[str]:
+    if _abstencao_pura(clausula):
         return None                                   # "não avaliado / indeterminado": legítimo
     avaliou = False
+    cobertos: list[tuple[int, int]] = []
     for t in TOPICOS:
         for m, so_anat in _mencoes(t, clausula):
             neg = False if so_afirmacao else _negada(clausula, m)
             if so_anat and not neg:
                 continue                              # termo anatômico solto não afirma nada
             avaliou = True
+            cobertos.append(m.span())
             if neg:
                 if not _negacao_ok(t, fatos):
                     return f"negação/normalidade de '{t.nome}' sem medida que a sustente"
@@ -211,6 +267,9 @@ def _clausula_problema(clausula: str, fatos: Fatos, imagem: bool, so_afirmacao: 
                 return f"tamanho de '{t.nome}' sem medida"
             if not imagem and _VISUAL.search(clausula) and not t.medidas:
                 return f"descritor visual/lateralidade de '{t.nome}' sem imagem enviada"
+    termo = _termo_desconhecido(clausula, tuple(cobertos))
+    if termo:
+        return f"termo clínico '{termo}' sem tópico nem fato que o sustente"
     if not avaliou and not so_afirmacao and _NORMAL_GLOBAL.search(_REF_NORMAL.sub(" ", clausula)):
         return "afirmação de normalidade global sem avaliação"
     return None
