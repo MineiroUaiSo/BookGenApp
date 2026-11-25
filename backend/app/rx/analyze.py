@@ -12,6 +12,7 @@ from ..dicom.burned_text import BurnedTextResult, burned_in_tag, scrub as scrub_
 from ..schemas import BodyRegion, RXImageAnalysis, RXMeasurement, RXView, Structure
 from . import measure, seg_cxas, seg_heuristic as H, seg_model, view as V
 from .calibration import calibrate_scores
+from .scope import check_scope
 from ._common import autocrop, build_structure, encode_png_b64, normalize_polarity, polarity_margin, to_work
 
 # heuristic masks are unreliable on real films (Dice 0.07-0.24): cap confidence low
@@ -304,6 +305,9 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
         quality["observações"] = "; ".join(notes)
 
     probs, zones = calibrate_scores(scores)
+    oos, oos_reason = check_scope(img, region, kind)
+    if oos:
+        quality["escopo"] = "FORA DE ESCOPO — " + str(oos_reason)
     return RXImageAnalysis(
         instance_id=instance_id, view=view, region=region, image_png_b64=encode_png_b64(img),
         width=Ww, height=Hh, pixel_spacing_mm=list(spacing) if spacing else None,
@@ -311,4 +315,4 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
         model_probs=probs, model_zones=zones, quality=quality,
         burned_text=burned.summary(), external_ai_blocked=burned.block_external,
         region_uncertain=uncertain, region_conflict=bool(info.get("region_conflict")),
-        tag_region=info.get("tag_region"))
+        tag_region=info.get("tag_region"), out_of_scope=oos, scope_reason=oos_reason)

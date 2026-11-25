@@ -161,6 +161,8 @@ def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False
         if im.region_uncertain:
             result.warnings.append(f"{im.instance_id}: região incerta (tag DICOM x imagem); achados suspensos até "
                                    "confirmar a região")
+        elif im.out_of_scope:
+            result.warnings.append(f"{im.instance_id}: FORA DE ESCOPO — {im.scope_reason}")
         elif im.region_conflict:
             result.warnings.append(f"{im.instance_id}: tag DICOM diz {im.tag_region.value if im.tag_region else '?'} "
                                    f"mas a imagem parece {im.region.value}; região corrigida pela imagem")
