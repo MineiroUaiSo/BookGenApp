@@ -11,6 +11,8 @@ from app.dicom.render import pixel_spacing_mm, render_instance, to_png_bytes
 from app.schemas import (AIReport, BodyRegion, ECGAnalysis, Modality, Recon3DResult, RXAnalysis,
                          RXImageAnalysis, RXView, StudyInfo)
 from app.store import store
+from app import usage_log
+import time
 
 router = APIRouter()
 
@@ -57,6 +59,21 @@ def _ai_unavailable(msg: str) -> AIReport:
     return AIReport(available=False, description="", limitations=[msg])
 
 
+# Last rules-based result per (kind, study): the AI text is a separate call that reuses it (rules come first).
+_LAST: dict[tuple[str, str], tuple[object, Optional[bytes]]] = {}
+
+
+def _remember(kind: str, study_id: str, result: object, png: Optional[bytes] = None) -> None:
+    _LAST[(kind, study_id)] = (result, png)
+
+
+def _recall(kind: str, study_id: str) -> tuple[object, Optional[bytes]]:
+    got = _LAST.get((kind, study_id))
+    if got is None:
+        raise HTTPException(409, "analyze first: no rules-based result for this study (POST .../analyze)")
+    return got
+
+
 # ------------------------------------------------------------------ ECG
 @router.post("/ecg/{study_id}/analyze", response_model=ECGAnalysis)
 def ecg_analyze(study_id: str, body: Optional[ECGRequest] = None, ai: bool = False):
@@ -75,6 +92,7 @@ def ecg_analyze(study_id: str, body: Optional[ECGRequest] = None, ai: bool = Fal
     except KeyError:
         raise HTTPException(404, "instance not found")
     png: bytes | None = None
+    t0 = time.perf_counter()
     try:
         if meta["kind"] == "image":
             from app.ecg.digitize import digitize_image
@@ -88,24 +106,124 @@ def ecg_analyze(study_id: str, body: Optional[ECGRequest] = None, ai: bool = Fal
             signal = load_ecg(store.instance_path(iid))
         from app.ecg.analysis import analyze_signal
 
+        t1 = time.perf_counter()
         result = analyze_signal(signal, study_id)
     except ImportError as e:
         raise _not_installed(e)
     except (ValueError, RuntimeError) as e:
         raise HTTPException(422, str(e))
+    t2 = time.perf_counter()
+    _remember("ecg", study_id, result, png)
+    lat = {"ingest": round((t1 - t0) * 1000), "analysis": round((t2 - t1) * 1000)}
     if ai:
-        try:
-            from app.llm import ai_available
-
-            if ai_available():
-                from app.llm import ecg_report
-
-                result.ai = ecg_report(result, png)
-            else:
-                result.ai = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
-        except ImportError as e:
-            raise _not_installed(e)
+        result = result.model_copy(update={"ai": _run_ecg_ai(result, png)})
+        lat["ai"] = round((time.perf_counter() - t2) * 1000)
+    usage_log.log_event("analyze", study_id, kind="ecg", latency_ms=lat, quality_flags=_ecg_flags(result),
+                        codes=[f.code for f in result.findings], n_findings=len(result.findings),
+                        ai_requested=ai, ai_provider=(result.ai.provider if result.ai else None))
     return result
+
+
+def _ecg_flags(result: ECGAnalysis) -> list[str]:
+    flags = [f"noisy_{k.lower()}" for k, q in result.signal.quality.items() if q < 0.5]
+    text = " ".join(result.warnings).lower()
+    for needle, flag in (("ruí", "noise_warning"), ("st/q não avaliados", "st_q_skipped"),
+                         ("delimitação", "delineation_uncertain")):
+        if needle in text:
+            flags.append(flag)
+    return [f for f in flags if usage_log._CODE_RE.match(f)]
+
+
+def _rx_flags(result: RXAnalysis) -> list[str]:
+    flags: list[str] = []
+    for im in result.images:
+        if im.out_of_scope:
+            flags.append("out_of_scope")
+        if im.region_uncertain:
+            flags.append("region_uncertain")
+        if im.external_ai_blocked:
+            flags.append("external_ai_blocked")
+        if "confiabilidade" in im.quality:
+            flags.append("low_reliability")
+    return sorted(set(flags))
+
+
+def _run_ecg_ai(result: ECGAnalysis, png: Optional[bytes]) -> AIReport:
+    try:
+        from app.llm import ai_available
+
+        if not ai_available():
+            return _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
+        from app.llm import ecg_report
+
+        return ecg_report(result, png)
+    except ImportError as e:
+        raise _not_installed(e)
+
+
+def _run_rx_ai(result: RXAnalysis) -> AIReport:
+    try:
+        from app.llm import ai_available
+
+        if not ai_available():
+            return _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
+        from app.llm import rx_report
+
+        return rx_report(result)
+    except ImportError as e:
+        raise _not_installed(e)
+
+
+@router.post("/ecg/{study_id}/ai", response_model=AIReport)
+def ecg_ai(study_id: str):
+    """AI text for the ECG analysed by the last POST /ecg/{id}/analyze (rules are not blocked by this call)."""
+    _study(study_id)
+    result, png = _recall("ecg", study_id)
+    t0 = time.perf_counter()
+    rep = _run_ecg_ai(result, png)  # type: ignore[arg-type]
+    usage_log.log_event("ai", study_id, kind="ecg", latency_ms={"ai": round((time.perf_counter() - t0) * 1000)},
+                        ai_provider=rep.provider)
+    return rep
+
+
+@router.post("/rx/{study_id}/ai", response_model=AIReport)
+def rx_ai(study_id: str):
+    _study(study_id)
+    result, _ = _recall("rx", study_id)
+    t0 = time.perf_counter()
+    rep = _run_rx_ai(result)  # type: ignore[arg-type]
+    usage_log.log_event("ai", study_id, kind="rx", latency_ms={"ai": round((time.perf_counter() - t0) * 1000)},
+                        ai_provider=rep.provider)
+    return rep
+
+
+@router.get("/rule-ppv")
+def rule_ppv():
+    """Measured PPV per rule code (generated by bench/rule_ppv.py from the PTB-XL dev bench). Empty until generated."""
+    import json
+    from pathlib import Path
+
+    p = Path(__file__).resolve().parents[1] / "knowledge" / "rule_ppv.json"
+    if not p.exists():
+        return {"_meta": {}, "codes": {}}
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+class FeedbackRequest(BaseModel):
+    kind: str
+    code: str
+    verdict: str
+
+
+@router.post("/feedback/{study_id}")
+def feedback(study_id: str, body: FeedbackRequest):
+    """Agree/disagree on one finding; stored locally in the PHI-free usage log (code + verdict only)."""
+    _study(study_id)
+    if body.kind not in ("ecg", "rx") or body.verdict not in ("agree", "disagree") \
+            or not usage_log._CODE_RE.match(body.code):
+        raise HTTPException(422, "invalid feedback (kind ecg|rx, verdict agree|disagree, code [a-z0-9_.-])")
+    usage_log.log_event("feedback", study_id, kind=body.kind, code=body.code, verdict=body.verdict)
+    return {"ok": True}
 
 
 # ------------------------------------------------------------------ RX
@@ -148,6 +266,7 @@ def _has_biplane(images: list[RXImageAnalysis]) -> bool:
 def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False):
     study = _study(study_id)
     ids = _pick_rx_ids(study, body.instance_ids if body else None)
+    t0 = time.perf_counter()
     try:
         images = _analyze_images(study, ids, body.region_overrides if body else None)
         from app.rx import study_findings
@@ -161,21 +280,21 @@ def rx_analyze(study_id: str, body: Optional[RXRequest] = None, ai: bool = False
         if im.region_uncertain:
             result.warnings.append(f"{im.instance_id}: região incerta (tag DICOM x imagem); achados suspensos até "
                                    "confirmar a região")
+        elif im.out_of_scope:
+            result.warnings.append(f"{im.instance_id}: FORA DE ESCOPO — {im.scope_reason}")
         elif im.region_conflict:
             result.warnings.append(f"{im.instance_id}: tag DICOM diz {im.tag_region.value if im.tag_region else '?'} "
                                    f"mas a imagem parece {im.region.value}; região corrigida pela imagem")
+    t1 = time.perf_counter()
+    _remember("rx", study_id, result)
+    lat = {"analysis": round((t1 - t0) * 1000)}
     if ai:
-        try:
-            from app.llm import ai_available
-
-            if ai_available():
-                from app.llm import rx_report
-
-                result.ai = rx_report(result)
-            else:
-                result.ai = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
-        except ImportError as e:
-            raise _not_installed(e)
+        result = result.model_copy(update={"ai": _run_rx_ai(result)})
+        lat["ai"] = round((time.perf_counter() - t1) * 1000)
+    usage_log.log_event("analyze", study_id, kind="rx", latency_ms=lat, quality_flags=_rx_flags(result),
+                        codes=[f.code for f in result.findings], n_findings=len(result.findings),
+                        ai_requested=ai, ai_provider=(result.ai.provider if result.ai else None),
+                        out_of_scope=any(i.out_of_scope for i in result.images))
     return result
 
 

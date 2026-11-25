@@ -222,7 +222,7 @@ def study_findings(images: list[RXImageAnalysis]) -> list[Finding]:
     multi = len(images) > 1
     for i, img in enumerate(images):
         tag = f", imagem {i + 1}" if multi else ""
-        if img.region_uncertain:
+        if img.region_uncertain or (img.out_of_scope and img.region == BodyRegion.CHEST):
             fs = []                                  # ambiguous region: abstain until a human confirms it
         elif img.region == BodyRegion.CHEST and img.view in (RXView.PA, RXView.AP):
             fs = _frontal_findings(img, tag)

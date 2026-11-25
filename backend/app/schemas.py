@@ -270,6 +270,8 @@ class RXImageAnalysis(BaseModel):
     region_uncertain: bool = False           # tag DICOM and image disagree and the model cannot settle it: abstain
     region_conflict: bool = False            # region was corrected from the DICOM tag by the image evidence
     tag_region: Optional[BodyRegion] = None  # region stated by the DICOM tags (before any correction)
+    out_of_scope: bool = False               # not an adult chest radiograph (or not a radiograph at all)
+    scope_reason: Optional[str] = None       # pt-BR reason shown to the user when out_of_scope
 
 
 class RXAnalysis(BaseModel):
