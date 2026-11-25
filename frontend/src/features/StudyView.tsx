@@ -3,6 +3,7 @@ import { analyzeRX, API_BASE, fetchAI, recon3d } from "../api/client";
 import type { AIReport, BodyRegion, RXAnalysis, Recon3DResult } from "../types/api";
 import ReportPanel from "./report/ReportPanel";
 import RXViewer from "./rx/RXViewer";
+import LaudoEstruturado from "./rx/LaudoEstruturado";
 import { ECGWorkspace, Recon3DViewer } from "./registry";
 import type { AnalysisResult } from "./upload/UploadPage";
 
@@ -69,6 +70,7 @@ export default function StudyView({ result, ai, sendImages = false, onBack }: { 
               dicom={result.study.series.some((s) => !!s.dicom_modality)} />
             <ReportPanel title="Laudo de RX" findings={(rx ?? result.rx).findings} ai={aiReport} aiRequested={ai}
               aiLoading={aiLoading} aiError={aiError} feedback={{ studyId, kind: "rx" }} />
+            <LaudoEstruturado laudo={(rx ?? result.rx).laudo_rx} />
           </div>
           {result.rx.recon3d_available && (
             <section className="card no-print" aria-label="Reconstrução 3D">
