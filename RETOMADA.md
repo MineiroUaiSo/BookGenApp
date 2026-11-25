@@ -63,3 +63,9 @@ Estado: rodada 2 mesclada LOCALMENTE em claude/ecg-rx-ai-reader-nd20rs (50+ comm
 ### Regras do usuário
 Modelos SEMPRE em nuvem via OpenRouter (nunca locais). Saldo OpenRouter ~US$ 2,65 compartilhado com Pediatria: parar se < US$ 2,00. Opus orquestra, Sonnet executa. Sem push/deploy sem autorização. Worktrees ~/medlens-wt/r2-* ainda existem (remover após conferir merge: git worktree remove).
 '
+
+
+## ESTADO 2026-11-25 (fim de sessão, limite de uso)
+- Branch claude/ecg-rx-ai-reader-nd20rs EMPURRADA ao GitHub (sem o JPG) até e23937e. Depois, só local: LGPD ecg_report sem foto, bench STD split, restrição de supressão de strain, trilha 7 (ST), E6 sombra, trilha 6 (P/BAV, 006facb). Suíte completa passou (exit 0) após merges.
+- Trilha 8 (FA/NORM) em andamento no worktree ~/medlens-wt/r3-t8 (branch wt/r3-t8): conferir commit/bench e mesclar. wt/r3-t6 é implementação concorrente DESCARTADA.
+- Pendente: gabarito caso1 (S de V3), piloto 5 laudos, trilha 5 (UX), regenerar ecg.md/rx.md, CODE-test uma vez, push das novidades (sem o JPG: backup/pre-filter-2026-11-25 e wt/* ainda o contêm; não empurrar).
