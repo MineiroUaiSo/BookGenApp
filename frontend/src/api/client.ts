@@ -90,8 +90,11 @@ export const analyzeRX = (
 ) => request(`${base}/rx/${studyId}/analyze?ai=${ai}`, json(body), base).then(parse<RXAnalysis>);
 
 /** `sendImages` (opt-in) só vale para RX: o ECG nunca leva o campo. */
-export const fetchAI = (kind: "ecg" | "rx", studyId: string, base = API_BASE, opts: { sendImages?: boolean } = {}) =>
-  request(`${base}/${kind}/${studyId}/ai`, json(kind === "rx" ? { send_images_to_ai: opts.sendImages === true } : {}), base)
+export const fetchAI = (
+  kind: "ecg" | "rx", studyId: string, base = API_BASE, opts: { sendImages?: boolean; signal?: AbortSignal } = {},
+) =>
+  request(`${base}/${kind}/${studyId}/ai`,
+    { ...json(kind === "rx" ? { send_images_to_ai: opts.sendImages === true } : {}), signal: opts.signal }, base)
     .then(parse<AIReport>);
 
 export interface RulePpvEntry { ppv: number; ic_inf: number; ic_sup: number; n: number; fonte: string }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildIngestFormData, health, renderUrl } from "../api/client";
+import { buildIngestFormData, fetchAI, health, renderUrl } from "../api/client";
 
 describe("api client", () => {
   it("builds FormData with files and relative_paths", () => {
@@ -21,5 +21,18 @@ describe("api client", () => {
   it("builds render url with window/level", () => {
     expect(renderUrl("i1", 40, 400, "http://x/api")).toBe("http://x/api/instances/i1/render.png?wc=40&ww=400");
     expect(renderUrl("i1", undefined, undefined, "http://x/api")).toBe("http://x/api/instances/i1/render.png");
+  });
+  it("fetchAI repassa o AbortSignal ao fetch e propaga AbortError", async () => {
+    const orig = globalThis.fetch;
+    let visto: AbortSignal | undefined;
+    globalThis.fetch = ((_u: string, init?: RequestInit) => {
+      visto = init?.signal ?? undefined;
+      return Promise.reject(new DOMException("abortado", "AbortError"));
+    }) as typeof fetch;
+    try {
+      const ctl = new AbortController();
+      await expect(fetchAI("rx", "s1", "http://x/api", { signal: ctl.signal })).rejects.toMatchObject({ name: "AbortError" });
+      expect(visto).toBe(ctl.signal);
+    } finally { globalThis.fetch = orig; }
   });
 });

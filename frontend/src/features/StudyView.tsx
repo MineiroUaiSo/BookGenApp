@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { analyzeRX, API_BASE, fetchAI, recon3d } from "../api/client";
 import type { AIReport, BodyRegion, RXAnalysis, Recon3DResult } from "../types/api";
+import ErrorBoundary from "../components/ErrorBoundary";
 import ReportPanel from "./report/ReportPanel";
 import RXViewer from "./rx/RXViewer";
 import LaudoEstruturado from "./rx/LaudoEstruturado";
@@ -23,13 +24,13 @@ export default function StudyView({ result, ai, sendImages = false, onBack }: { 
 
   useEffect(() => {
     if (!ai) { setAiReport(null); setAiLoading(false); setAiError(null); return; }
-    let cancelled = false;
+    const ctl = new AbortController();
     setAiLoading(true); setAiError(null); setAiReport(null);
-    fetchAI(kindKey, studyId, API_BASE, { sendImages })
-      .then((r) => { if (!cancelled) setAiReport(r); })
-      .catch((e: Error) => { if (!cancelled) setAiError(e.message); })
-      .finally(() => { if (!cancelled) setAiLoading(false); });
-    return () => { cancelled = true; };
+    fetchAI(kindKey, studyId, API_BASE, { sendImages, signal: ctl.signal })
+      .then((r) => { if (!ctl.signal.aborted) setAiReport(r); })
+      .catch((e: Error) => { if (!ctl.signal.aborted) setAiError(e.message); })
+      .finally(() => { if (!ctl.signal.aborted) setAiLoading(false); });
+    return () => ctl.abort();
   }, [ai, kindKey, studyId, aiNonce, sendImages]);
 
   const confirmRegion = async (instanceId: string, region: BodyRegion) => {
@@ -58,7 +59,7 @@ export default function StudyView({ result, ai, sendImages = false, onBack }: { 
       <button className="btn small no-print" onClick={onBack} style={{ marginBottom: ".75rem" }}>← Novo estudo</button>
       {result.kind === "ECG" ? (
         <div className="study-layout">
-          <Suspense fallback={fallback}><div className="no-print"><ECGWorkspace analysis={result.ecg} /></div></Suspense>
+          <ErrorBoundary rotulo="o traçado"><Suspense fallback={fallback}><div className="no-print"><ECGWorkspace analysis={result.ecg} /></div></Suspense></ErrorBoundary>
           <ReportPanel title="Laudo de ECG" findings={result.ecg.findings} ai={aiReport} aiRequested={ai}
             aiLoading={aiLoading} aiError={aiError}
             feedback={{ studyId, kind: "ecg" }} />
@@ -66,19 +67,25 @@ export default function StudyView({ result, ai, sendImages = false, onBack }: { 
       ) : (
         <>
           <div className="study-layout">
-            <RXViewer analysis={rx ?? result.rx} apiBase={API_BASE} onRegionConfirm={confirmRegion}
-              dicom={result.study.series.some((s) => !!s.dicom_modality)} />
+            <ErrorBoundary rotulo="a imagem">
+              <RXViewer analysis={rx ?? result.rx} apiBase={API_BASE} onRegionConfirm={confirmRegion}
+                dicom={result.study.series.some((s) => !!s.dicom_modality)} />
+            </ErrorBoundary>
             <ReportPanel title="Laudo de RX" findings={(rx ?? result.rx).findings} ai={aiReport} aiRequested={ai}
               aiLoading={aiLoading} aiError={aiError} feedback={{ studyId, kind: "rx" }} />
-            <LaudoEstruturado laudo={(rx ?? result.rx).laudo_rx} />
+            <LaudoEstruturado laudo={(rx ?? result.rx).laudo_rx} studyId={studyId} markdown={(rx ?? result.rx).laudo_rx_markdown} />
           </div>
-          {result.rx.recon3d_available && (
+          {error && <div className="error card no-print" role="alert">{error}</div>}
+          {(rx ?? result.rx).recon3d_available && (
             <section className="card no-print" aria-label="Reconstrução 3D">
               <button className="btn primary" onClick={run3d} disabled={busy}>
                 {busy ? "Reconstruindo…" : "Reconstrução 3D (PA + Perfil)"}
               </button>
-              {error && <div className="error" role="alert">{error}</div>}
-              {recon && <Suspense fallback={fallback}><Recon3DViewer result={recon} apiBase={API_BASE} /></Suspense>}
+              {recon && (
+                <ErrorBoundary rotulo="o modelo 3D">
+                  <Suspense fallback={fallback}><Recon3DViewer result={recon} apiBase={API_BASE} /></Suspense>
+                </ErrorBoundary>
+              )}
             </section>
           )}
         </>
