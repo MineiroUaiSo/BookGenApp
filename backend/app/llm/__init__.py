@@ -150,6 +150,10 @@ def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str,
     except c.LLMTruncated:
         return AIReport(available=True, model=model,
                         limitations=["Resposta do modelo truncada (limite de tokens); tente novamente."])
+    except c.PayloadBloqueado as e:
+        log.warning("llm payload blocked (LGPD): %s", e)
+        return AIReport(available=False, model=model,
+                        limitations=[f"Envio à IA bloqueado pela barreira LGPD ({e}); nada foi enviado."])
     except json.JSONDecodeError:
         return AIReport(available=True, model=model,
                         limitations=["A resposta estruturada do modelo não pôde ser interpretada."])
@@ -216,7 +220,8 @@ def ecg_report_v2(analysis: ECGAnalysis, *, printed_header: Optional[dict] = Non
     def _call(system: str, user: str) -> str:
         c = _client
         text, _, prov = c.run_resilient(c.make_client(), [{"type": "text", "text": system}],
-                                        [{"role": "user", "content": user}], c.MAX_TOKENS_LAUDO, schema=schema)
+                                        [{"role": "user", "content": user}], c.MAX_TOKENS_LAUDO, schema=schema,
+                                        allow_images=False)
         provider["name"] = prov
         return text
 

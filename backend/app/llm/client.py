@@ -9,6 +9,8 @@ import random
 import time
 from typing import Any, Callable, Optional
 
+from .guard import PayloadBloqueado, assert_payload  # noqa: F401  (reexportado: client.PayloadBloqueado)
+
 log = logging.getLogger("medlens.llm")
 
 DEFAULT_MODEL = "claude-opus-5-5"
@@ -321,11 +323,14 @@ def provider_of(client) -> str:
 
 
 def run_resilient(client, system: list[dict], messages: list[dict], max_tokens: int,
-                  schema: Optional[dict] = None) -> tuple[str, Any, str]:
+                  schema: Optional[dict] = None, *, allow_images: bool = True) -> tuple[str, Any, str]:
     """run() com retry (máx 2 tentativas por provedor) e failover Anthropic -> OpenRouter.
 
     Só 429/5xx/timeout/conexão são retentados/failover; 4xx != 429, recusa e truncamento propagam.
+    Antes de qualquer envio, a barreira LGPD (guard.assert_payload) rejeita base64/imagem em texto, CPF, datas,
+    e-mail, telefone, CNS/RG (PayloadBloqueado, nunca retentado); allow_images=False proíbe até blocos de imagem.
     Devolve (texto, mensagem final, provedor que respondeu)."""
+    assert_payload(system, messages, allow_images=allow_images)
     chain = [client]
     if not isinstance(client, OpenRouterClient) and openrouter_available():
         chain.append(OpenRouterClient(or_key()))

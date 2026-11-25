@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 from pydantic import BaseModel, Field
 
 from . import validate as V
+from .guard import PayloadBloqueado, assert_text_only  # noqa: F401  (API pública do laudo)
 
 if TYPE_CHECKING:
     from ..ecg.features import Ficha
@@ -397,27 +398,7 @@ class LaudoV2(LaudoECG):
     rejeitadas: list[RejeicaoV2] = Field(default_factory=list)
 
 
-class PayloadBloqueado(Exception):
-    pass
-
-
-_PAYLOAD_PROIBIDO = [
-    (re.compile(r"data:[a-z]+/[a-z0-9.+-]+;base64", re.I), "imagem embutida (data URI)"),
-    (re.compile(r"[A-Za-z0-9+/=]{200,}"), "bloco binário/base64"),
-    (re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"), "CPF"),
-    (re.compile(r"\b\d{2}/\d{2}/\d{4}\b"), "data"),
-    (re.compile(r"\bORDER\s*ECG\w*|\bECG\d{6,}\b", re.I), "identificador de exame"),
-    (re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+"), "e-mail"),
-]
-
-
-def assert_text_only(system: str, user: str) -> None:
-    """Barreira LGPD: o que vai ao provedor é só texto e sem padrões de identificação/imagem."""
-    if not isinstance(system, str) or not isinstance(user, str):
-        raise PayloadBloqueado("payload não é texto")
-    for rx, nome in _PAYLOAD_PROIBIDO:
-        if rx.search(system) or rx.search(user):
-            raise PayloadBloqueado(nome)
+# Barreira LGPD: padrões e verificação vivem em guard.py (aplicada também em client.run_resilient).
 
 
 def system_prompt_v2() -> str:
