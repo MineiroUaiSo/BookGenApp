@@ -2,8 +2,22 @@ import type {
   AIReport, BodyRegion, ECGAnalysis, IngestResponse, RXAnalysis, Recon3DResult, StudyInfo,
 } from "../types/api";
 
-export const API_BASE: string =
-  (import.meta.env?.VITE_API_BASE as string | undefined) ?? "http://localhost:8000/api";
+import { connectionErrorMessage, resolveApiBase } from "./apiBase";
+
+export const API_BASE: string = resolveApiBase({
+  override: import.meta.env?.VITE_API_BASE as string | undefined,
+  dev: Boolean(import.meta.env?.DEV),
+});
+
+const origin = (): string | undefined => (typeof window !== "undefined" ? window.location?.origin : undefined);
+
+/** fetch que converte falha de rede em ApiError(0) com mensagem acionável. */
+function request(url: string, init: RequestInit | undefined, base: string): Promise<Response> {
+  return fetch(url, init).catch((e: unknown) => {
+    if (e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new ApiError(0, connectionErrorMessage(base, origin()));
+  });
+}
 
 export interface Health { status: string; ai_available: boolean; models: Record<string, string>; degraded?: string[] }
 export interface UploadItem { file: File; path?: string }
@@ -49,14 +63,14 @@ export function ingest(items: UploadItem[], onProgress?: (frac: number) => void,
         reject(new ApiError(xhr.status, typeof d === "string" ? d : xhr.statusText || "Falha no envio"));
       }
     };
-    xhr.onerror = () => reject(new ApiError(0, "Não foi possível conectar ao servidor"));
+    xhr.onerror = () => reject(new ApiError(0, connectionErrorMessage(base, origin())));
     xhr.send(buildIngestFormData(items));
   });
 }
 
-export const health = (base = API_BASE) => fetch(`${base}/health`).then(parse<Health>);
-export const listStudies = (base = API_BASE) => fetch(`${base}/studies`).then(parse<StudyInfo[]>);
-export const getStudy = (id: string, base = API_BASE) => fetch(`${base}/studies/${id}`).then(parse<StudyInfo>);
+export const health = (base = API_BASE) => request(`${base}/health`, undefined, base).then(parse<Health>);
+export const listStudies = (base = API_BASE) => request(`${base}/studies`, undefined, base).then(parse<StudyInfo[]>);
+export const getStudy = (id: string, base = API_BASE) => request(`${base}/studies/${id}`, undefined, base).then(parse<StudyInfo>);
 
 export function renderUrl(instanceId: string, wc?: number, ww?: number, base = API_BASE): string {
   const q = new URLSearchParams();
@@ -69,27 +83,27 @@ export function renderUrl(instanceId: string, wc?: number, ww?: number, base = A
 export const analyzeECG = (
   studyId: string, ai: boolean,
   body: { instance_id?: string; layout?: "3x4+1" | "6x2" | "12x1" | "auto" } = {}, base = API_BASE,
-) => fetch(`${base}/ecg/${studyId}/analyze?ai=${ai}`, json(body)).then(parse<ECGAnalysis>);
+) => request(`${base}/ecg/${studyId}/analyze?ai=${ai}`, json(body), base).then(parse<ECGAnalysis>);
 
 export const analyzeRX = (
   studyId: string, ai: boolean, body: { instance_ids?: string[]; region_overrides?: Record<string, BodyRegion>; send_images_to_ai?: boolean } = {}, base = API_BASE,
-) => fetch(`${base}/rx/${studyId}/analyze?ai=${ai}`, json(body)).then(parse<RXAnalysis>);
+) => request(`${base}/rx/${studyId}/analyze?ai=${ai}`, json(body), base).then(parse<RXAnalysis>);
 
 /** `sendImages` (opt-in) só vale para RX: o ECG nunca leva o campo. */
 export const fetchAI = (kind: "ecg" | "rx", studyId: string, base = API_BASE, opts: { sendImages?: boolean } = {}) =>
-  fetch(`${base}/${kind}/${studyId}/ai`, json(kind === "rx" ? { send_images_to_ai: opts.sendImages === true } : {}))
+  request(`${base}/${kind}/${studyId}/ai`, json(kind === "rx" ? { send_images_to_ai: opts.sendImages === true } : {}), base)
     .then(parse<AIReport>);
 
 export interface RulePpvEntry { ppv: number; ic_inf: number; ic_sup: number; n: number; fonte: string }
 export interface RulePpv { _meta: Record<string, unknown>; codes: Record<string, RulePpvEntry> }
-export const fetchRulePpv = (base = API_BASE) => fetch(`${base}/rule-ppv`).then(parse<RulePpv>);
+export const fetchRulePpv = (base = API_BASE) => request(`${base}/rule-ppv`, undefined, base).then(parse<RulePpv>);
 
 export const sendFeedback = (
   studyId: string, body: { kind: "ecg" | "rx"; code: string; verdict: "agree" | "disagree" }, base = API_BASE,
-) => fetch(`${base}/feedback/${studyId}`, json(body)).then(parse<{ ok: boolean }>);
+) => request(`${base}/feedback/${studyId}`, json(body), base).then(parse<{ ok: boolean }>);
 
 export const recon3d = (
   studyId: string, body: { frontal_id?: string; lateral_id?: string } = {}, base = API_BASE,
-) => fetch(`${base}/rx/${studyId}/recon3d`, json(body)).then(parse<Recon3DResult>);
+) => request(`${base}/rx/${studyId}/recon3d`, json(body), base).then(parse<Recon3DResult>);
 
 export const modelUrl = (studyId: string, base = API_BASE) => `${base}/recon3d/${studyId}/model.glb`;

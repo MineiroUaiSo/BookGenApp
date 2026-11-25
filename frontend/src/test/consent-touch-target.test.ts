@@ -9,4 +9,12 @@ describe("alvo de toque do consentimento de imagem (R4, validado no Playwright)"
     expect(h, "min-height em px ausente").not.toBeNull();
     expect(Number(h![1])).toBeGreaterThanOrEqual(44);
   });
+
+  it("switch 'Usar IA (Claude)' do cabeçalho tem altura mínima de 44px", () => {
+    const m = css.match(/\.app-header\s+\.switch\s*\{([^}]*)\}/);
+    expect(m, "regra .app-header .switch ausente").not.toBeNull();
+    const h = m![1].match(/min-height:\s*(\d+)px/);
+    expect(h, "min-height em px ausente").not.toBeNull();
+    expect(Number(h![1])).toBeGreaterThanOrEqual(44);
+  });
 });
