@@ -48,6 +48,7 @@ button { cursor: pointer; }
 .btn-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 .switch { display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; user-select: none; }
 .switch input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+.image-consent .switch { min-height: 44px; }  /* alvo de toque >= 44px (WCAG 2.5.5) */
 .hint { color: var(--fg-dim); font-size: .85rem; }
 .error { color: var(--crit); border: 1px solid var(--crit); border-radius: 6px; padding: .5rem .8rem; margin: .5rem 0; }
 
