@@ -27,7 +27,7 @@ from .ectopy import beat_correlations, ectopic_beats, rr_irregularity_excl
 from .pacing import (RELAXED, STRICT, blank_spikes, classify_pacing, detect_spikes, is_paced_timing,
                      spike_timing)
 from .preprocess import noise_sigma, preprocess
-from .rhythm import atrial_grid, av_analysis, detect_p_series, detect_p_series_resid, ectopy_pattern, flutter_features, rr_irregularity, rr_stats
+from .rhythm import atrial_grid, av_analysis, detect_p_series, detect_p_series_resid, ectopy_pattern, flutter_features, rr_alternation, flutter_multilead, rr_irregularity, rr_stats
 from .rpeaks import detect_r_peaks
 from .rules import build_findings, classify_rhythm
 
@@ -256,6 +256,8 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
                sinus_p=sinus_p, frac_p=frac_p, av=av, age=age, sex=sex, pr_beats=pr_beats,
                irr=irr, ectopy=ectopy_pattern(pk_ms), n_ectopic=int(ectopic.sum()),
                flutter=flutter_features(dlt[li2], fs, beat_info), paced=None,
+               flutter_f=flutter_multilead({l: dlt[i] for i, l in enumerate(leads)}, fs, beat_info),
+               rr_alt=rr_alternation(pk_ms),
                source=getattr(signal.source, "value", signal.source), quality=dict(signal.quality or {}))
     if pace_info is not None:
         ptype = classify_pacing(pace_info["timing"], gm.qrs_ms, pace_info["spikes"], peaks, fs)
