@@ -69,11 +69,19 @@ def test_ctr_close_to_truth(heart_rx):
     assert len(ctr.drawing) == 2 and all(len(d) == 4 for d in ctr.drawing)
 
 
+def _heart_de_modelo(a):
+    """O fantoma gera segmentação heurística (ICT não vira achado); aqui simula coração de modelo."""
+    for st in a.structures:
+        if st.key == "heart":
+            st.origin = "model"
+    return a
+
+
 def test_cardiomegaly_finding_only_when_large():
     big, _ = pa_phantom(heart_rx=100)
     small, _ = pa_phantom(heart_rx=60)
-    fb = study_findings([analyze_image(big, "b", None)])
-    fs = study_findings([analyze_image(small, "s", None)])
+    fb = study_findings([_heart_de_modelo(analyze_image(big, "b", None))])
+    fs = study_findings([_heart_de_modelo(analyze_image(small, "s", None))])
     cb = [f for f in fb if f.code == "rx.cardiomegaly"]
     assert cb and cb[0].severity in ("borderline", "abnormal") and cb[0].references
     assert cb[0].references[0].id == "felson_2025"
@@ -84,7 +92,7 @@ def test_cardiomegaly_finding_only_when_large():
 def test_ap_tag_softens_cardiomegaly():
     big, _ = pa_phantom(heart_rx=100)
     ds = SimpleNamespace(ViewPosition="AP", BodyPartExamined="CHEST")
-    a = analyze_image(big, "b", ds)
+    a = _heart_de_modelo(analyze_image(big, "b", ds))
     assert a.view == RXView.AP
     f = [f for f in study_findings([a]) if f.code == "rx.cardiomegaly"][0]
     assert f.severity == "borderline" and any("AP" in e for e in f.evidence)
