@@ -26,14 +26,17 @@ ST_WIDE_QRS_MS = 120
 NORMAL_LABEL = "Nenhuma regra automática disparou; isso não exclui IAM, BAV ou outras alterações."
 
 
-def _st_not_assessable_reasons(out, pc, qrs_ms):
-    """Motivos pelos quais o ST não é avaliável com confiança (lista vazia = avaliável)."""
+def _st_not_assessable_reasons(out, pc, qrs_ms, bbb=None):
+    """Motivos pelos quais o ST não é avaliável com confiança (lista vazia = avaliável).
+
+    BRD/BRD incompleto NÃO entra pelo critério de QRS largo: o ST segue avaliável (supra V1-V3 não é esperado no BRD).
+    Sgarbossa/Smith valem para BRE e marca-passo; aqui só se avisa, não se calcula."""
     why = []
     if any(f.code == "ecg.lbbb" for f in out):
         why.append("bloqueio de ramo esquerdo (BRE): repolarização secundária discordante em todas as derivações")
     if pc and pc.get("type") in ("ventricular", "dual"):
         why.append("ritmo de marca-passo ventricular: QRS estimulado, ST/T secundários")
-    if qrs_ms is not None and qrs_ms >= ST_WIDE_QRS_MS:
+    if qrs_ms is not None and qrs_ms >= ST_WIDE_QRS_MS and bbb not in ("rbbb", "irbbb"):
         why.append(f"QRS {qrs_ms:.0f} ms (>= {ST_WIDE_QRS_MS} ms): ST/T secundários possíveis")
     return why
 
@@ -589,6 +592,8 @@ def build_findings(c):
               "J e J+60 elevados; limiar UDMI-4: >=1 mm (V2-V3: homem <40 a >=2,5 mm, homem >=40 a >=2 mm, mulher >=1,5 mm; sexo/idade desconhecidos: >=2 mm)"]
         if recip:
             ev.append("depressão recíproca de ST presente")
+        if c["bbb"] in ("rbbb", "irbbb") and {"V1", "V2", "V3"} & set(lds):
+            ev.append("supra em V1-V3 não esperado no BRD; considerar IAM anterior/padrão Brugada")
         if why:
             out.append(_f("ecg.st_elevation_" + name, f"Supradesnivelamento do segmento ST limítrofe/inespecífico ({name}: {pl(lds)})",
                           "borderline", ev + [why] + caution, [R_UDMI, R_SBC], 0.35))
@@ -673,7 +678,7 @@ def build_findings(c):
 
     # ST/isquemia não avaliável de forma confiável com BRE, marca-passo ventricular ou QRS largo (só aviso: os
     # critérios de Sgarbossa/Smith são decisão clínica e NÃO são implementados aqui).
-    why_st = _st_not_assessable_reasons(out, pc, gm.qrs_ms)
+    why_st = _st_not_assessable_reasons(out, pc, gm.qrs_ms, c["bbb"])
     if why_st:
         out.append(_f(ST_NOT_ASSESSABLE_CODE, "Isquemia/supradesnivelamento de ST não avaliável de forma confiável "
                       "com este padrão (considerar critérios de Sgarbossa/Smith; avaliação médica)",

@@ -65,7 +65,7 @@ _AVISO_OK = re.compile(r"^(Traçado digitalizado em segmentos|Derivaç(?:ão|õe
                        r"Resolução baixa)")
 _SEXO = {"M": "M", "F": "F"}
 AVISO_ST_NAO_AVALIAVEL = ("ST/isquemia não avaliável de forma confiável com este padrão (bloqueio de ramo esquerdo, "
-                          "marca-passo ventricular ou QRS >= 120 ms); considerar critérios de Sgarbossa/Smith; "
+                          "marca-passo ventricular ou distúrbio de condução com QRS largo); considerar critérios de Sgarbossa/Smith; "
                           "avaliação médica obrigatória.")
 
 

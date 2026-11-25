@@ -96,10 +96,24 @@ def test_brd_mantem_supradesnivelamento_de_v1_a_v3_como_achado():
     ste = [f for f in a.findings if f.code.startswith("ecg.st_elevation_")]
     assert ste, c
     assert any("bloqueio de ramo" in " ".join(f.evidence) for f in ste)     # com a ressalva de cautela
-    assert _achado(a, ST_NOT_ASSESSABLE_CODE) is not None
+    # ST segue avaliável no BRD (Sgarbossa vale p/ BRE e marca-passo): sem aviso de "não avaliável"
+    assert _achado(a, ST_NOT_ASSESSABLE_CODE) is None
+    assert any("não esperado no BRD" in " ".join(f.evidence) and "Brugada" in " ".join(f.evidence) for f in ste)
 
 
 def test_bre_continua_sem_supradesnivelamento_plano_de_v1_a_v3():
     L, _ = sinus(70, qrs_scale=1.35, prec=_lbbb_prec(), axis_deg=10, noise=0.005,
                  st={"V1": 0.25, "V2": 0.3, "V3": 0.25})
     assert not any(x.startswith("ecg.st_elevation") for x in codes(run(L)))
+
+
+def test_brd_isolado_tambem_nao_emite_st_nao_avaliavel():
+    L, _ = sinus(75, qrs_scale=1.5, prec=_brd_prec(), axis_deg=30, noise=0.005)
+    a = run(L)
+    assert _achado(a, ST_NOT_ASSESSABLE_CODE) is None
+
+
+def test_aviso_st_nao_avaliavel_nao_cita_brd_nem_qrs_generico():
+    from app.ecg.features import AVISO_ST_NAO_AVALIAVEL
+    assert "QRS >= 120" not in AVISO_ST_NAO_AVALIAVEL
+    assert "BRD" not in AVISO_ST_NAO_AVALIAVEL and "direito" not in AVISO_ST_NAO_AVALIAVEL
