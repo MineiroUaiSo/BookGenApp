@@ -33,6 +33,7 @@ cartoes:
   gatilhos:
   - ecg.lbbb
   - ecg.st_elevation_*
+  - ecg.st_not_assessable
   armadilhas:
   - Baixa sensibilidade, alta especificidade.
   nao_confundir:
@@ -51,6 +52,7 @@ cartoes:
   medidas: []
   gatilhos:
   - ecg.lbbb
+  - ecg.st_not_assessable
   armadilhas:
   - Mantém os critérios concordantes.
   nao_confundir:

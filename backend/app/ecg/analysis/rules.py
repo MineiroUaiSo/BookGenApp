@@ -20,6 +20,24 @@ R_GOLD = Reference(id="goldberger_2023", source="Goldberger's Clinical Electroca
 LEAD_PRETTY = {"I": "D1", "II": "D2", "III": "D3"}
 
 
+ST_NOT_ASSESSABLE_CODE = "ecg.st_not_assessable"
+ST_WIDE_QRS_MS = 120
+# Texto neutro de propósito: ausência de regra disparada não é um laudo de normalidade.
+NORMAL_LABEL = "Nenhuma regra automática disparou; isso não exclui IAM, BAV ou outras alterações."
+
+
+def _st_not_assessable_reasons(out, pc, qrs_ms):
+    """Motivos pelos quais o ST não é avaliável com confiança (lista vazia = avaliável)."""
+    why = []
+    if any(f.code == "ecg.lbbb" for f in out):
+        why.append("bloqueio de ramo esquerdo (BRE): repolarização secundária discordante em todas as derivações")
+    if pc and pc.get("type") in ("ventricular", "dual"):
+        why.append("ritmo de marca-passo ventricular: QRS estimulado, ST/T secundários")
+    if qrs_ms is not None and qrs_ms >= ST_WIDE_QRS_MS:
+        why.append(f"QRS {qrs_ms:.0f} ms (>= {ST_WIDE_QRS_MS} ms): ST/T secundários possíveis")
+    return why
+
+
 def pl(leads):
     return ", ".join(LEAD_PRETTY.get(l, l) for l in leads)
 
@@ -536,10 +554,14 @@ def build_findings(c):
     caution = []
     # Secondary repolarisation changes of bundle branch block are expected (AHA 2009 Part III/IV): with LBBB the
     # ST-T of every lead is discordant to the QRS; with RBBB it is V1-V3. They are not reported as ischaemia.
+    # Only the EXPECTED discordant pattern is dropped: with RBBB that is ST depression / T inversion in V1-V3
+    # (discordant to the terminal R'). ST ELEVATION in V1-V3 is not expected with RBBB (and may be Brugada-like
+    # or ischaemic), so it stays a finding (still downgraded + cautioned by the wide-QRS rule below).
     sec_leads = set(L) if c["bbb"] == "lbbb" else ({"V1", "V2", "V3"} if c["bbb"] in ("rbbb", "irbbb") else set())
-    suppressed = [l for l in set(ste) | set(std) if l in sec_leads]
+    suppressed = [l for l in set(ste) | set(std) if l in sec_leads and (c["bbb"] == "lbbb" or l in std)]
     for l in suppressed:
-        ste.pop(l, None)
+        if c["bbb"] == "lbbb":
+            ste.pop(l, None)
         std.pop(l, None)
     # Strain leads: STD is suppressed only if it is mild, lateral and not accompanied by ischaemic signs
     # (rules_lvh.strain_std_suppressed); otherwise it is reported as a normal ST depression.
@@ -551,7 +573,7 @@ def build_findings(c):
         std.pop(l, None)
     if strain_ls and any(l in std for l in strain_ls) and not strain_supp:
         out[:] = [f for f in out if f.code != "ecg.secondary_repolarization_lvh"]
-    if c["bbb"] in ("lbbb", "rbbb"):
+    if c["bbb"] in ("lbbb", "rbbb", "irbbb"):
         caution.append("interpretar com cautela na presença de bloqueio de ramo")
     if any(f.code == "ecg.lvh" for f in out) or rules_lvh.has_voltage_hve(c.get("indices") or {}):
         caution.append("pode ser secundário à sobrecarga ventricular")
@@ -649,11 +671,19 @@ def build_findings(c):
         out.append(_f("ecg.paced_rhythm", f"Ritmo de marca-passo {kind_pt} (sugestivo)", "abnormal", ev,
                       [R_AHA], 0.45 if pc.get("relaxed") else 0.7))
 
+    # ST/isquemia não avaliável de forma confiável com BRE, marca-passo ventricular ou QRS largo (só aviso: os
+    # critérios de Sgarbossa/Smith são decisão clínica e NÃO são implementados aqui).
+    why_st = _st_not_assessable_reasons(out, pc, gm.qrs_ms)
+    if why_st:
+        out.append(_f(ST_NOT_ASSESSABLE_CODE, "Isquemia/supradesnivelamento de ST não avaliável de forma confiável "
+                      "com este padrão (considerar critérios de Sgarbossa/Smith; avaliação médica)",
+                      "borderline", why_st, [R_AHA, R_UDMI], 0.9))
+
     # Isolated borderline observations (SBC 2022 "limítrofe"/variants) do not make an ECG abnormal.
     abn = [f for f in out if f.severity in ("abnormal", "critical")]
     if not abn:
-        bl = [f.label for f in out if f.severity == "borderline"]
-        out.append(_f("ecg.within_normal_limits", "Eletrocardiograma sem alterações pelas regras automáticas",
+        bl = [f.label for f in out if f.severity == "borderline" and f.code != ST_NOT_ASSESSABLE_CODE]
+        out.append(_f("ecg.within_normal_limits", NORMAL_LABEL,
                       "normal", ["nenhuma regra de anormalidade foi acionada"] +
                       ([f"achados limítrofes isolados: {'; '.join(bl)}"] if bl else []), [R_GOLD], 0.5))
     return out

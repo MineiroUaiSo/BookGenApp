@@ -37,6 +37,7 @@
  "wide_qrs_140": [
   "ecg.lbbb",
   "ecg.secondary_repolarization",
-  "ecg.sinus_rhythm"
+  "ecg.sinus_rhythm",
+  "ecg.st_not_assessable"
  ]
 }
