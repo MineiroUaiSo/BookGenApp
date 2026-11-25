@@ -290,6 +290,9 @@ PRED = {
     "STTC": lambda c: any(x.startswith(("ecg.st_depression_", "ecg.t_inversion_", "ecg.st_elevation_")) for x in c),
     "STE": lambda c: any(x.startswith("ecg.st_elevation_") for x in c),
     "STD": lambda c: any(x.startswith("ecg.st_depression_") for x in c),
+    # R2 STD split: descriptive = st_depression_* OR secondary repolarisation (LVH strain); ischemic = st_depression_* only
+    "STD_desc": lambda c: any(x.startswith("ecg.st_depression_") for x in c) or "ecg.secondary_repolarization_lvh" in c,
+    "STD_isch": lambda c: any(x.startswith("ecg.st_depression_") for x in c),
     "LOWV": lambda c: bool(c & {"ecg.low_voltage", "ecg.low_voltage_precordial"}),
     "NORM": lambda c: "ecg.within_normal_limits" in c,
     "PACE": lambda c: "ecg.paced_rhythm" in c,
@@ -308,7 +311,9 @@ GOLD_SCP = {
     "MI_anterior": {"ASMI", "AMI", "ALMI", "INJAS", "INJAL"}, "MI_lateral": {"LMI", "ALMI", "ILMI", "IPLMI", "INJLA"},
     "STTC": {"NDT", "NST_", "ISC_", "ISCAL", "ISCIN", "ISCIL", "ISCAS", "ISCLA", "ISCAN", "STD_", "STE_", "TAB_",
              "DIG", "EL", "STTC"},
-    "STE": {"STE_"}, "STD": {"STD_"}, "LOWV": {"LVOLT"}, "NORM": {"NORM"}, "PACE": {"PACE"},
+    "STE": {"STE_"}, "STD": {"STD_"}, "STD_desc": {"STD_"},
+    # ischemic gold: ischemia statements (ISC*) + any MI statement + STD_ itself
+    "STD_isch": {"ISC_", "ISCAL", "ISCIN", "ISCIL", "ISCAS", "ISCLA", "ISCAN", "STD_"} | _MI, "LOWV": {"LVOLT"}, "NORM": {"NORM"}, "PACE": {"PACE"},
 }
 # AF_AFL is predicted by the AF rule or the spectral flutter rule
 PRED["AF_AFL"] = lambda c: "ecg.atrial_fibrillation" in c or "ecg.atrial_flutter" in c
@@ -323,7 +328,9 @@ CLASS_DESC = {
     "RAE": "right atrial enlargement", "LQT": "long QT (LNGQT)", "SBRAD": "sinus bradycardia", "STACH": "sinus tachycardia",
     "SR": "sinus rhythm", "MI_any": "any MI (Q waves or ST elevation)", "MI_inferior": "inferior MI (IMI etc.)",
     "MI_anterior": "anterior/anteroseptal MI", "MI_lateral": "lateral MI", "STTC": "ST/T change (any)",
-    "STE": "ST elevation (STE_)", "STE_acute": "ST elevation vs acute-MI gold (MI + stadium I/I-II)", "STD": "ST depression (STD_)", "LOWV": "low voltage (LVOLT)", "NORM": "NORM",
+    "STE": "ST elevation (STE_)", "STD_desc": "ST depression, descriptive (st_depression_* OR strain) vs STD_",
+    "STD_isch": "ST depression, ischemic (st_depression_* only) vs ISC*/MI/STD_",
+    "STE_acute": "ST elevation vs acute-MI gold (MI + stadium I/I-II)", "STD": "ST depression (STD_)", "LOWV": "low voltage (LVOLT)", "NORM": "NORM",
     "PACE": "pacemaker rhythm (PACE)",
 }
 
@@ -1018,6 +1025,11 @@ def report_ptbxl(res: dict[str, dict]) -> tuple[str, dict]:
         ["gold non-NORM -> we say within normal limits (missed)", pct(sum(1 for r in abn if "ecg.within_normal_limits" in r["codes"]), len(abn), True)],
     ]
     t2 = table(nrows, ["Normal vs abnormal screening", "Rate"])
+    lost = [r for r in recs if PRED["STD_desc"](r["codes"]) and not PRED["STD_isch"](r["codes"])]
+    lost_isch = [r for r in lost if "STD_isch" in r["gold"]]
+    lost_std = [r for r in lost if "STD" in r["gold"]]
+    std_note = (f"Cases counted as STD only through secondary_repolarization_lvh (lost by the ischemic definition): {len(lost)}; "
+                f"with ischemic gold label (ISC*/MI/STD_): {len(lost_isch)}; with STD_ label: {len(lost_std)}.")
     # HR checks
     hrows = []
     for cls, lo, hi in (("SR", 60, 100), ("STACH", 100, 999), ("SBRAD", 0, 60)):
@@ -1055,6 +1067,7 @@ def report_ptbxl(res: dict[str, dict]) -> tuple[str, dict]:
             "sample PPV is not prevalence-valid: the extra column re-computes PPV from sensitivity/specificity at the natural prevalence "
             "in the full ptbxl_database.csv (an approximation). Rare classes have wide CIs.\n\n"
             "### Per-class performance\n\n" + t1 +
+            "\n\n### STD split (descriptive vs ischemic)\n\n" + std_note +
             "\n\n### Normal-vs-abnormal screening\n\n" + t2 + "\n\n### Heart rate vs rhythm statements\n\n" + t3 +
             "\n\n### QRS axis vs metadata\n\n" + t4 + "\n\n### Confusion highlights\n\n" + cmt2 +
             "\n\n### Example ids for debugging\n\n" + cmt)
