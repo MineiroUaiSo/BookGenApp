@@ -100,3 +100,7 @@ Modelos SEMPRE em nuvem via OpenRouter (nunca locais). Saldo OpenRouter ~US$ 2,6
 ## ESTADO 2026-11-25 (noite — T1-T9 mesclado)
 - `worktree-agent-a5a9699b812f13ccc` (432ea58) MESCLADA localmente em `claude/ecg-rx-ai-reader-nd20rs` (2d38860). Backend: suíte inteira rc=0 (`cd backend && PYTHONPATH=. .venv/bin/python -m pytest`; python do sistema não tem pydicom). Frontend: 40 testes + build ok.
 - Falta: push só desta branch (refspec explícito; nunca --all/--mirror); Playwright do checkbox de imagem RX; decisão B4 (apagar refs locais com o JPG); decisões clínicas listadas acima. Laudo v2 continua desligado.
+
+## ESTADO 2026-11-25 (R4 mesclado)
+- Decisões do Opus aplicadas e mescladas (R4: 314f574..876f83d): strain só anota (STD sens 56,6%, FP STE_acute 310), Sokolow >=, texto RX anonimizado + aviso UI, BRE/marcapasso = "ST não interpretável". Refs com o JPG apagadas + gc (histórico limpo).
+- Pendente: Playwright do aviso/checkbox RX (320/768/1024/1440); regenerar ecg.md/rx.md completos; CODE-test 1x no fim; QRS largo sem BRE ainda "borderline"; limpar worktrees wt/* e .claude/worktrees/*; push/deploy pelo dono.
