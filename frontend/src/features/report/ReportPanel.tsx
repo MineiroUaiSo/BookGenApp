@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { sendFeedback } from "../../api/client";
 import type { AIReport, Finding, Reference } from "../../types/api";
 
 export const DEFAULT_DISCLAIMER =
@@ -49,7 +50,19 @@ export function reportToText(title: string, findings: Finding[], ai?: AIReport |
   return L.join("\n");
 }
 
-function FindingItem({ f }: { f: Finding }) {
+type Verdict = "agree" | "disagree";
+type FeedbackFn = (code: string, verdict: Verdict) => void;
+
+function FeedbackButtons({ code, vote, onVote }: { code: string; vote?: Verdict; onVote: FeedbackFn }) {
+  return (
+    <span className="feedback no-print" role="group" aria-label={`Feedback sobre o achado ${code}`}>
+      <button type="button" className="btn small" aria-pressed={vote === "agree"} onClick={() => onVote(code, "agree")}>Concordo</button>{" "}
+      <button type="button" className="btn small" aria-pressed={vote === "disagree"} onClick={() => onVote(code, "disagree")}>Discordo</button>
+    </span>
+  );
+}
+
+function FindingItem({ f, vote, onVote }: { f: Finding; vote?: Verdict; onVote?: FeedbackFn }) {
   return (
     <div className={`finding sev-${f.severity}`}>
       <strong>{f.label}</strong>{" "}
@@ -57,6 +70,7 @@ function FindingItem({ f }: { f: Finding }) {
       <span className="badge">{ORIGIN_LABEL[f.origin]}</span>{" "}
       <span className="hint">{Math.round(f.confidence * 100)}%</span>
       {f.evidence.length > 0 && <ul>{f.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>}
+      {onVote && <FeedbackButtons code={f.code} vote={vote} onVote={onVote} />}
     </div>
   );
 }
@@ -64,10 +78,20 @@ function FindingItem({ f }: { f: Finding }) {
 interface Props {
   title?: string; findings: Finding[]; ai?: AIReport | null; aiRequested?: boolean;
   aiLoading?: boolean; aiError?: string | null;
+  /** when both are set, rules findings get concordo/discordo buttons (stored locally, no PHI) */
+  feedback?: { studyId: string; kind: "ecg" | "rx" };
 }
 
-export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested = true, aiLoading = false, aiError = null }: Props) {
+export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested = true, aiLoading = false, aiError = null, feedback }: Props) {
   const [copied, setCopied] = useState(false);
+  const [votes, setVotes] = useState<Record<string, Verdict>>({});
+  const [fbError, setFbError] = useState<string | null>(null);
+  const vote: FeedbackFn | undefined = feedback ? (code, verdict) => {
+    setFbError(null);
+    setVotes((v) => ({ ...v, [code]: verdict }));
+    sendFeedback(feedback.studyId, { kind: feedback.kind, code, verdict })
+      .catch((e: Error) => { setVotes((v) => { const { [code]: _drop, ...rest } = v; return rest; }); setFbError(e.message); });
+  } : undefined;
   const refs = useMemo(() => collectRefs(findings, ai), [findings, ai]);
   const text = useMemo(() => reportToText(title, findings, ai), [title, findings, ai]);
 
@@ -88,7 +112,8 @@ export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested
       
 
       <h3>Achados por regras e medidas</h3>
-      {findings.length ? findings.map((f) => <FindingItem key={f.code + f.label} f={f} />)
+      {fbError && <p className="error" role="alert">Feedback não gravado: {fbError}</p>}
+      {findings.length ? findings.map((f) => <FindingItem key={f.code + f.label} f={f} vote={votes[f.code]} onVote={vote} />)
         : <p className="hint">Nenhum achado automático.</p>}
 
       {ai?.available ? (

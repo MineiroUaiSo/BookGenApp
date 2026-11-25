@@ -23,6 +23,22 @@ describe("ReportPanel", () => {
     expect(screen.getByTestId("ai-loading").textContent).toMatch(/Gerando texto da IA/);
     expect(screen.getByText("QRS alargado")).toBeTruthy();
   });
+  it("sends concordo/discordo feedback per rules finding", async () => {
+    const calls: { url: string; body: string }[] = [];
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      calls.push({ url: String(url), body: String(init?.body) });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      render(<ReportPanel findings={findings} ai={null} feedback={{ studyId: "s1", kind: "ecg" }} />);
+      const btn = screen.getAllByRole("button", { name: "Discordo" })[0];
+      btn.click();
+      await new Promise((r) => setTimeout(r, 10));
+      expect(calls[0].url).toMatch(/\/feedback\/s1$/);
+      expect(JSON.parse(calls[0].body)).toMatchObject({ kind: "ecg", verdict: "disagree" });
+    } finally { globalThis.fetch = orig; }
+  });
   it("dedups refs and builds text", () => {
     expect(collectRefs(findings, ai).map((r) => r.id)).toEqual(["ref-1", "ref-2"]);
     const t = reportToText("Laudo", findings, ai);

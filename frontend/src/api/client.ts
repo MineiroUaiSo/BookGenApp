@@ -78,6 +78,10 @@ export const analyzeRX = (
 export const fetchAI = (kind: "ecg" | "rx", studyId: string, base = API_BASE) =>
   fetch(`${base}/${kind}/${studyId}/ai`, json({})).then(parse<AIReport>);
 
+export const sendFeedback = (
+  studyId: string, body: { kind: "ecg" | "rx"; code: string; verdict: "agree" | "disagree" }, base = API_BASE,
+) => fetch(`${base}/feedback/${studyId}`, json(body)).then(parse<{ ok: boolean }>);
+
 export const recon3d = (
   studyId: string, body: { frontal_id?: string; lateral_id?: string } = {}, base = API_BASE,
 ) => fetch(`${base}/rx/${studyId}/recon3d`, json(body)).then(parse<Recon3DResult>);

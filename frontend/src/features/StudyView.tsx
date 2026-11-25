@@ -59,7 +59,8 @@ export default function StudyView({ result, ai, onBack }: { result: AnalysisResu
         <div className="study-layout">
           <Suspense fallback={fallback}><div className="no-print"><ECGWorkspace analysis={result.ecg} /></div></Suspense>
           <ReportPanel title="Laudo de ECG" findings={result.ecg.findings} ai={aiReport} aiRequested={ai}
-            aiLoading={aiLoading} aiError={aiError} />
+            aiLoading={aiLoading} aiError={aiError}
+            feedback={{ studyId, kind: "ecg" }} />
         </div>
       ) : (
         <>
@@ -67,7 +68,7 @@ export default function StudyView({ result, ai, onBack }: { result: AnalysisResu
             <RXViewer analysis={rx ?? result.rx} apiBase={API_BASE} onRegionConfirm={confirmRegion}
               dicom={result.study.series.some((s) => !!s.dicom_modality)} />
             <ReportPanel title="Laudo de RX" findings={(rx ?? result.rx).findings} ai={aiReport} aiRequested={ai}
-              aiLoading={aiLoading} aiError={aiError} />
+              aiLoading={aiLoading} aiError={aiError} feedback={{ studyId, kind: "rx" }} />
           </div>
           {result.rx.recon3d_available && (
             <section className="card no-print" aria-label="Reconstrução 3D">
