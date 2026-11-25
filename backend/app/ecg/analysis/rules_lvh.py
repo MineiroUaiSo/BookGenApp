@@ -156,9 +156,10 @@ def apply_lvh(c: dict, out: list) -> dict:
     lvh_now = any(f.code == "ecg.lvh" for f in out)
     if has_strain and lvh_now:
         out.append(_f("ecg.secondary_repolarization_lvh", "Repolarização secundária à sobrecarga ventricular esquerda",
-                      "borderline", ["ST-T em " + pl(strain) + ": " + ", ".join(
+                      "abnormal", ["ST-T em " + pl(strain) + ": " + ", ".join(
                           f"{LEAD_LABEL.get(l, l)} ST {v['st']:.1f} mm / T {v['t']:.1f} mm" for l, v in strain.items()),
-                          "não interpretado como isquemia"], [R_SBC, R_GOLD], 0.5))
+                          "padrão de strain é anormal e não prova ausência de isquemia: isquemia não excluída "
+                          "(correlacionar com clínica e troponina)"], [R_SBC, R_GOLD], 0.5))
     elif not lvh_now:
         strain = {}
     hev = hcm_pattern(c, idx, strain, set()) if lvh_now or has_strain else None

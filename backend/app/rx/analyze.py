@@ -1,14 +1,13 @@
 """Orchestrates view detection, segmentation (model -> heuristic fallback), measurements."""
 from __future__ import annotations
 
-import os
 from typing import Any, Optional
 
 import numpy as np
 from scipy import ndimage as ndi
 from skimage.measure import label
 
-from ..dicom.burned_text import BurnedTextResult, burned_in_tag, scrub as scrub_burned_text
+from ..dicom.burned_text import BurnedTextResult, burned_in_tag, scrub as scrub_burned_text, scrub_enabled
 from ..schemas import BodyRegion, RXImageAnalysis, RXMeasurement, RXView, Structure
 from . import measure, seg_cxas, seg_heuristic as H, seg_model, view as V
 from .calibration import calibrate_scores
@@ -149,7 +148,7 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
     img = _as_u8(img_uint8)
     # PHI em pixels: mascara texto queimado ANTES de qualquer heurística/segmentação e do PNG enviado à IA externa
     burned = BurnedTextResult(tag=burned_in_tag(ds))
-    if os.environ.get("MEDLENS_BURNED_TEXT", "on").lower() not in ("off", "0", "false"):
+    if scrub_enabled():
         img, burned = scrub_burned_text(img, ds)
     allow_model = seg_model.models_enabled() if use_model is None else use_model
     inverted = False

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { health } from "./api/client";
+import ImageConsent from "./components/ImageConsent";
 import ThemeToggle from "./components/ThemeToggle";
 import StudyView from "./features/StudyView";
 import UploadPage from "./features/upload/UploadPage";
@@ -23,6 +24,7 @@ export function healthWarnings(models: Record<string, string>): string[] {
 export default function App() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [ai, setAi] = useState(true);
+  const [sendImages, setSendImages] = useState(false);   // opt-in: imagem do RX à IA na nuvem (nunca marcado por padrão)
   const [aiAvailable, setAiAvailable] = useState<boolean | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
 
@@ -62,7 +64,8 @@ export default function App() {
             {warnings.map((w) => <div key={w}>{w}</div>)}
           </div>
         )}
-        {result ? <StudyView result={result} ai={ai} onBack={() => setResult(null)} />
+        {ai && <ImageConsent checked={sendImages} onChange={setSendImages} />}
+        {result ? <StudyView result={result} ai={ai} sendImages={sendImages} onBack={() => setResult(null)} />
           : <UploadPage ai={ai} onResult={setResult} />}
       </main>
     </>

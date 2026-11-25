@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Optional
 
 from ..knowledge.cards import gatilho_casa
 from ..schemas import AIReport, Finding
+from .claim_semantics import semantic_issues
 
 if TYPE_CHECKING:   # só tipagem: validate não depende de ecg.features em tempo de importação
     from ..ecg.features import CartaoRef, Fato, Ficha
@@ -443,8 +444,10 @@ SUPPRESS_PATTERNS = {
     "QT": r"QT\w*\s+(?:longo|curto|prolongad\w+)|s[ií]ndrome do QT",
     "ST": r"isqu[eê]mi\w+|infra\w*\s*(?:de\s*)?ST|supra\w*\s*(?:de\s*)?ST|les[aã]o subepic\w+|\bIAM\b|infarto",
 }
+# Só ressalva real sobre a confiabilidade da medida; NEGAÇÃO ("não há", "sem sinais", "ausência") não é ressalva:
+# afirmar que não há isquemia/BAV numa digitalização suspeita é exatamente a afirmação que se quer barrar.
 HEDGE_RE = re.compile(r"n[aã]o (?:avali|diagnost|afirm|conclu|confi)|n[aã]o foi poss|diverg|discord|poss[ií]vel erro|"
-                      r"suspeit|sem seguran|n[aã]o h[aá]|sem sinais|aus[eê]ncia|n[aã]o se|descart", re.IGNORECASE)
+                      r"suspeit|sem seguran", re.IGNORECASE)
 _LEAD_RE = re.compile(r"\b(?:V[1-6]R?|D[123I]{1,3}|aV[RLF]|DII+|[IV]{1,3})\b|\b12\s+deriva", re.IGNORECASE)
 _ID_TOKEN = re.compile(r"\[?\b[FC]\d+\b\]?")
 _NUMTOK = re.compile(r"(?<![\w.,])(\d+(?:[.,]\d+)?)\s*(ms|mm/mv|mm/s|mm|mv|bpm|%|pontos?|graus|°|º)?", re.IGNORECASE)
@@ -492,14 +495,14 @@ def unmatched_numbers(text: str, allowed: set[float]) -> list[str]:
     return bad
 
 
-def _card_has_lastro(card: "CartaoRef", fatos: list["Fato"]) -> bool:
+def _card_has_lastro(card: "CartaoRef", fatos: list["Fato"], secao: str = "") -> bool:
     for f in fatos:
         if f.codigo and any(gatilho_casa(g, f.codigo) for g in card.gatilhos):
             return True
         if set(card.medidas) & set(f.chaves):
             return True
-        if f.tipo == "meta" and card.card_id in GENERIC_CARD_IDS:
-            return True
+        if secao == "qualidade_tecnica" and f.tipo == "meta" and card.card_id in GENERIC_CARD_IDS:
+            return True   # convenções de grade/calibração só sustentam afirmações técnicas, nunca clínicas
     return False
 
 
@@ -540,9 +543,10 @@ def claim_issues(c: Any, ficha: "Ficha") -> list[str]:
     bad = unmatched_numbers(texto, allowed)
     if bad:
         issues.append(f"número não consta nos fatos/critérios citados ({len(bad)} valor(es) removido(s))")
-    sem_lastro = [k.id for k in cartoes if not _card_has_lastro(k, fatos)]
+    sem_lastro = [k.id for k in cartoes if not _card_has_lastro(k, fatos, secao)]
     if sem_lastro:
         issues.append("critério sem lastro nos fatos citados: " + ", ".join(sem_lastro))
+    issues += semantic_issues(texto, secao, fatos, ficha, all(k.card_id in GENERIC_CARD_IDS for k in cartoes))
     for cat in sorted({s.categoria for s in ficha.suprimidos}):
         if re.search(SUPPRESS_PATTERNS[cat], texto, re.IGNORECASE) and not HEDGE_RE.search(texto):
             issues.append(f"afirmação sobre achado suprimido ({cat}): digitalização não confiável")

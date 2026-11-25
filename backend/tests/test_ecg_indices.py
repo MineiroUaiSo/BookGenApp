@@ -15,8 +15,8 @@ def test_indices_sokolow_lyon_sums_s_v1_and_max_r_v5_v6():
     assert i["componentes"] == {"S_V1": 18, "R_V5_V6": 40}
 
 
-@pytest.mark.parametrize("s1,expected", [(5, False), (5.1, True), (-4, False)])
-def test_indices_sokolow_lyon_threshold_is_strict_above_35(s1, expected):
+@pytest.mark.parametrize("s1,expected", [(5, True), (4.9, False), (5.1, True), (-4, False)])
+def test_indices_sokolow_lyon_limiar_e_maior_ou_igual_a_35(s1, expected):
     assert ix.sokolow_lyon({"V5": 30}, {"V1": s1})["preenche"] is expected
 
 
@@ -95,7 +95,8 @@ def test_indices_romhilt_estes_case1_voltage_plus_strain_is_definite():
 
 
 def test_indices_romhilt_estes_items_and_digitalis():
-    full = ix.romhilt_estes({"V5": 31}, {}, strain=True, morris_fills=True, axis_deg=-35, qrs_ms=95, idt_ms=55)
+    full = ix.romhilt_estes({"V5": 31}, {}, strain=True, p_neg_depth_mm=1.0, p_neg_dur_ms=40, axis_deg=-35, qrs_ms=95,
+                            idt_ms=55)
     assert full["v"] == 3 + 3 + 3 + 2 + 1 + 1
     dig = ix.romhilt_estes({"V5": 31}, {}, strain=True, digitalis=True)
     assert dig["componentes"]["st_t_strain"] == 1 and dig["v"] == 4 and dig["componentes"]["classe"] == "provavel"
@@ -117,3 +118,25 @@ def test_indices_compute_indices_omits_missing_and_has_contract_keys():
         assert set(out[k]) == {"v", "unidade", "limiar", "preenche", "componentes"}, k
     assert out["cornell_voltagem"]["v"] == 29 and out["romhilt_estes"]["v"] >= 6
     assert "sokolow_lyon" not in ix.compute_indices({"aVL": 10}, {"V3": 5})
+
+
+# ---------------------------------------------------------------- Romhilt-Estes: componente atrial = fase negativa terminal de P em V1
+@pytest.mark.parametrize("depth,dur,pts", [
+    (1.0, 40, 3),      # limite inferior: profundidade >= 1 mm E duração >= 40 ms
+    (2.0, 20, 0),      # profundo mas curto (produto de Morris 0,04 não basta)
+    (0.9, 80, 0),      # longo mas raso
+    (1.0, 39, 0),
+    (None, 60, 0), (1.5, None, 0),
+])
+def test_romhilt_estes_componente_atrial_usa_profundidade_e_duracao_da_p_em_v1(depth, dur, pts):
+    i = ix.romhilt_estes({"V5": 10}, {}, strain=False, p_neg_depth_mm=depth, p_neg_dur_ms=dur)
+    assert i["componentes"]["aumento_atrial_esquerdo"] == pts
+
+
+def test_romhilt_estes_nao_usa_o_produto_de_morris_e_morris_segue_separado():
+    # Morris preenche (2 mm x 20 ms = 0,04 mm.s), mas a P é curta: Romhilt-Estes não pontua o componente atrial.
+    out = ix.compute_indices({"V5": 10}, {"V1": 3}, p_neg_depth_mm=2.0, p_neg_dur_ms=20)
+    assert out["morris"]["preenche"] is True
+    assert out["romhilt_estes"]["componentes"]["aumento_atrial_esquerdo"] == 0
+    out2 = ix.compute_indices({"V5": 10}, {"V1": 3}, p_neg_depth_mm=1.0, p_neg_dur_ms=40)
+    assert out2["romhilt_estes"]["componentes"]["aumento_atrial_esquerdo"] == 3

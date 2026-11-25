@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..knowledge.cards import Cartao
 from ..knowledge.search import LIMITE_PADRAO, select_cards
 from .analysis import indices as ix
+from .analysis.rules import ST_NOT_ASSESSABLE_CODE
 from .plausibility import BBB, PREEXC, QTF, STFIND
 
 SCHEMA = "ecg_features/v1"
@@ -63,6 +64,9 @@ _AVISO_OK = re.compile(r"^(Traçado digitalizado em segmentos|Derivaç(?:ão|õe
                        r"Ruído elevado|QRS global estimado|ST/Q não avaliados|grade impressa irregular|layout |"
                        r"Resolução baixa)")
 _SEXO = {"M": "M", "F": "F"}
+AVISO_ST_NAO_AVALIAVEL = ("ST/isquemia não avaliável de forma confiável com este padrão (bloqueio de ramo esquerdo, "
+                          "marca-passo ventricular ou distúrbio de condução com QRS largo); considerar critérios de Sgarbossa/Smith; "
+                          "avaliação médica obrigatória.")
 
 
 class _Frozen(BaseModel):
@@ -345,6 +349,8 @@ def features_from_summary(summary: dict, *, sexo: Optional[str] = None, printed_
     if generica and not div:
         aviso_topo.append("Digitalização suspeita (" + "; ".join(generica) + "); achados dependentes de intervalos e "
                           "ST não são diagnosticados; conferir no traçado original.")
+    if any(str(a.get("code", "")) == ST_NOT_ASSESSABLE_CODE for a in achados):
+        aviso_topo.append(AVISO_ST_NAO_AVALIAVEL)
     suprimir_globais = set().union(*(_SUPRIME_GLOBAIS[c] for c in supr)) if supr else set()
     prefixos = tuple(p for c in supr for p in _SUPRIME_ACHADOS[c])
 

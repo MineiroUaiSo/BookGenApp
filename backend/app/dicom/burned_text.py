@@ -10,6 +10,7 @@ Limitação: não é OCR; texto muito grande, curvo ou fora das bordas pode esca
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -54,6 +55,11 @@ class BurnedTextResult:
         else:
             parts.append("sem texto detectado")
         return "; ".join(parts)
+
+
+def scrub_enabled() -> bool:
+    """MEDLENS_BURNED_TEXT=off|0|false desliga a detecção/máscara de texto queimado (padrão: ligada)."""
+    return os.environ.get("MEDLENS_BURNED_TEXT", "on").lower() not in ("off", "0", "false")
 
 
 def external_send_blocked(res: BurnedTextResult) -> bool:
