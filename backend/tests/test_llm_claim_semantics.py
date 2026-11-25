@@ -304,3 +304,20 @@ def test_sgarbossa_como_recomendacao_e_aceito(texto):
     fid = f.fato_por_chave("achado.ecg.st_not_assessable").id
     c = _claim("recomendacao", texto + f" [{fid}]", [fid], [_cid(f, "isquemia.sgarbossa")])
     assert V.claim_issues(c, f) == []
+
+
+# ---------------------------------------------------------------- T3: "preenche" só vale no trecho que nomeia o índice/critério
+def _msgs_preenche(texto):
+    f = _ficha()
+    fid = f.fato_por_chave("indice.peguero_lo_presti").id           # índice que NÃO preenche
+    c = _claim("complexo_qrs", texto, [fid], [_cid(f, "lvh.peguero")])
+    return [m for m in V.claim_issues(c, f) if "preenche" in m]
+
+
+def test_preenche_de_outro_trecho_nao_contamina_indice_negado():
+    assert _msgs_preenche("Peguero-Lo Presti 14 mm não preenche; deflexão positiva em V5.") == []
+
+
+def test_indice_que_nao_preenche_afirmado_como_preenchido_continua_rejeitado():
+    assert _msgs_preenche("Peguero-Lo Presti preenche o critério de HVE.")
+    assert _msgs_preenche("Voltagem normal em V5; Peguero-Lo Presti preenche o critério.")

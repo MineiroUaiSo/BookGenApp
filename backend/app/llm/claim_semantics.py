@@ -219,11 +219,22 @@ def _normal_issues(texto: str, fatos: list, ficha: "Ficha") -> list[str]:
     return []
 
 
+_NOME_INDICE = _rx(r"sokolow|cornell|peguero|romhilt|[ií]ndice|crit[eé]rio|voltagem|\bHVE\b|sobrecarga")
+_SEGMENTO = re.compile(r"[.;:\n]")
+
+
 def _preenchimento_issues(texto: str, fatos: list) -> list[str]:
+    """Índice citado que NÃO preenche: só os trechos (entre separadores) que nomeiam o índice/critério são checados."""
     idx = [f for f in fatos if f.tipo == "indice"]
     if not idx or not all("não preenche" in f.texto for f in idx):
         return []
-    for m in _PREENCHE.finditer(texto):
-        if not _negado(texto, m.start()) and not re.search(r"n[aã]o\s*$", texto[max(0, m.start() - 6):m.start()], _I):
-            return ["índice citado não preenche o critério, mas a afirmação diz que preenche"]
+    inicio = 0
+    for sep in [*_SEGMENTO.finditer(texto), None]:
+        fim = sep.start() if sep else len(texto)
+        trecho = texto[inicio:fim]
+        if _NOME_INDICE.search(trecho):
+            for m in _PREENCHE.finditer(trecho):
+                if not _negado(trecho, m.start()) and not re.search(r"n[aã]o\s*$", trecho[max(0, m.start() - 6):m.start()], _I):
+                    return ["índice citado não preenche o critério, mas a afirmação diz que preenche"]
+        inicio = sep.end() if sep else len(texto)
     return []
