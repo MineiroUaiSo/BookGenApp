@@ -265,6 +265,8 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     if ctx["rhythm_kind"] in ("af", "flutter"):
         gm.p_duration_ms = gm.pr_ms = gm.p_axis_deg = None
     findings = build_findings(ctx)
+    if ctx.get("st_q_skipped"):
+        warnings.append(f"ST/Q não avaliados em {', '.join(ctx['st_q_skipped'])} (ruído).")
     from .. import plausibility
     findings = plausibility.apply(signal, gm, lms, findings, warnings)  # K2/K3: withhold findings of suspect digitisations
     conduction = conduction_timeline(gm, median_waves, findings)

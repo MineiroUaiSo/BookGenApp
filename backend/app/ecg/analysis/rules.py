@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from ...schemas import Finding, Reference
-from . import rules_lvh
+from . import rules_lvh, rules_st
 
 R_AHA = Reference(id="aha_2009_part_iii", source="Surawicz B et al. AHA/ACCF/HRS Recommendations for the "
                   "Standardization and Interpretation of the ECG, Part III: Intraventricular Conduction "
@@ -498,11 +498,13 @@ def build_findings(c):
 
     # ---- ST elevation / depression
     ste, std = {}, {}
+    noisy = set(rules_st.noisy_leads(bd, c.get("quality")))   # ST/Q abstention on noisy leads (R3 T5-T1)
+    c["st_q_skipped"] = [l for l in L if l in noisy]
     for l, m in L.items():
-        if l == "aVR" or m.st_j_mv is None:
+        if l == "aVR" or m.st_j_mv is None or l in noisy:
             continue
         thr = ste_threshold_mv(l, c.get("age"), c.get("sex"))
-        if m.st_j_mv >= thr - 1e-9:
+        if m.st_j_mv >= thr - 1e-9 and rules_st.ste_confirmed(m.st_j_mv, m.st_j60_mv):
             ste[l] = m.st_j_mv
         j60, j80 = m.st_j60_mv, m.st_j80_mv
         # horizontal/downsloping depression: J+60 (and J+80 when available) below -STD_MV, ST not rising
@@ -531,11 +533,24 @@ def build_findings(c):
         caution.append("interpretar com cautela na presença de bloqueio de ramo")
     if any(f.code == "ecg.lvh" for f in out) or rules_lvh.has_voltage_hve(c.get("indices") or {}):
         caution.append("pode ser secundário à sobrecarga ventricular")
+    hve_v = rules_lvh.has_voltage_hve(c.get("indices") or {})
+    s_min = {l: bd.leads[l].s_min for l in bd.leads}
+    # QRS width from leads without STE: an elevated plateau inflates the J/offset of the leads that carry it
+    _w = [m.qrs_ms for l, m in L.items() if l not in ste and m.qrs_ms]
+    qrs_ref = float(np.median(_w)) if len(_w) >= 4 else gm.qrs_ms
     for name, lds in territories(list(ste)):
+        why = rules_st.ste_downgrade_reason(qrs_ref, hve_v, {l: ste[l] for l in lds}, s_min)
+        recip = rules_st.reciprocal_depression(name, std)
+        ev = [f"ST em J: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} +{ste[l]*10:.1f} mm" for l in lds),
+              "J e J+60 elevados; limiar UDMI-4: >=1 mm (V2-V3: homem <40 a >=2,5 mm, homem >=40 a >=2 mm, mulher >=1,5 mm; sexo/idade desconhecidos: >=2 mm)"]
+        if recip:
+            ev.append("depressão recíproca de ST presente")
+        if why:
+            out.append(_f("ecg.st_elevation_" + name, f"Supradesnivelamento do segmento ST limítrofe/inespecífico ({name}: {pl(lds)})",
+                          "borderline", ev + [why] + caution, [R_UDMI, R_SBC], 0.35))
+            continue
         out.append(_f("ecg.st_elevation_" + name, f"Supradesnivelamento do segmento ST sugestivo ({name}: {pl(lds)})",
-                      "critical", [f"ST em J: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} +{ste[l]*10:.1f} mm" for l in lds),
-                                   "sugestivo; limiar UDMI-4: >=1 mm (V2-V3: homem <40 a >=2,5 mm, homem >=40 a >=2 mm, mulher >=1,5 mm; sexo/idade desconhecidos: >=2 mm)"] + caution,
-                      [R_UDMI, R_SBC], 0.6))
+                      "critical", ev + caution, [R_UDMI, R_SBC], 0.75 if recip else 0.6))
     for name, lds in territories(list(std)):
         out.append(_f("ecg.st_depression_" + name, f"Infradesnivelamento do segmento ST ({name}: {pl(lds)})",
                       "abnormal", ["ST em J+60: " + ", ".join(f"{LEAD_PRETTY.get(l, l)} {std[l]*10:.1f} mm" for l in lds),
@@ -545,7 +560,7 @@ def build_findings(c):
     # ---- pathological Q
     qpos = {}
     for l in ["I", "II", "aVL", "aVF", "V2", "V3", "V4", "V5", "V6"]:
-        if l not in L or (c["bbb"] == "lbbb" and l in ("V2", "V3")):  # QS in V1-V3 is part of LBBB
+        if l not in L or l in noisy or (c["bbb"] == "lbbb" and l in ("V2", "V3")):  # QS in V1-V3 is part of LBBB
             continue
         m = L[l]
         if m.q_amplitude_mv is None:
