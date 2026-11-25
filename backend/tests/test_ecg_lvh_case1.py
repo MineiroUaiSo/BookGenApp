@@ -64,10 +64,16 @@ def test_lvh_case1_reports_lvh_with_strain_and_secondary_repolarization(a):
     assert "strain" in lvh.label and any("Romhilt-Estes" in e for e in lvh.evidence)
 
 
-def test_lvh_case1_strain_leads_do_not_raise_ischemia_findings(a):
-    bad = [f.code for f in a.findings if f.code.startswith(("ecg.st_depression", "ecg.t_inversion", "ecg.st_elevation"))]
+def test_lvh_case1_mild_strain_leads_do_not_raise_ischemia_findings():
+    m = case1(st_by_lead={l: -0.08 for l in STRAIN})   # J60 ~ -1.4 mm: within the 2 mm strain limit
+    bad = [f.code for f in m.findings if f.code.startswith(("ecg.st_depression", "ecg.t_inversion", "ecg.st_elevation"))]
     assert bad == []
+    assert "ecg.secondary_repolarization_lvh" in codes(m)
 
+
+def test_lvh_case1_deep_strain_std_above_2mm_is_reported_with_caution(a):
+    f = next(f for f in a.findings if f.code.startswith("ecg.st_depression"))
+    assert any("pode ser secundário à sobrecarga" in e for e in f.evidence)
 
 def test_lvh_case1_no_preexcitation_and_left_atrial_overload(a):
     c = codes(a)

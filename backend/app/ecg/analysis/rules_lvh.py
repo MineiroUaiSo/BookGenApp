@@ -64,6 +64,29 @@ def strain_leads(c: dict) -> dict:
     return out
 
 
+STRAIN_STD_MAX_MV = -0.2     # |J60| <= 2 mm to still count as strain-like (not ischaemic) depression
+STRAIN_EXCL_LEADS = ("V1", "V2", "V3", "II", "III", "aVF")
+
+
+def has_voltage_hve(idx: dict) -> bool:
+    """HVE by voltage: Sokolow-Lyon or Cornell fills (Romhilt-Estes alone does not count)."""
+    return any(bool((idx.get(k) or {}).get("preenche")) for k in ("sokolow_lyon", "cornell_voltagem"))
+
+
+def strain_std_suppressed(lead: str, strain_leads_: set, idx: dict, std: dict, ste: dict) -> bool:
+    """True when the STD in 'lead' is explained by strain and must not be reported as ischaemic.
+    All must hold: lead in strain set + HVE by voltage; |J60| <= 2 mm; no STD in V1-V3/II/III/aVF; no STE.
+    std/ste: lead -> J60/J mV (before any suppression)."""
+    j60 = std.get(lead)
+    if lead not in strain_leads_ or j60 is None or not has_voltage_hve(idx):
+        return False
+    if j60 < STRAIN_STD_MAX_MV:
+        return False
+    if any(l in std for l in STRAIN_EXCL_LEADS):
+        return False
+    return not ste
+
+
 def _index_ev(idx: dict) -> list[str]:
     ev = []
     for key, lab in (("sokolow_lyon", "Sokolow-Lyon"), ("cornell_voltagem", "Cornell"), ("peguero_lo_presti", "Peguero-Lo Presti")):

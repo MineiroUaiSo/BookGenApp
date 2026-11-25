@@ -30,3 +30,20 @@ Definições (bench/ecg_bench.py):
 ## Conclusão
 
 Contra rótulos, o custo da supressão é > 2 pts: -4,8 pts de sens (ouro STD_), -5,4 pts (ouro isquêmico), -10,9 pts (só ISC*), com ganho de espec de ~2-3 pts. Ressalvas: (1) ISC_ é rótulo inespecífico e comumente acompanha HVE/strain no PTB-XL; (2) MI sem STD aparente não é "depressão" do ST; (3) 59% dos casos perdidos têm rótulo isquêmico contra prevalência de 34%, enriquecimento real mas modesto. Isquemia real mascarada por strain não é mensurável com estes rótulos. Decisão (restringir supressão ou aceitar o custo) segue médica.
+
+## Antes/depois: supressão de STD por strain restrita (tag `STDrestrict`)
+
+Decisão clínica (2026-11-25): STD em derivação de strain só é suprimido se (a) derivação no conjunto de strain E HVE por voltagem (Sokolow ou Cornell; Romhilt-Estes isolado não vale), (b) |J60| <= 2 mm, (c) sem STD em V1-V3, II, III, aVF, (d) sem STE (recíproco). Caso contrário emite `ecg.st_depression_*` normal, com a cautela "pode ser secundário à sobrecarga ventricular" quando há HVE. Se nenhuma derivação de strain foi suprimida, `ecg.secondary_repolarization_lvh` não é emitido (evita "não interpretado como isquemia" junto de um STD emitido).
+Mesmo dev PTB-XL large (N=9183), workers 4. Antes = `STDsplit`, depois = `STDrestrict`.
+
+| Indicador | Antes | Depois | Delta |
+|---|---|---|---|
+| STD_desc vs ouro STD_: sens / espec | 52,6% / 82,2% | 55,1% / 81,3% | +2,5 / -0,9 |
+| STD (só st_depression_*) vs ouro STD_: sens / espec | 47,8% / 85,1% | 52,9% / 83,3% | +5,1 / -1,8 |
+| isquêmico (ISC*+MI+STD_) vs st_depression_*: sens / espec | 34,0% / 91,0% | 39,4% / 90,5% | +5,4 / -0,5 |
+| STTC: sens / espec | 42,9% / 84,8% | 45,9% / 84,6% | +3,0 / -0,2 |
+| LVH sens (espec) | 74,8% (86,3%) | 74,8% (86,3%) | 0 |
+| NORM -> "dentro dos limites normais" | 74,5% | 74,5% | 0 |
+| FA sens (espec) | 84,4% (98,0%) | 84,4% (98,0%) | 0 |
+
+Sens do STD_ recuperou: com o ouro STD_, a sens do STD isquêmico subiu de 47,8% para 52,9% (+5,1, a perda anterior era -4,8); a do ISC*+MI+STD_ recuperou integralmente (+5,4 vs -5,4 perdidos). O custo é -1,8 pt de espec (STD) e -0,9 (STD_desc). Nenhum outro indicador do bench variou > 2 pts (todas as demais classes idênticas); os deltas > 2 pts acima são todos melhoras de sensibilidade nas métricas de STD/STTC.

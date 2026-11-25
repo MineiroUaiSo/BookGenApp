@@ -517,11 +517,19 @@ def build_findings(c):
     for l in suppressed:
         ste.pop(l, None)
         std.pop(l, None)
-    for l in c.get("lvh_strain", ()):   # strain leads: secondary repolarisation, not ischaemia
+    # Strain leads: STD is suppressed only if it is mild, lateral and not accompanied by ischaemic signs
+    # (rules_lvh.strain_std_suppressed); otherwise it is reported as a normal ST depression.
+    strain_ls = set(c.get("lvh_strain", ()))
+    std_all, ste_all = dict(std), dict(ste)
+    strain_supp = {l for l in strain_ls if l in std_all and rules_lvh.strain_std_suppressed(
+        l, strain_ls, c.get("indices") or {}, std_all, ste_all)}
+    for l in strain_supp:
         std.pop(l, None)
+    if strain_ls and any(l in std for l in strain_ls) and not strain_supp:
+        out[:] = [f for f in out if f.code != "ecg.secondary_repolarization_lvh"]
     if c["bbb"] in ("lbbb", "rbbb"):
         caution.append("interpretar com cautela na presença de bloqueio de ramo")
-    if any(f.code == "ecg.lvh" for f in out):
+    if any(f.code == "ecg.lvh" for f in out) or rules_lvh.has_voltage_hve(c.get("indices") or {}):
         caution.append("pode ser secundário à sobrecarga ventricular")
     for name, lds in territories(list(ste)):
         out.append(_f("ecg.st_elevation_" + name, f"Supradesnivelamento do segmento ST sugestivo ({name}: {pl(lds)})",
