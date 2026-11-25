@@ -119,6 +119,10 @@ _MEDIDA_NA_FRASE = _rx(r"\bPR\b|\bQRS\b|\bQTc?\b|\bST\b|frequ[eê]ncia|\bFC\b|\b
                        r"segmento|\bbpm\b|\bms\b|\bmm\b|voltagem|[ií]ndice")
 _PREENCHE = _rx(r"preenche(?:m|u|ndo)?\b|preenchid\w+|atingid\w+|positiv\w+")
 
+# Sgarbossa/Smith NÃO são calculados pelo sistema (decisão clínica): a afirmação só pode RECOMENDAR considerá-los.
+_SGARBOSSA = _rx(r"sgarbossa|\bsmith\b")
+_SGARBOSSA_RESULTADO = _rx(r"positiv|negativ|ausent|presen|preench|\bpont|escore|nenhum|\d")
+_ID_INLINE = re.compile(r"\[?\b[FC]\d+\b\]?")
 CODIGO_NORMAL = "ecg.within_normal_limits"
 SEVERIDADES_ANORMAIS = ("abnormal", "critical")
 
@@ -185,9 +189,18 @@ def semantic_issues(texto: str, secao: str, fatos: list, ficha: "Ficha", generic
                 issues.append(f"negação de {t.nome} sem qualificador: ausência de regra automática não exclui o achado")
         elif not any(_suporta(t, f) for f in fatos):
             issues.append(f"afirmação sobre {t.nome} sem fato [F] do mesmo achado/medida citado")
+    issues += _sgarbossa_issues(texto)
     issues += _normal_issues(texto, fatos, ficha)
     issues += _preenchimento_issues(texto, fatos)
     return issues
+
+
+def _sgarbossa_issues(texto: str) -> list[str]:
+    if not _SGARBOSSA.search(texto):
+        return []
+    if _SGARBOSSA_RESULTADO.search(_ID_INLINE.sub(" ", texto)):
+        return ["resultado de Sgarbossa/Smith não é calculado pelo sistema: só é permitido recomendar considerá-los"]
+    return []
 
 
 def _normal_issues(texto: str, fatos: list, ficha: "Ficha") -> list[str]:

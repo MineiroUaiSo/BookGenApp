@@ -279,3 +279,28 @@ def test_nao_ha_continua_negado_e_nao_se_observa_tambem():
     for texto in ("Não há BRD.", "Não se observa BRD.", "Sem sinais de BRD."):
         msgs = _msgs(f, texto, fatos, _cid(f, "lvh.cornell_voltagem"))
         assert any("contradiz" in m for m in msgs), (texto, msgs)
+
+
+# ---------------------------------------------------------------- T2: Sgarbossa/Smith só como recomendação, nunca como resultado
+def _ficha_st_nao_avaliavel():
+    return _ficha(_com_achado("ecg.st_not_assessable", "ST não avaliável", "borderline"))
+
+
+@pytest.mark.parametrize("texto", [
+    "Critérios de Sgarbossa ausentes.", "Sgarbossa negativo.", "Sgarbossa positivo.", "Critérios de Smith presentes.",
+    "Escore de Sgarbossa 3 pontos.", "Sgarbossa não preenchido.", "Sgarbossa modificado: nenhum critério preenchido.",
+])
+def test_sgarbossa_com_resultado_e_rejeitado(texto):
+    f = _ficha_st_nao_avaliavel()
+    fid = f.fato_por_chave("achado.ecg.st_not_assessable").id
+    msgs = V.claim_issues(_claim("st_t", texto + f" [{fid}]", [fid], [_cid(f, "isquemia.sgarbossa")]), f)
+    assert any("Sgarbossa" in m for m in msgs), (texto, msgs)
+
+
+@pytest.mark.parametrize("texto", ["Considerar critérios de Sgarbossa/Smith.",
+                                   "ST não avaliável de forma confiável; considerar critérios de Sgarbossa/Smith."])
+def test_sgarbossa_como_recomendacao_e_aceito(texto):
+    f = _ficha_st_nao_avaliavel()
+    fid = f.fato_por_chave("achado.ecg.st_not_assessable").id
+    c = _claim("recomendacao", texto + f" [{fid}]", [fid], [_cid(f, "isquemia.sgarbossa")])
+    assert V.claim_issues(c, f) == []
