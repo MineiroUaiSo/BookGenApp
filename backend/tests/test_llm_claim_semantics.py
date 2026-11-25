@@ -235,3 +235,47 @@ def test_claim_lista_de_afirmacoes_validas_do_caso1_segue_aceita():
                [_cid(f, "cmh.voltagem_extrema")]),
     ]
     assert [V.claim_issues(c, f) for c in ok] == [[], [], []]
+
+
+# ---------------------------------------------------------------- T1: janela de negação para em vírgula/"com"/"observa"
+def _msgs(f, texto, fatos, cartao_id):
+    return V.claim_issues(_claim("impressao", texto, fatos, [cartao_id]), f)
+
+
+def test_negacao_nao_atravessa_virgula_e_hemibloqueio_afirmado_nao_vira_negado():
+    f = _ficha(_com_achado("ecg.lafb", "Hemibloqueio anterior esquerdo"))
+    fatos = [f.fato_por_chave("achado.ecg.lafb").id]
+    texto = "Ritmo sinusal sem evidência de BAV, com hemibloqueio anterior esquerdo."
+    msgs = _msgs(f, texto, fatos, _cid(f, "bloqueio.bdas"))
+    assert not [m for m in msgs if "hemibloqueio" in m], msgs
+    assert any("bloqueio atrioventricular" in m for m in msgs)       # a negação de BAV segue sem qualificador
+
+
+def test_negacao_para_em_observa_se_e_brd_afirmado_nao_vira_negado():
+    f = _ficha(_com_achado("ecg.rbbb", "Bloqueio de ramo direito"))
+    fatos = [f.fato_por_chave("achado.ecg.rbbb").id]
+    msgs = _msgs(f, "Sem pré-excitação, observa-se BRD.", fatos, _cid(f, "lvh.cornell_voltagem"))
+    assert not [m for m in msgs if "bloqueio de ramo direito" in m], msgs
+
+
+@pytest.mark.parametrize("texto", ["Sem sinais de BRD mas com BAV.", "Não há BRD porém há BAV."])
+def test_negacao_ainda_vale_antes_de_mas_e_porem(texto):
+    f = _ficha(_com_achado("ecg.rbbb", "Bloqueio de ramo direito"))
+    msgs = _msgs(f, texto, [f.fato_por_chave("achado.ecg.lvh_voltage").id], _cid(f, "lvh.sokolow_lyon"))
+    assert any("bloqueio de ramo direito" in m and "contradiz" in m for m in msgs), msgs
+
+
+@pytest.mark.parametrize("texto", ["Sem HVE mas com BRD.", "Não há HVE porém há BRD.", "Sem sinais de BAV, com BRD.",
+                                   "Sem BAV nota-se BRD."])
+def test_negacao_corta_em_mas_porem_com_nota_se(texto):
+    f = _ficha(_com_achado("ecg.rbbb", "Bloqueio de ramo direito"))
+    msgs = _msgs(f, texto, [f.fato_por_chave("achado.ecg.rbbb").id], _cid(f, "lvh.cornell_voltagem"))
+    assert not [m for m in msgs if "bloqueio de ramo direito" in m], (texto, msgs)
+
+
+def test_nao_ha_continua_negado_e_nao_se_observa_tambem():
+    f = _ficha(_com_achado("ecg.rbbb", "Bloqueio de ramo direito"))
+    fatos = [f.fato_por_chave("achado.ecg.rbbb").id]
+    for texto in ("Não há BRD.", "Não se observa BRD.", "Sem sinais de BRD."):
+        msgs = _msgs(f, texto, fatos, _cid(f, "lvh.cornell_voltagem"))
+        assert any("contradiz" in m for m in msgs), (texto, msgs)

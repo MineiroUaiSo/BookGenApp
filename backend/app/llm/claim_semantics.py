@@ -107,6 +107,8 @@ _NEGACAO = _rx(r"\b(?:n[aã]o (?:h[aá]|se observ\w*|evidenc\w*|identific\w*|apr
                r"mostr\w*|demonstr\w*)|sem|aus[eê]ncia|descart\w*|afast\w*|exclu\w*|nega\w*|nenhum\w*)\b")
 _QUALIFICADOR = _rx(r"regras? autom[aá]tic\w*|nenhuma regra|n[aã]o detectad\w+ pel\w+ regra")
 _FIM_FRASE = re.compile(r"[.;:!?\n]")
+# a negação não atravessa vírgula nem conectivo de contraste/afirmação ("sem BAV, com hemibloqueio", "sem WPW, observa-se BRD")
+_CORTE_NEG = _rx(r",|\bcom\b|\bmas\b|\bpor[eé]m\b|\bobserva\w*|\bnota-se\b")
 _JANELA_NEG = 70
 
 _NORMAL_ECG = _rx(r"(?:\bECG\b|eletrocardiograma|tra[cç]ado|exame)\b[^.;]{0,40}\b(?:normal|normais|normalidade|"
@@ -132,9 +134,11 @@ def _suporta(t: Topico, f) -> bool:
 
 
 def _negado(texto: str, inicio: int) -> bool:
+    """Há negação na mesma oração, ANTES do tópico e sem separador/contraste entre ambos."""
     janela = texto[max(0, inicio - _JANELA_NEG):inicio]
     corte = max((m.end() for m in _FIM_FRASE.finditer(janela)), default=0)
-    return bool(_NEGACAO.search(janela[corte:]))
+    janela = janela[corte:]
+    return any(not _CORTE_NEG.search(janela[m.end():]) for m in _NEGACAO.finditer(janela))
 
 
 def _topicos_no_texto(texto: str) -> list[tuple[Topico, bool]]:
