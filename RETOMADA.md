@@ -34,3 +34,32 @@ Parado por orçamento de uso CRÍTICO (janela de 5h a 97%). Rodada 1: ver histó
 - Rodar 60 laudos IA (~US$ 11) ou modelo mais barato; revisar 20 laudos.
 - Licença CXAS (pesos MIMIC/DINOv3) antes de ligar por padrão; 91 cartões "verificar".
 - Credencial PhysioNet/Kaggle (VinDr, BRAX, VinBigData); reiniciar o servidor da porta 8000; E6 na UI só após decisão regulatória.
+'
+
+## RETOMAR AQUI (2026-11-25, antes de /clear)
+
+Estado: rodada 2 mesclada LOCALMENTE em claude/ecg-rx-ai-reader-nd20rs (50+ commits à frente do origin). NADA da rodada 2 foi enviado ao GitHub.
+
+### BLOQUEIO DO PUSH (decidir primeiro)
+- Repo MineiroUaiSo/BookGenApp é PÚBLICO. Commit adc5c64 inclui backend/tests/data/caso1_ecg.jpg: ECG impresso (GE 12SL) com cabeçalho (Male/Unknown/Technician/ORDER ECG22125996). Origem (ensino publicado x paciente) NÃO confirmada.
+- Opção recomendada: reescrever só os commits locais não enviados removendo o JPG (git filter-branch/rebase em origin..HEAD), usar cópia com cabeçalho/rodapé coberto, e fazer tests/test_gold_caso1 dar skip se a imagem faltar. Depois: git push origin claude/ecg-rx-ai-reader-nd20rs. Se o usuário confirmar domínio público, pode empurrar como está.
+- Antes de qualquer push: diff sem chaves (sk-or-/sk-ant-), sem DICOM/dados (conferido: só esse JPG).
+
+### Pendente (ver docs/planning/r2_specs_pendentes.md, prompts prontos)
+- Ações 5 (qualidade/UX/log), 6 (E5 P/BAV), 7 (E1 ST), 8 (E3/E4), E6 em modo sombra: NÃO lançadas (orçamento 5h estourou).
+- K: R de aVL/V4 do caso1 ainda baixo (xfail); falta UI de importação manual derivação a derivação.
+- J: citações [F]/[C] no laudo, retirar imagem das chamadas antigas de ECG (LGPD: foto com cabeçalho vai ao provedor).
+- Ação 3: rodar 60 laudos IA (~US$ 11) só com modelo barato e aprovação.
+- Regenerar docs/benchmarks/ecg.md e rx.md.
+- Plano Fable ECG (ficha ecg_features/v1 + cartões + FTS5): /private/tmp/.../tasks/ab6e605c5abb811d5.output (volátil; resumo na conversa).
+
+### Decisões do usuário em aberto
+1. STD caiu 56,6%→47,8% sens (espec 82,5→85,1) pela regra strain=repolarização secundária; manter ou restringir.
+2. Gabarito caso1 inconsistente: Cornell 58 mm exige S V3 ~37 mm (Peguero positivo?). Conferir S de V3 real.
+3. CXAS: licença MIT "só pesquisa"; fica desligado (MEDLENS_RX_CXAS=1).
+4. Credenciais PhysioNet/Kaggle (VinDr, BRAX, VinBigData); reiniciar servidor porta 8000 (roda código antigo).
+5. Limiares: Sokolow por idade, Cornell sem sexo, P>=120 ms, Romhilt-Estes; uso comercial (licença LITFL/ECGpedia).
+
+### Regras do usuário
+Modelos SEMPRE em nuvem via OpenRouter (nunca locais). Saldo OpenRouter ~US$ 2,65 compartilhado com Pediatria: parar se < US$ 2,00. Opus orquestra, Sonnet executa. Sem push/deploy sem autorização. Worktrees ~/medlens-wt/r2-* ainda existem (remover após conferir merge: git worktree remove).
+'
