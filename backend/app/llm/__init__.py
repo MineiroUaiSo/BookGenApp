@@ -39,6 +39,18 @@ def unavailable(reason: str | None = None) -> AIReport:
     return AIReport(available=False, model=None, limitations=lim)
 
 
+LIMITACAO_BARREIRA = "barreira de verificação falhou: narrativa descartada"
+
+
+def _descartar_narrativa(rep: AIReport) -> AIReport:
+    """Falha FECHADA: a barreira de verificação levantou exceção, então nenhum texto da IA (descrição, achados,
+    diferenciais, laudo, divergências) sai sem ter sido verificado. Ficam só os metadados e as limitações."""
+    return rep.model_copy(update={
+        "description": "", "findings": [], "differentials": [], "disagreements_with_measurements": [],
+        "laudo": None, "laudo_markdown": "", "laudo_curto": "",
+        "limitations": [*rep.limitations, LIMITACAO_BARREIRA]})
+
+
 def blocked_external(analysis: RXAnalysis) -> AIReport:
     """Política PHI: imagem com texto queimado (tag YES, ou detectado e não mascarado) não vai ao provedor
     externo; as regras/medidas locais seguem valendo."""
@@ -102,7 +114,8 @@ def rx_data_summary(a: RXAnalysis, *, anonymize: bool = False) -> dict:
             "probabilidades_modelo_auxiliar": im.model_probs or im.model_scores,
             "zonas_modelo_auxiliar": im.model_zones or None,
             "estruturas_segmentadas": [{"chave": s.key, "rotulo": s.label, "bbox": s.bbox,
-                                         "area_mm2": s.area_mm2, "confianca": s.confidence}
+                                         "area_mm2": s.area_mm2, "confianca": s.confidence,
+                                         "origem": "modelo" if s.origin in ("model", "cxas") else "heuristica"}
                                         for s in im.structures],
         }))
     out = {"imagens": imgs,
@@ -152,8 +165,9 @@ def _two_stage(domain: str, images: list[tuple[str, bytes]], context: str,
         if summary is not None:
             try:
                 rep = validate_report(rep, summary, rule_findings)
-            except Exception:  # validador nunca derruba o laudo
-                log.exception("validate_report failure")
+            except Exception as e:  # falha fechada: sem verificação, sem narrativa (log sem o texto)
+                log.error("validate_report failure (%s): narrativa descartada", type(e).__name__)
+                rep = _descartar_narrativa(rep)
         return rep
     except c.LLMRefusal as e:
         return AIReport(available=True, model=model,
@@ -334,8 +348,9 @@ def rx_report(analysis: RXAnalysis, send_images: bool = False) -> AIReport:
     rep = _two_stage("rx", images, ctx, rx_data_summary(analysis), analysis.findings)
     try:   # barreira qualitativa do RX: sem lastro nos fatos, a frase sai (spec RX-LAUDO-CONFIAVEL §3.1)
         rep = claim_check.sanitize_report(rep, rx_data_summary(analysis), image_sent=motivo_sem_imagem is None)
-    except Exception:  # a barreira nunca derruba o laudo
-        log.exception("rx claim_check failure")
+    except Exception as e:  # falha fechada: sem verificação, sem narrativa (log sem o texto)
+        log.error("rx claim_check failure (%s): narrativa descartada", type(e).__name__)
+        rep = _descartar_narrativa(rep)
     if motivo_sem_imagem is not None:
         rep.limitations.append(f"Imagem NÃO enviada à IA ({motivo_sem_imagem}); análise apenas pelas medidas e regras locais.")
     return rep
