@@ -7,7 +7,9 @@ import {
   cameraPositionForPreset,
   clipPlaneFor,
   effectiveOpacity,
+  baseLabel,
   explodeOffsets,
+  isEstimated,
   type ClipAxis,
   type PresetId,
   type Vec3,
@@ -41,6 +43,7 @@ function Model({ root, meshes, state, onSelect, onBounds }: ModelProps & { root:
   const gl = useThree((s) => s.gl);
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), []);
   const keys = useMemo(() => meshes.map((m) => m.key), [meshes]);
+  const estimated = useMemo(() => new Set(meshes.filter((m) => isEstimated(m.label)).map((m) => m.key)), [meshes]);
 
   // Prepara nós, materiais próprios, centróides e limites (uma vez por modelo).
   const prep = useMemo(() => {
@@ -100,7 +103,7 @@ function Model({ root, meshes, state, onSelect, onBounds }: ModelProps & { root:
       node.visible = state.visible.has(k);
       const o = offsets[k] ?? [0, 0, 0];
       node.position.set(prep.origin[k].x + o[0], prep.origin[k].y + o[1], prep.origin[k].z + o[2]);
-      const op = effectiveOpacity(k, state.opacity[k] ?? 1, state.lungGlobal);
+      const op = effectiveOpacity(k, state.opacity[k] ?? 1, state.lungGlobal, estimated.has(k));
       for (const mat of prep.mats[k] ?? []) {
         mat.transparent = op < 0.99;
         mat.opacity = op;
@@ -115,7 +118,7 @@ function Model({ root, meshes, state, onSelect, onBounds }: ModelProps & { root:
         }
       }
     }
-  }, [keys, prep, offsets, state, plane]);
+  }, [keys, prep, offsets, state, plane, estimated]);
 
   const labelPts = useMemo(() => {
     return keys
@@ -155,7 +158,7 @@ function Model({ root, meshes, state, onSelect, onBounds }: ModelProps & { root:
               <group key={l.key}>
                 <Line points={[l.a, l.b]} color={meta.color || "#ffffff"} lineWidth={1.2} />
                 <Html position={l.b} style={{ pointerEvents: "none" }}>
-                  <div className="r3d-label3d">{meta.label}</div>
+                  <div className="r3d-label3d">{baseLabel(meta.label)}{isEstimated(meta.label) ? " (estimativa)" : ""}</div>
                 </Html>
               </group>
             );

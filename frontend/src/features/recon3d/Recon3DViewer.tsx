@@ -5,6 +5,9 @@ import { Html } from "@react-three/drei";
 import type { Recon3DResult } from "../../types/api";
 import {
   CLIP_AXES,
+  absentInProfile,
+  baseLabel,
+  isEstimated,
   VIEW_PRESETS,
   formatVolume,
   resolveGltfUrl,
@@ -18,6 +21,8 @@ const CSS = `
 .r3d{display:flex;flex-direction:column;gap:8px;font-family:system-ui,sans-serif;color:#e8eaed;background:#12161c;border-radius:10px;padding:10px;box-sizing:border-box}
 .r3d *{box-sizing:border-box}
 .r3d-disclaimer{background:#4a3b12;border:1px solid #b8912a;color:#ffe9a8;padding:8px 10px;border-radius:6px;font-size:13px}
+.r3d-estimate{background:#1d2d3f;border:1px solid #3f78b0;color:#cfe4fb;padding:8px 10px;border-radius:6px;font-size:13px}
+.r3d-badge{font-size:10px;line-height:1;padding:2px 5px;border-radius:8px;border:1px dashed #d6a93a;color:#ffe9a8;flex:none}
 .r3d-main{display:flex;gap:10px;flex-wrap:wrap}
 .r3d-canvas{position:relative;flex:1 1 420px;min-height:460px;height:60vh;background:#0b0e13;border-radius:8px;overflow:hidden}
 .r3d-side{flex:0 1 310px;min-width:260px;display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow:auto}
@@ -134,6 +139,7 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
   };
 
   const sel = result.meshes.find((m) => m.key === selected) ?? null;
+  const absent = useMemo(() => absentInProfile(result.meshes), [result.meshes]);
   const totalVol = result.meshes.reduce((s, m) => s + (m.volume_ml ?? 0), 0);
 
   return (
@@ -142,6 +148,13 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
       <div className="r3d-disclaimer" role="note">
         <strong>Aviso:</strong> {result.disclaimer}
       </div>
+
+      {absent.length > 0 && (
+        <div className="r3d-estimate" role="status">
+          <strong>Estruturas ausentes no perfil: {absent.join(", ")}.</strong> Não há máscara real delas no
+          perfil; aparecem translúcidas, desenhadas só a partir da PA, como estimativa (não medida).
+        </div>
+      )}
 
       <div className="r3d-btns" role="toolbar" aria-label="Vistas">
         {VIEW_PRESETS.map((p) => (
@@ -210,7 +223,7 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
                 <div className="r3d-row">
                   <input
                     type="checkbox"
-                    aria-label={`Mostrar ${m.label}`}
+                    aria-label={`Mostrar ${baseLabel(m.label)}`}
                     checked={!hidden.has(m.key)}
                     onChange={() => toggle(m.key)}
                   />
@@ -220,8 +233,9 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
                     style={{ textAlign: "left", background: selected === m.key ? "#2f6fb5" : undefined }}
                     onClick={() => setSelected(selected === m.key ? null : m.key)}
                   >
-                    {m.label}
+                    {baseLabel(m.label)}
                   </button>
+                  {isEstimated(m.label) && <span className="r3d-badge" title={m.label}>estimativa</span>}
                   <span style={{ fontSize: 11, color: "#9fb3c8" }}>{formatVolume(m.volume_ml)}</span>
                   <button
                     className={solo === m.key ? "on" : ""}
@@ -238,7 +252,7 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
                     type="range"
                     min={5}
                     max={100}
-                    aria-label={`Opacidade de ${m.label}`}
+                    aria-label={`Opacidade de ${baseLabel(m.label)}`}
                     value={Math.round((opacity[m.key] ?? 1) * 100)}
                     onChange={(e) => setOpacity((o) => ({ ...o, [m.key]: +e.target.value / 100 }))}
                   />
@@ -297,11 +311,14 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
 
           {sel && (
             <div className="r3d-card" aria-live="polite">
-              <h4>{sel.label}</h4>
+              <h4>{baseLabel(sel.label)}</h4>
               <div className="r3d-row">
                 <span className="r3d-sw" style={{ background: sel.color }} />
                 <span>Volume estimado: {formatVolume(sel.volume_ml)}</span>
               </div>
+              {isEstimated(sel.label) && (
+                <div style={{ fontSize: 12, color: "#ffe9a8" }}>{sel.label.slice(baseLabel(sel.label).length).trim()}</div>
+              )}
               {sel.volume_ml != null && totalVol > 0 && (
                 <div style={{ fontSize: 12, color: "#9fb3c8" }}>
                   {((sel.volume_ml / totalVol) * 100).toFixed(0)}% do volume total reconstruído

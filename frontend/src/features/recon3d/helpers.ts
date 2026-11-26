@@ -95,9 +95,34 @@ export function isLungKey(key: string): boolean {
   return /lung|pulm/i.test(key);
 }
 
-/** Opacidade efetiva = opacidade individual × (transparência global se for pulmão). */
-export function effectiveOpacity(key: string, own: number, lungGlobal: number): number {
-  return Math.min(1, Math.max(0.02, own * (isLungKey(key) ? lungGlobal : 1)));
+/** Estrutura em uma única incidência: nunca opaca, para não parecer medida. */
+export const ESTIMATE_OPACITY = 0.6;
+
+const ESTIMATE_RE = /\s*\(estimativa[^)]*\)\s*$/i;
+
+export function isEstimated(label: string): boolean {
+  return ESTIMATE_RE.test(label);
+}
+
+/** Rótulo sem o sufixo "(estimativa, 1 incidência: ausente no perfil)". */
+export function baseLabel(label: string): string {
+  return label.replace(ESTIMATE_RE, "");
+}
+
+/** Nomes das estruturas desenhadas só a partir da PA (sem máscara real no perfil). */
+export function absentInProfile(meshes: { label: string }[]): string[] {
+  return meshes.filter((m) => /ausente no perfil/i.test(m.label)).map((m) => baseLabel(m.label));
+}
+
+/** Opacidade efetiva = opacidade individual × (transparência global se for pulmão) × (teto se estimada). */
+export function effectiveOpacity(
+  key: string,
+  own: number,
+  lungGlobal: number,
+  estimated = false,
+): number {
+  const o = own * (isLungKey(key) ? lungGlobal : 1) * (estimated ? ESTIMATE_OPACITY : 1);
+  return Math.min(1, Math.max(0.02, o));
 }
 
 export function formatVolume(ml?: number | null): string {

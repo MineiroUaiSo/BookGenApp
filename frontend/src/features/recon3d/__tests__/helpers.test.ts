@@ -9,6 +9,10 @@ import {
   visibleKeys,
   formatVolume,
   VIEW_PRESETS,
+  isEstimated,
+  baseLabel,
+  absentInProfile,
+  ESTIMATE_OPACITY,
 } from "../helpers";
 
 describe("resolveGltfUrl", () => {
@@ -82,5 +86,29 @@ describe("opacidade e visibilidade", () => {
     expect(formatVolume(null)).toBe("—");
     expect(formatVolume(620)).toBe("620 mL");
     expect(formatVolume(2450)).toBe("2,45 L");
+  });
+});
+
+describe("estruturas estimadas (1 incidência)", () => {
+  const meshes = [
+    { key: "heart", label: "coração (estimativa, 1 incidência: ausente no perfil)", color: "#f00", volume_ml: 600 },
+    { key: "spine", label: "coluna (estimativa, 1 incidência: ausente no perfil)", color: "#fff", volume_ml: 90 },
+    { key: "sternum", label: "esterno (estimativa, 1 incidência: ausente na PA)", color: "#fff", volume_ml: 20 },
+    { key: "lung_left", label: "pulmão esquerdo", color: "#88f", volume_ml: 2000 },
+  ];
+  it("detecta estimativa e remove o sufixo do rótulo", () => {
+    expect(isEstimated(meshes[0].label)).toBe(true);
+    expect(isEstimated("pulmão esquerdo")).toBe(false);
+    expect(baseLabel(meshes[0].label)).toBe("coração");
+    expect(baseLabel("pulmão esquerdo")).toBe("pulmão esquerdo");
+  });
+  it("lista só as ausentes no perfil", () => {
+    expect(absentInProfile(meshes)).toEqual(["coração", "coluna"]);
+    expect(absentInProfile([meshes[3]])).toEqual([]);
+  });
+  it("estimada nunca fica opaca; pulmão estimado combina com a transparência global", () => {
+    expect(effectiveOpacity("heart", 1, 1, true)).toBeCloseTo(ESTIMATE_OPACITY);
+    expect(effectiveOpacity("heart", 1, 1, false)).toBe(1);
+    expect(effectiveOpacity("lung_left", 1, 0.5, true)).toBeCloseTo(0.5 * ESTIMATE_OPACITY);
   });
 });
