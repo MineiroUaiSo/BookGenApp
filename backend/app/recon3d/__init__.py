@@ -7,6 +7,7 @@ from typing import Optional
 
 import numpy as np
 import trimesh
+from fastapi import HTTPException
 from PIL import Image
 from scipy import ndimage as ndi
 from skimage import measure
@@ -24,6 +25,19 @@ _DEPTH_PRIOR = {"lung": (1.6, 0.5), "heart_vessels": (0.8, 0.6), "airway": (1.0,
 _DEFAULT_PRIOR = (0.7, 0.5)
 _SUPER_N = {"lung": 2.3}
 _ALPHA = {"lung": 0.35, "mediastinum": 0.4, "diaphragm": 0.5}
+_ALPHA_ESTIMATE = 0.6   # estrutura em uma única incidência: translúcida, nunca opaca como se fosse medida
+
+
+class Recon3DUnavailable(HTTPException, ValueError):
+    """Reconstrução impossível com as máscaras disponíveis (pt-BR, acionável). É ValueError (uso interno/testes)
+    e HTTPException 422, de modo que a API devolve a orientação ao usuário em vez de um 500."""
+
+    def __init__(self, detail: str):
+        HTTPException.__init__(self, status_code=422, detail=detail)
+        ValueError.__init__(self, detail)
+
+    def __str__(self) -> str:
+        return str(self.detail)
 
 
 def _decode(st: Structure, w: int, h: int) -> Optional[np.ndarray]:
@@ -79,11 +93,19 @@ def reconstruct(frontal: RXImageAnalysis, lateral: RXImageAnalysis):
     F = _masks(frontal)
     L = _masks(lateral)
     if not F and not L:
-        raise ValueError("Sem máscaras de estruturas nas duas incidências.")
+        raise Recon3DUnavailable(
+            "Nenhuma das duas incidências tem estruturas segmentadas, então não há o que reconstruir em 3D. "
+            "Confira se as imagens são mesmo uma PA e um perfil de tórax; se a segmentação do perfil falhou, "
+            "envie outra incidência lateral ou use apenas a PA (sem 3D).")
     if not L:
-        raise ValueError("Incidência lateral sem máscaras de estruturas.")
+        raise Recon3DUnavailable(
+            "O perfil não tem nenhuma estrutura segmentada (a segmentação automática do perfil falhou ou a "
+            "imagem não é um perfil de tórax), então a reconstrução 3D não pode ser montada. Confira se a "
+            "incidência lateral é mesmo um perfil de tórax ou envie outra; sem perfil, use apenas a PA (sem 3D).")
     if not F:
-        raise ValueError("Incidência frontal sem máscaras de estruturas.")
+        raise Recon3DUnavailable(
+            "A incidência frontal não tem nenhuma estrutura segmentada, então a reconstrução 3D não pode ser "
+            "montada. Envie uma PA (ou AP) de tórax ou confira se a incidência frontal está correta.")
 
     # ---- escala frontal (mm/px)
     fr_lung = [m for k, (s, m) in F.items() if _is_lung(k)] or [m for _, m in F.values()]
@@ -117,11 +139,19 @@ def reconstruct(frontal: RXImageAnalysis, lateral: RXImageAnalysis):
     if "spine" in L:
         cs = np.where(L["spine"][1].any(0))[0].mean()
         post_right = cs > (cmin + cmax) / 2
+        orient = "coluna segmentada no perfil"
     elif "heart" in L:
         ch = np.where(L["heart"][1].any(0))[0].mean()
         post_right = ch < (cmin + cmax) / 2   # coração anterior
+        orient = "coração segmentado no perfil"
     else:
-        post_right = False
+        q = (lateral.quality or {}).get("orientação", "")
+        if "coluna à direita" in q:
+            post_right, orient = True, "coluna à direita da imagem, estimada pela segmentação do perfil"
+        elif "coluna à esquerda" in q:
+            post_right, orient = False, "coluna à esquerda da imagem, estimada pela segmentação do perfil"
+        else:
+            post_right, orient = False, None   # sem coluna, coração nem estimativa: assumida
     sgn = -1.0 if post_right else 1.0           # z cresce em direção anterior
     post_col = float(cmax if post_right else cmin)
     depth_mm = (cmax - cmin + 1) * s_l
@@ -159,6 +189,8 @@ def reconstruct(frontal: RXImageAnalysis, lateral: RXImageAnalysis):
     occ: dict[str, np.ndarray] = {}
     info: dict[str, tuple[str, str, bool]] = {}
     single: list[str] = []
+    no_lat: list[str] = []   # rótulos de estruturas da PA sem máscara no perfil
+    no_pa: list[str] = []    # rótulos de estruturas do perfil sem máscara na PA
     for k in keys:
         fs = F.get(k)
         ls = _lat_lookup(k, L)
@@ -210,9 +242,10 @@ def reconstruct(frontal: RXImageAnalysis, lateral: RXImageAnalysis):
         if vol.any():
             occ[k] = vol
             both = fs is not None and ls is not None
-            info[k] = (st.label, st.color, both)
+            info[k] = (st.label, st.color, both, "perfil" if ls is None else "PA")
             if not both:
                 single.append(k)
+                (no_lat if ls is None else no_pa).append(st.label)
 
     # ---- priors: concavidade medial (coração/mediastino removem pulmões)
     carve = np.zeros((NY, NX, NZ), bool)
@@ -230,8 +263,8 @@ def reconstruct(frontal: RXImageAnalysis, lateral: RXImageAnalysis):
     scene = trimesh.Scene()
     out: list[Recon3DMesh] = []
     for k, vol in occ.items():
-        label, color, both = info[k]
-        lab = label + ("" if both else " (estimativa, 1 incidência)")
+        label, color, both, absent = info[k]
+        lab = label + ("" if both else f" (estimativa, 1 incidência: ausente {'no' if absent == 'perfil' else 'na'} {absent})")
         v = np.pad(ndi.gaussian_filter(vol, 0.8), 2)
         if v.max() < 0.5:
             continue
@@ -257,6 +290,8 @@ def reconstruct(frontal: RXImageAnalysis, lateral: RXImageAnalysis):
         vol_ml = abs(float(mesh.volume)) / 1000.0 if mesh.is_volume else float((vol > 0.5).sum() * vox ** 3 / 1000.0)
         rgb = _hex(color)
         alpha = _ALPHA.get(_cat_of(k, F, L), 1.0)
+        if not both:
+            alpha = min(alpha, _ALPHA_ESTIMATE)
         mat = trimesh.visual.material.PBRMaterial(
             baseColorFactor=[rgb[0], rgb[1], rgb[2], int(255 * alpha)],
             metallicFactor=0.0, roughnessFactor=0.6,
@@ -267,9 +302,48 @@ def reconstruct(frontal: RXImageAnalysis, lateral: RXImageAnalysis):
 
     if not out:
         raise ValueError("Nenhuma estrutura pôde ser reconstruída.")
+    tex_frontal = _texture_png(frontal)
+    tex_lateral = _texture_png(lateral)
+    if tex_frontal:
+        k = (marg - 0.5) * vox
+        row0 = (ny0 + cy - k) / s_f_y - 0.5                       # linha PA = row0 - Y / s_f_y
+        meta = {"frontal": {
+            "png_b64": tex_frontal, "w": frontal.width, "h": frontal.height,
+            "col": [cmid + (cx_ - k - nx / 2) / s_f_x - 0.5, 1 / s_f_x], "row": [row0, -1 / s_f_y]}}
+        if tex_lateral:
+            meta["lateral"] = {
+                "png_b64": tex_lateral, "w": lateral.width, "h": lateral.height,
+                "col": [post_col + sgn * (cz_ - k) / s_l, sgn / s_l], "row": [a * row0 + b, -a / s_f_y]}
+        meta["fonte"] = "pixels da radiografia já presente no estudo (projeção planar; nada é inventado)"
+        scene.metadata["medlens_texture"] = meta
     glb = scene.export(file_type="glb")
-    method = _method_text(scale_src, reg, single, vox)
+    built = {m.key for m in out}
+    dropped = [(F.get(k) or L[k])[0].label for k in keys if k not in built]
+    method = _method_text(scale_src, reg, single, vox, no_lat, no_pa, orient, dropped)
+    if tex_frontal and not tex_lateral:
+        method += " Modo 'imagem real': imagem real só da PA (sem imagem do perfil para projetar)."
+    elif tex_frontal:
+        method += (" Modo 'imagem real': PA projetada no eixo frontal e perfil no eixo sagital, apenas sobre as "
+                   "superfícies das estruturas reconstruídas (planar; sem pixels inventados).")
     return glb, out, method
+
+
+TEXTURE_MAX_PX = 1024
+
+
+def _texture_png(a: RXImageAnalysis) -> Optional[str]:
+    """PNG (base64) da radiografia já renderizada no estudo, no máx. 1024 px de lado; None se ausente/ilegível."""
+    if not a.image_png_b64:
+        return None
+    try:
+        im = Image.open(io.BytesIO(base64.b64decode(a.image_png_b64))).convert("L")
+        if max(im.size) > TEXTURE_MAX_PX:
+            im.thumbnail((TEXTURE_MAX_PX, TEXTURE_MAX_PX), Image.LANCZOS)
+        b = io.BytesIO()
+        im.save(b, "PNG")
+        return base64.b64encode(b.getvalue()).decode()
+    except Exception:
+        return None
 
 
 def _cat_of(k, F, L):
@@ -287,7 +361,7 @@ def _hex(c: str):
         return [200, 200, 200]
 
 
-def _method_text(scale_src, reg, single, vox):
+def _method_text(scale_src, reg, single, vox, no_lat=(), no_pa=(), orient=None, dropped=()):
     t = ("Reconstrução aproximada por envoltória visual (visual hull): cada estrutura segmentada na "
          "incidência frontal (PA/AP) é extrudada ao longo do eixo antero-posterior e interseccionada "
          "com a silhueta da incidência lateral extrudada ao longo do eixo látero-lateral. "
@@ -299,6 +373,22 @@ def _method_text(scale_src, reg, single, vox):
     if single:
         t += ("Estruturas visíveis em uma única incidência (" + ", ".join(single) + ") usam uma profundidade "
               "AP presumida a partir da largura local e têm confiança menor. ")
+    if no_lat:
+        t += ("Estruturas ausentes no perfil: " + ", ".join(no_lat) + ". Não há máscara real delas no perfil: "
+              "foram desenhadas só a partir da PA, translúcidas e marcadas como estimativa. ")
+    if no_pa:
+        t += ("Estruturas ausentes na PA: " + ", ".join(no_pa) + ". Não há máscara real delas na PA: "
+              "largura presumida, translúcidas e marcadas como estimativa. ")
+    if dropped:
+        t += ("Estruturas segmentadas que não puderam ser reconstruídas: " + ", ".join(dropped) + ". "
+              "Motivo provável: finas demais para a resolução do voxel ou sem sobreposição entre as "
+              "incidências; não aparecem no modelo. ")
+    if orient:
+        t += f"Orientação anteroposterior do perfil: {orient}. "
+    else:
+        t += ("Orientação anteroposterior assumida (sem coluna nem coração no perfil para confirmar a "
+              "direção anterior/posterior); se estiver invertida, a profundidade presumida das estruturas "
+              "estimadas fica espelhada. ")
     t += ("Limitações: forma e volumes são estimativas; não há informação de densidade; assimetrias "
           "entre os lados não vistas no perfil são perdidas (o perfil não separa pulmão direito e "
           "esquerdo); magnificação e rotação do paciente não são corrigidas. Não equivale a tomografia.")

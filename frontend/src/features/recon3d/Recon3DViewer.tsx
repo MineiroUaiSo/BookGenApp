@@ -5,6 +5,9 @@ import { Html } from "@react-three/drei";
 import type { Recon3DResult } from "../../types/api";
 import {
   CLIP_AXES,
+  absentInProfile,
+  baseLabel,
+  isEstimated,
   VIEW_PRESETS,
   formatVolume,
   resolveGltfUrl,
@@ -18,6 +21,8 @@ const CSS = `
 .r3d{display:flex;flex-direction:column;gap:8px;font-family:system-ui,sans-serif;color:#e8eaed;background:#12161c;border-radius:10px;padding:10px;box-sizing:border-box}
 .r3d *{box-sizing:border-box}
 .r3d-disclaimer{background:#4a3b12;border:1px solid #b8912a;color:#ffe9a8;padding:8px 10px;border-radius:6px;font-size:13px}
+.r3d-estimate{background:#1d2d3f;border:1px solid #3f78b0;color:#cfe4fb;padding:8px 10px;border-radius:6px;font-size:13px}
+.r3d-badge{font-size:10px;line-height:1;padding:2px 5px;border-radius:8px;border:1px dashed #d6a93a;color:#ffe9a8;flex:none}
 .r3d-main{display:flex;gap:10px;flex-wrap:wrap}
 .r3d-canvas{position:relative;flex:1 1 420px;min-height:460px;height:60vh;background:#0b0e13;border-radius:8px;overflow:hidden}
 .r3d-side{flex:0 1 310px;min-width:260px;display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow:auto}
@@ -38,6 +43,16 @@ const CSS = `
 .r3d-btns{display:flex;gap:6px;flex-wrap:wrap}
 .r3d details{font-size:12px;color:#b6c2d0}
 `;
+
+const TEX_KEY = "medlens.recon3d.texmode";
+
+function readTexMode(): "highlight" | "real" {
+  try {
+    return sessionStorage.getItem(TEX_KEY) === "real" ? "real" : "highlight";
+  } catch {
+    return "highlight";
+  }
+}
 
 function hasWebGL(): boolean {
   try {
@@ -99,6 +114,17 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
   const [clipT, setClipT] = useState(0.5);
   const [bounds, setBounds] = useState<Bounds>({ radius: 3, min: [-3, -3, -3], max: [3, 3, 3] });
   const [retry, setRetry] = useState(0);
+  const [texMode, setTexModeState] = useState<"highlight" | "real">(readTexMode);
+  const [tex, setTex] = useState({ available: false, onlyPA: false });
+  const setTexMode = (m: "highlight" | "real") => {
+    setTexModeState(m);
+    try {
+      sessionStorage.setItem(TEX_KEY, m);
+    } catch {
+      /* sessionStorage indisponível: vale só nesta tela */
+    }
+  };
+  const onTexture = useCallback((i: { available: boolean; onlyPA: boolean }) => setTex(i), []);
   const [webgl] = useState(hasWebGL);
   const shot = useRef<(() => string) | null>(null);
 
@@ -110,6 +136,7 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
     selected,
     explode,
     labels,
+    texMode,
     clip: { enabled: clipOn, axis: clipAxis, t: clipT },
   };
 
@@ -134,6 +161,7 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
   };
 
   const sel = result.meshes.find((m) => m.key === selected) ?? null;
+  const absent = useMemo(() => absentInProfile(result.meshes), [result.meshes]);
   const totalVol = result.meshes.reduce((s, m) => s + (m.volume_ml ?? 0), 0);
 
   return (
@@ -142,6 +170,43 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
       <div className="r3d-disclaimer" role="note">
         <strong>Aviso:</strong> {result.disclaimer}
       </div>
+
+      {absent.length > 0 && (
+        <div className="r3d-estimate" role="status">
+          <strong>Estruturas ausentes no perfil: {absent.join(", ")}.</strong> Não há máscara real delas no
+          perfil; aparecem translúcidas, desenhadas só a partir da PA, como estimativa (não medida).
+        </div>
+      )}
+
+      <div className="r3d-btns" role="group" aria-label="Aparência das estruturas">
+        <button
+          className={texMode === "highlight" ? "on" : ""}
+          aria-pressed={texMode === "highlight"}
+          onClick={() => setTexMode("highlight")}
+        >
+          Destaque das estruturas
+        </button>
+        <button
+          className={texMode === "real" ? "on" : ""}
+          aria-pressed={texMode === "real"}
+          disabled={!tex.available}
+          title={tex.available ? "Projeta a radiografia real nas estruturas" : "Este modelo não traz a imagem da radiografia"}
+          onClick={() => setTexMode("real")}
+        >
+          Imagem real
+        </button>
+      </div>
+      {texMode === "real" && tex.available && tex.onlyPA && (
+        <div className="r3d-estimate" role="status">
+          Imagem real só da PA: sem imagem do perfil, as faces laterais mostram a PA esticada e escurecida.
+        </div>
+      )}
+      {texMode === "real" && tex.available && !tex.onlyPA && (
+        <div className="r3d-estimate" role="note">
+          Imagem real: PA projetada de frente e perfil de lado, só sobre as estruturas reconstruídas; faces
+          opostas à projeção ficam escurecidas. Não é uma tomografia.
+        </div>
+      )}
 
       <div className="r3d-btns" role="toolbar" aria-label="Vistas">
         {VIEW_PRESETS.map((p) => (
@@ -192,6 +257,7 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
                     state={sceneState}
                     onSelect={setSelected}
                     onBounds={onBounds}
+                    onTexture={onTexture}
                   />
                 </Suspense>
                 <CameraRig preset={preset} nonce={nonce} radius={bounds.radius} />
@@ -210,7 +276,7 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
                 <div className="r3d-row">
                   <input
                     type="checkbox"
-                    aria-label={`Mostrar ${m.label}`}
+                    aria-label={`Mostrar ${baseLabel(m.label)}`}
                     checked={!hidden.has(m.key)}
                     onChange={() => toggle(m.key)}
                   />
@@ -220,8 +286,9 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
                     style={{ textAlign: "left", background: selected === m.key ? "#2f6fb5" : undefined }}
                     onClick={() => setSelected(selected === m.key ? null : m.key)}
                   >
-                    {m.label}
+                    {baseLabel(m.label)}
                   </button>
+                  {isEstimated(m.label) && <span className="r3d-badge" title={m.label}>estimativa</span>}
                   <span style={{ fontSize: 11, color: "#9fb3c8" }}>{formatVolume(m.volume_ml)}</span>
                   <button
                     className={solo === m.key ? "on" : ""}
@@ -238,7 +305,7 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
                     type="range"
                     min={5}
                     max={100}
-                    aria-label={`Opacidade de ${m.label}`}
+                    aria-label={`Opacidade de ${baseLabel(m.label)}`}
                     value={Math.round((opacity[m.key] ?? 1) * 100)}
                     onChange={(e) => setOpacity((o) => ({ ...o, [m.key]: +e.target.value / 100 }))}
                   />
@@ -297,11 +364,14 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
 
           {sel && (
             <div className="r3d-card" aria-live="polite">
-              <h4>{sel.label}</h4>
+              <h4>{baseLabel(sel.label)}</h4>
               <div className="r3d-row">
                 <span className="r3d-sw" style={{ background: sel.color }} />
                 <span>Volume estimado: {formatVolume(sel.volume_ml)}</span>
               </div>
+              {isEstimated(sel.label) && (
+                <div style={{ fontSize: 12, color: "#ffe9a8" }}>{sel.label.slice(baseLabel(sel.label).length).trim()}</div>
+              )}
               {sel.volume_ml != null && totalVol > 0 && (
                 <div style={{ fontSize: 12, color: "#9fb3c8" }}>
                   {((sel.volume_ml / totalVol) * 100).toFixed(0)}% do volume total reconstruído
