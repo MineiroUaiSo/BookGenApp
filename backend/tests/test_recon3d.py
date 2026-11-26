@@ -5,6 +5,7 @@ import time
 import numpy as np
 import pytest
 import trimesh
+from scipy import ndimage as ndi
 from PIL import Image
 
 from app.recon3d import reconstruct
@@ -176,3 +177,57 @@ def test_estrutura_segmentada_mas_nao_reconstruida_e_declarada():
     _, meshes, method = reconstruct(f, l)
     assert "trachea" not in {m.key for m in meshes}
     assert "Estruturas segmentadas que não puderam ser reconstruídas: traqueia." in method
+
+
+def _tex(glb):
+    import json
+    import struct
+
+    n = struct.unpack("<I", glb[12:16])[0]
+    return json.loads(glb[20:20 + n])["scenes"][0]["extras"]["medlens_texture"]
+
+
+def _mask_of(a, key):
+    from app.recon3d import _decode
+
+    s = [x for x in a.structures if x.key == key][0]
+    return _decode(s, a.width, a.height)
+
+
+def test_textura_expoe_projecao_pa_e_perfil_que_cai_dentro_das_mascaras():
+    """Vértices das malhas, projetados pelos coeficientes exportados, caem sobre pixels da máscara de origem."""
+    f, l, _ = _build()
+    glb, meshes, _ = reconstruct(f, l)
+    tex = _tex(glb)
+    assert tex["frontal"]["w"] == W and tex["lateral"]["w"] == W
+    assert tex["frontal"]["png_b64"] and tex["lateral"]["png_b64"]
+    sc = trimesh.load(io.BytesIO(glb), file_type="glb")
+    for key in ("left_lung", "heart", "spine"):
+        g = [g for n, g in sc.geometry.items() if key in n][0]
+        v = np.asarray(g.vertices)
+        fm, lm = _mask_of(f, key), _mask_of(l, key)
+        fx, fy = tex["frontal"], tex["lateral"]
+        cf = fx["col"][0] + fx["col"][1] * v[:, 0]
+        rf = fx["row"][0] + fx["row"][1] * v[:, 1]
+        cl = fy["col"][0] + fy["col"][1] * v[:, 2]
+        rl = fy["row"][0] + fy["row"][1] * v[:, 1]
+
+        def inside(m, r, c):
+            m = ndi.binary_dilation(m, iterations=2)  # a malha suavizada pode passar ~1-2 px do contorno
+            ri, ci = np.round(r).astype(int), np.round(c).astype(int)
+            ok = (ri >= 0) & (ri < H) & (ci >= 0) & (ci < W)
+            hit = np.zeros(len(r), bool)
+            hit[ok] = m[ri[ok], ci[ok]]
+            return hit.mean()
+
+        assert inside(fm, rf, cf) > 0.9, (key, "frontal")
+        assert inside(lm, rl, cl) > 0.9, (key, "lateral")
+
+
+def test_textura_so_pa_quando_nao_ha_perfil_com_imagem():
+    f, l, _ = _build()
+    l.image_png_b64 = ""
+    glb, _, method = reconstruct(f, l)
+    tex = _tex(glb)
+    assert "lateral" not in tex and "frontal" in tex
+    assert "imagem real só da PA" in method

@@ -302,11 +302,48 @@ def reconstruct(frontal: RXImageAnalysis, lateral: RXImageAnalysis):
 
     if not out:
         raise ValueError("Nenhuma estrutura pôde ser reconstruída.")
+    tex_frontal = _texture_png(frontal)
+    tex_lateral = _texture_png(lateral)
+    if tex_frontal:
+        k = (marg - 0.5) * vox
+        row0 = (ny0 + cy - k) / s_f_y - 0.5                       # linha PA = row0 - Y / s_f_y
+        meta = {"frontal": {
+            "png_b64": tex_frontal, "w": frontal.width, "h": frontal.height,
+            "col": [cmid + (cx_ - k - nx / 2) / s_f_x - 0.5, 1 / s_f_x], "row": [row0, -1 / s_f_y]}}
+        if tex_lateral:
+            meta["lateral"] = {
+                "png_b64": tex_lateral, "w": lateral.width, "h": lateral.height,
+                "col": [post_col + sgn * (cz_ - k) / s_l, sgn / s_l], "row": [a * row0 + b, -a / s_f_y]}
+        meta["fonte"] = "pixels da radiografia já presente no estudo (projeção planar; nada é inventado)"
+        scene.metadata["medlens_texture"] = meta
     glb = scene.export(file_type="glb")
     built = {m.key for m in out}
     dropped = [(F.get(k) or L[k])[0].label for k in keys if k not in built]
     method = _method_text(scale_src, reg, single, vox, no_lat, no_pa, orient, dropped)
+    if tex_frontal and not tex_lateral:
+        method += " Modo 'imagem real': imagem real só da PA (sem imagem do perfil para projetar)."
+    elif tex_frontal:
+        method += (" Modo 'imagem real': PA projetada no eixo frontal e perfil no eixo sagital, apenas sobre as "
+                   "superfícies das estruturas reconstruídas (planar; sem pixels inventados).")
     return glb, out, method
+
+
+TEXTURE_MAX_PX = 1024
+
+
+def _texture_png(a: RXImageAnalysis) -> Optional[str]:
+    """PNG (base64) da radiografia já renderizada no estudo, no máx. 1024 px de lado; None se ausente/ilegível."""
+    if not a.image_png_b64:
+        return None
+    try:
+        im = Image.open(io.BytesIO(base64.b64decode(a.image_png_b64))).convert("L")
+        if max(im.size) > TEXTURE_MAX_PX:
+            im.thumbnail((TEXTURE_MAX_PX, TEXTURE_MAX_PX), Image.LANCZOS)
+        b = io.BytesIO()
+        im.save(b, "PNG")
+        return base64.b64encode(b.getvalue()).decode()
+    except Exception:
+        return None
 
 
 def _cat_of(k, F, L):
