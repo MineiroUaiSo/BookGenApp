@@ -212,6 +212,7 @@ def _revisao() -> list[Frase]:
 
 # ---------------------------------------------------------------- descrição completa (parágrafo único, L1)
 _VISTA = {"PA": "PA", "AP": "AP", "LATERAL": "perfil"}
+_NUM_EXTENSO = {"1": "uma imagem", "2": "duas imagens", "3": "três imagens", "4": "quatro imagens"}
 _NOME_QUAL = {"rotacao": "rotação", "inspiracao": "inspiração", "penetracao": "penetração"}
 # chave -> (sujeito, particípio, valor)
 _MEDIDA_ORACAO = {
@@ -221,6 +222,7 @@ _MEDIDA_ORACAO = {
     "cupulas_diferenca_pct": ("a diferença de altura das cúpulas", "medida", lambda v: f"{_sinal(v)}% da altura pulmonar"),
     "pulmoes_razao_area_E_D": ("a razão de área pulmonar E/D", "medida", lambda v: _n(v)),
 }
+_PREFIXO_ICT = "Na região do coração e vasos"
 _PREFIXO_REGIAO = {"pulmoes": "Nos pulmões", "mediastino_hilos": "No mediastino", "diafragma": "No diafragma"}
 _LIMIAR_CURTO = "acima do limiar local"
 _LIMIAR_NOTA = " (limiar local: heurística local, sem fonte primária; correlacionar)"
@@ -255,7 +257,9 @@ def _oracao_tecnica(f: Ficha, ident: tuple[Frase, ...]) -> tuple[str, tuple[str,
     vistas = sorted({_VISTA.get(i, "não informada") for i in f.incidencias})
     ordem = [v for v in ("PA", "AP", "perfil") if v in vistas] + [v for v in vistas if v not in ("PA", "AP", "perfil")]
     plural = "incidências" if len(ordem) > 1 else "incidência"
-    t = f"Radiografia de tórax em {plural} {_lista(ordem) if ordem else 'não informada'}, descrita a partir de análise automática."
+    n = next((m.group(1) for fr in ident if (m := re.search(r"Número de imagens: (\d+)", fr.texto))), "")
+    imagens = f", {_NUM_EXTENSO[n]}" if n in _NUM_EXTENSO else ""      # por extenso: não cria número solto no texto
+    t = f"Radiografia de tórax em {plural} {_lista(ordem) if ordem else 'não informada'}{imagens}, descrita a partir de análise automática."
     extra = []
     if any(r.startswith("incidência AP") for r in f.ressalvas):
         extra.append("em incidência AP, que magnifica o coração e o mediastino, as medidas têm ressalva")
@@ -279,6 +283,7 @@ def _oracao_qualidade(f: Ficha) -> tuple[str, tuple[str, ...]]:
             itens.append(f"a {nome} é possivelmente inadequada, o que limita a avaliação de {alvo}")
         else:
             itens.append(f"a {nome} é indeterminada, o que limita a avaliação de {alvo}")
+    itens = list(dict.fromkeys(itens))      # PA + perfil com o mesmo resultado: cada item sai uma vez
     if not itens:
         return "A qualidade técnica não foi avaliada (sem imagem de tórax analisável).", ()
     return "Quanto à qualidade técnica (estimativa automática), " + "; ".join(itens) + ".", tuple(ids)
@@ -286,17 +291,18 @@ def _oracao_qualidade(f: Ficha) -> tuple[str, tuple[str, ...]]:
 
 def _oracao_ict(x) -> tuple[str, tuple[str, ...]]:
     if x.nivel == Nivel.NAO_AVALIADO:
-        return "A silhueta cardíaca não foi medida com confiança (segmentação de baixa confiabilidade).", (x.id,)
+        return (f"{_PREFIXO_ICT}, a silhueta cardíaca não foi medida com confiança (segmentação de baixa confiabilidade).",
+                (x.id,))
     v = float(x.valor)
     if any("magnifica" in r for r in x.ressalvas):
-        return (f"Em incidência AP, que magnifica a silhueta cardíaca, o índice cardiotorácico de {_n(v)} não deve ser "
-                "usado para afirmar cardiomegalia.", (x.id,))
+        return (f"{_PREFIXO_ICT}, em incidência AP, que magnifica a silhueta cardíaca, o índice cardiotorácico de {_n(v)} "
+                "não deve ser usado para afirmar cardiomegalia.", (x.id,))
     if x.nivel == Nivel.REGRA:
-        return (f"O índice cardiotorácico foi medido em {_n(v)}, acima de 0,50, o que sugere aumento da silhueta cardíaca "
+        return (f"{_PREFIXO_ICT}, o índice cardiotorácico foi medido em {_n(v)}, acima de 0,50, o que sugere aumento da silhueta cardíaca "
                 "(critério de acurácia limitada; correlacionar), com incerteza de ±0,05 e podendo estar subestimado.",
                 (x.id,))
-    return (f"O índice cardiotorácico foi medido em {_n(v)}, com incerteza (±0,05; pode estar subestimado), o que não "
-            "exclui aumento da silhueta cardíaca.", (x.id,))
+    return (f"{_PREFIXO_ICT}, o índice cardiotorácico foi medido em {_n(v)}, com incerteza (±0,05; pode estar subestimado), "
+            "o que não exclui aumento da silhueta cardíaca.", (x.id,))
 
 
 def _oracao_regiao(regiao: str, fatos: list) -> tuple[str, tuple[str, ...]] | None:
@@ -362,8 +368,8 @@ def _oracao_impressao(f: Ficha, impressao: Secao) -> tuple[str, tuple[str, ...]]
             clausulas.append(c)
         ids.append(x.id)
     if not clausulas:
-        return ("Em síntese, nenhum critério automático foi atingido nas medidas feitas, e as regiões não avaliadas "
-                "permanecem sem análise; correlacionar com a clínica.", ())
+        return ("Em síntese, nenhum critério automático foi atingido nas medidas feitas, o que descreve o alcance da análise "
+                "e não o estado do exame: as regiões não avaliadas dependem da leitura do médico; correlacionar com a clínica.", ())
     return "Em síntese, " + "; ".join(clausulas) + "; correlacionar com a clínica.", tuple(ids)
 
 
