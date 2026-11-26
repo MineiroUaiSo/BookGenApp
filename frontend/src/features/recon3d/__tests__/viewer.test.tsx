@@ -39,3 +39,18 @@ describe("Recon3DViewer: estruturas ausentes no perfil", () => {
     expect(screen.getByText("Mostrar todas")).toBeTruthy();
   });
 });
+
+describe("Recon3DViewer: Destaque x Imagem real", () => {
+  it("alternador visível, padrão destaque, e a escolha persiste na sessão", () => {
+    sessionStorage.clear();
+    const { unmount } = render(<Recon3DViewer result={result} apiBase="/api" />);
+    expect(screen.getByRole("button", { name: "Destaque das estruturas" }).getAttribute("aria-pressed")).toBe("true");
+    const real = screen.getByRole("button", { name: "Imagem real" }) as HTMLButtonElement;
+    expect(real.disabled).toBe(true); // GLB demo não traz radiografia
+    unmount();
+    sessionStorage.setItem("medlens.recon3d.texmode", "real");
+    render(<Recon3DViewer result={result} apiBase="/api" />);
+    expect(screen.getByRole("button", { name: "Imagem real" }).getAttribute("aria-pressed")).toBe("true");
+    sessionStorage.clear();
+  });
+});

@@ -44,6 +44,16 @@ const CSS = `
 .r3d details{font-size:12px;color:#b6c2d0}
 `;
 
+const TEX_KEY = "medlens.recon3d.texmode";
+
+function readTexMode(): "highlight" | "real" {
+  try {
+    return sessionStorage.getItem(TEX_KEY) === "real" ? "real" : "highlight";
+  } catch {
+    return "highlight";
+  }
+}
+
 function hasWebGL(): boolean {
   try {
     const c = document.createElement("canvas");
@@ -104,6 +114,17 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
   const [clipT, setClipT] = useState(0.5);
   const [bounds, setBounds] = useState<Bounds>({ radius: 3, min: [-3, -3, -3], max: [3, 3, 3] });
   const [retry, setRetry] = useState(0);
+  const [texMode, setTexModeState] = useState<"highlight" | "real">(readTexMode);
+  const [tex, setTex] = useState({ available: false, onlyPA: false });
+  const setTexMode = (m: "highlight" | "real") => {
+    setTexModeState(m);
+    try {
+      sessionStorage.setItem(TEX_KEY, m);
+    } catch {
+      /* sessionStorage indisponível: vale só nesta tela */
+    }
+  };
+  const onTexture = useCallback((i: { available: boolean; onlyPA: boolean }) => setTex(i), []);
   const [webgl] = useState(hasWebGL);
   const shot = useRef<(() => string) | null>(null);
 
@@ -115,6 +136,7 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
     selected,
     explode,
     labels,
+    texMode,
     clip: { enabled: clipOn, axis: clipAxis, t: clipT },
   };
 
@@ -153,6 +175,36 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
         <div className="r3d-estimate" role="status">
           <strong>Estruturas ausentes no perfil: {absent.join(", ")}.</strong> Não há máscara real delas no
           perfil; aparecem translúcidas, desenhadas só a partir da PA, como estimativa (não medida).
+        </div>
+      )}
+
+      <div className="r3d-btns" role="group" aria-label="Aparência das estruturas">
+        <button
+          className={texMode === "highlight" ? "on" : ""}
+          aria-pressed={texMode === "highlight"}
+          onClick={() => setTexMode("highlight")}
+        >
+          Destaque das estruturas
+        </button>
+        <button
+          className={texMode === "real" ? "on" : ""}
+          aria-pressed={texMode === "real"}
+          disabled={!tex.available}
+          title={tex.available ? "Projeta a radiografia real nas estruturas" : "Este modelo não traz a imagem da radiografia"}
+          onClick={() => setTexMode("real")}
+        >
+          Imagem real
+        </button>
+      </div>
+      {texMode === "real" && tex.available && tex.onlyPA && (
+        <div className="r3d-estimate" role="status">
+          Imagem real só da PA: sem imagem do perfil, as faces laterais mostram a PA esticada e escurecida.
+        </div>
+      )}
+      {texMode === "real" && tex.available && !tex.onlyPA && (
+        <div className="r3d-estimate" role="note">
+          Imagem real: PA projetada de frente e perfil de lado, só sobre as estruturas reconstruídas; faces
+          opostas à projeção ficam escurecidas. Não é uma tomografia.
         </div>
       )}
 
@@ -205,6 +257,7 @@ export default function Recon3DViewer(props: { result: Recon3DResult; apiBase: s
                     state={sceneState}
                     onSelect={setSelected}
                     onBounds={onBounds}
+                    onTexture={onTexture}
                   />
                 </Suspense>
                 <CameraRig preset={preset} nonce={nonce} radius={bounds.radius} />

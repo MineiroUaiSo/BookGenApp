@@ -135,3 +135,92 @@ export function visibleKeys(keys: string[], hidden: Set<string>, solo: string | 
   if (solo && keys.includes(solo)) return new Set([solo]);
   return new Set(keys.filter((k) => !hidden.has(k)));
 }
+
+// ---------------------------------------------------------------- modo "imagem real"
+// O backend grava no GLB (scenes[0].extras.medlens_texture) a radiografia do estudo e os coeficientes
+// afins que levam coordenadas do modelo a pixels: PA: col=c0+c1*X, lin=r0+r1*Y; perfil: col=c0+c1*Z, lin=r0+r1*Y.
+
+export interface TexView {
+  png_b64: string;
+  w: number;
+  h: number;
+  col: [number, number];
+  row: [number, number];
+}
+export interface TextureMeta {
+  frontal: TexView;
+  lateral?: TexView;
+}
+
+function validView(v: unknown): v is TexView {
+  const t = v as TexView | undefined;
+  return (
+    !!t &&
+    typeof t.png_b64 === "string" &&
+    t.png_b64.length > 0 &&
+    t.w > 0 &&
+    t.h > 0 &&
+    Array.isArray(t.col) &&
+    t.col.length === 2 &&
+    Array.isArray(t.row) &&
+    t.row.length === 2
+  );
+}
+
+export function readTextureMeta(userData: unknown): TextureMeta | null {
+  const m = (userData as { medlens_texture?: { frontal?: unknown; lateral?: unknown } } | undefined)
+    ?.medlens_texture;
+  if (!m || !validView(m.frontal)) return null;
+  return validView(m.lateral) ? { frontal: m.frontal, lateral: m.lateral } : { frontal: m.frontal };
+}
+
+/** Faixas [u0,u1] de cada incidência no atlas: PA à esquerda, perfil à direita; sem perfil a PA ocupa tudo. */
+export function atlasLayout(meta: TextureMeta): { frontal: [number, number]; lateral: [number, number] | null } {
+  return meta.lateral
+    ? { frontal: [0, 0.5], lateral: [0.5, 1] }
+    : { frontal: [0, 1], lateral: null };
+}
+
+const BACK_SHADE = 0.45;
+
+/**
+ * Projeção planar por vértice: normal dominante em Z usa a PA, em X usa o perfil (se existir; senão a PA).
+ * `shade` escurece faces rasantes e o lado oposto à fonte da projeção, onde a imagem seria só um artefato.
+ */
+export function planarUV(
+  pos: ArrayLike<number>,
+  nrm: ArrayLike<number>,
+  meta: TextureMeta,
+): { uv: Float32Array; shade: Float32Array } {
+  const n = Math.floor(pos.length / 3);
+  const uv = new Float32Array(n * 2);
+  const shade = new Float32Array(n);
+  const lay = atlasLayout(meta);
+  const f = meta.frontal;
+  const l = meta.lateral;
+  for (let i = 0; i < n; i++) {
+    const x = pos[3 * i], y = pos[3 * i + 1], z = pos[3 * i + 2];
+    const nx = nrm[3 * i], nz = nrm[3 * i + 2];
+    const useLat = !!l && Math.abs(nx) > Math.abs(nz);
+    let u: number, v: number, d: number, facing: boolean;
+    if (useLat && l && lay.lateral) {
+      const col = l.col[0] + l.col[1] * z;
+      const row = l.row[0] + l.row[1] * y;
+      u = lay.lateral[0] + ((col + 0.5) / l.w) * (lay.lateral[1] - lay.lateral[0]);
+      v = 1 - (row + 0.5) / l.h;
+      d = Math.abs(nx);
+      facing = nx * (l.col[1] < 0 ? 1 : -1) > 0;
+    } else {
+      const col = f.col[0] + f.col[1] * x;
+      const row = f.row[0] + f.row[1] * y;
+      u = lay.frontal[0] + ((col + 0.5) / f.w) * (lay.frontal[1] - lay.frontal[0]);
+      v = 1 - (row + 0.5) / f.h;
+      d = Math.abs(nz);
+      facing = nz * (f.col[1] > 0 ? 1 : -1) > 0;
+    }
+    uv[2 * i] = u;
+    uv[2 * i + 1] = v;
+    shade[i] = (0.2 + 0.8 * d * d) * (facing ? 1 : BACK_SHADE);
+  }
+  return { uv, shade };
+}

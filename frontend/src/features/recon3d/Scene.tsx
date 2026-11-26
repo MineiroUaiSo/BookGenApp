@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 import { useGLTF, OrbitControls, Html, GizmoHelper, Line } from "@react-three/drei";
@@ -10,6 +10,10 @@ import {
   baseLabel,
   explodeOffsets,
   isEstimated,
+  atlasLayout,
+  planarUV,
+  readTextureMeta,
+  type TextureMeta,
   type ClipAxis,
   type PresetId,
   type Vec3,
@@ -29,6 +33,7 @@ export interface SceneState {
   selected: string | null;
   explode: number;
   labels: boolean;
+  texMode: "highlight" | "real";
   clip: { enabled: boolean; axis: ClipAxis; t: number };
 }
 
@@ -37,9 +42,51 @@ interface ModelProps {
   state: SceneState;
   onSelect: (key: string | null) => void;
   onBounds: (b: Bounds) => void;
+  onTexture?: (info: { available: boolean; onlyPA: boolean }) => void;
 }
 
-function Model({ root, meshes, state, onSelect, onBounds }: ModelProps & { root: THREE.Object3D }) {
+const ATLAS_CELL_MAX = 1024;
+
+function loadImage(b64: string): Promise<HTMLImageElement> {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => res(im);
+    im.onerror = () => rej(new Error("textura ilegível"));
+    im.src = `data:image/png;base64,${b64}`;
+  });
+}
+
+/** Atlas (PA | perfil) em canvas local; nada sai do navegador. */
+async function buildAtlas(meta: TextureMeta): Promise<THREE.CanvasTexture> {
+  const lay = atlasLayout(meta);
+  const imgs = await Promise.all([loadImage(meta.frontal.png_b64), meta.lateral ? loadImage(meta.lateral.png_b64) : null]);
+  const cell = Math.min(ATLAS_CELL_MAX, Math.max(meta.frontal.w, meta.frontal.h, meta.lateral?.w ?? 0, meta.lateral?.h ?? 0));
+  const cv = document.createElement("canvas");
+  cv.width = cell * (lay.lateral ? 2 : 1);
+  cv.height = cell;
+  const g = cv.getContext("2d")!;
+  g.drawImage(imgs[0], 0, 0, cell, cell);
+  if (imgs[1]) g.drawImage(imgs[1], cell, 0, cell, cell);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function geometryUV(geo: THREE.BufferGeometry, meta: TextureMeta) {
+  if (geo.getAttribute("uv") && geo.userData.realUV) return;
+  if (!geo.getAttribute("normal")) geo.computeVertexNormals();
+  const pos = geo.getAttribute("position").array;
+  const nrm = geo.getAttribute("normal").array;
+  const { uv, shade } = planarUV(pos, nrm, meta);
+  const col = new Float32Array(shade.length * 3);
+  for (let i = 0; i < shade.length; i++) col[3 * i] = col[3 * i + 1] = col[3 * i + 2] = shade[i];
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  geo.userData.realUV = true;
+}
+
+function Model({ root, meshes, state, onSelect, onBounds, onTexture }: ModelProps & { root: THREE.Object3D }) {
   const gl = useThree((s) => s.gl);
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), []);
   const keys = useMemo(() => meshes.map((m) => m.key), [meshes]);
@@ -52,6 +99,7 @@ function Model({ root, meshes, state, onSelect, onBounds }: ModelProps & { root:
     const center = box.getCenter(new THREE.Vector3());
     const nodes: Record<string, THREE.Object3D> = {};
     const mats: Record<string, THREE.Material[]> = {};
+    const geoms: Record<string, THREE.BufferGeometry[]> = {};
     const centroids: Record<string, Vec3> = {};
     const origin: Record<string, THREE.Vector3> = {};
     for (const m of meshes) {
@@ -60,6 +108,7 @@ function Model({ root, meshes, state, onSelect, onBounds }: ModelProps & { root:
       nodes[m.key] = node;
       origin[m.key] = node.position.clone();
       const list: THREE.Material[] = [];
+      const glist: THREE.BufferGeometry[] = [];
       node.traverse((o) => {
         const mesh = o as THREE.Mesh;
         if (mesh.isMesh) {
@@ -68,16 +117,19 @@ function Model({ root, meshes, state, onSelect, onBounds }: ModelProps & { root:
           mat.side = THREE.DoubleSide;
           mesh.material = mat;
           list.push(mat);
+          glist.push(mesh.geometry);
         }
       });
       mats[m.key] = list;
+      geoms[m.key] = glist;
       const c = new THREE.Box3().setFromObject(node).getCenter(new THREE.Vector3());
       centroids[m.key] = [c.x - center.x, c.y - center.y, c.z - center.z];
     }
     const min: Vec3 = [box.min.x - center.x, box.min.y - center.y, box.min.z - center.z];
     const max: Vec3 = [box.max.x - center.x, box.max.y - center.y, box.max.z - center.z];
     const radius = box.getBoundingSphere(new THREE.Sphere()).radius;
-    return { center, nodes, mats, centroids, origin, min, max, radius };
+    const texMeta = readTextureMeta(root.userData);
+    return { center, nodes, mats, geoms, centroids, origin, min, max, radius, texMeta };
   }, [root, meshes]);
 
   useEffect(() => {
@@ -87,6 +139,44 @@ function Model({ root, meshes, state, onSelect, onBounds }: ModelProps & { root:
   useEffect(() => {
     onBounds({ radius: prep.radius, min: prep.min, max: prep.max });
   }, [prep, onBounds]);
+
+  useEffect(() => {
+    onTexture?.({ available: !!prep.texMeta, onlyPA: !!prep.texMeta && !prep.texMeta.lateral });
+  }, [prep, onTexture]);
+
+  const [atlas, setAtlas] = useState<THREE.CanvasTexture | null>(null);
+  const wantReal = state.texMode === "real" && !!prep.texMeta;
+  useEffect(() => {
+    if (!wantReal || !prep.texMeta || atlas) return;
+    let alive = true;
+    buildAtlas(prep.texMeta)
+      .then((t) => alive && setAtlas(t))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [wantReal, prep.texMeta, atlas]);
+  const realOn = wantReal && !!atlas;
+
+  useEffect(() => {
+    for (const m of meshes) {
+      const list = prep.mats[m.key] ?? [];
+      list.forEach((mat, i) => {
+        const std = mat as THREE.MeshStandardMaterial;
+        if (realOn && prep.texMeta) {
+          geometryUV(prep.geoms[m.key][i], prep.texMeta);
+          std.map = atlas;
+          std.vertexColors = true;
+          std.color.set("#ffffff");
+        } else {
+          std.map = null;
+          std.vertexColors = false;
+          if (m.color) std.color.set(m.color);
+        }
+        std.needsUpdate = true;
+      });
+    }
+  }, [realOn, atlas, prep, meshes]);
 
   const offsets = useMemo(() => explodeOffsets(prep.centroids, state.explode), [prep, state.explode]);
 
