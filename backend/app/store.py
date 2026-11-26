@@ -11,15 +11,31 @@ instance_id is ``<study_id>-<hash>`` so the owning study is derivable from it.
 from __future__ import annotations
 
 import json
+import logging
+import os
 import re
+import shutil
 import threading
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from app import config
 from app.schemas import StudyInfo
 
 _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
+_log = logging.getLogger(__name__)
+
+DEFAULT_RETENCAO_HORAS = 24.0
+
+
+def retencao_horas() -> float:
+    """Prazo de retenção dos estudos (MEDLENS_RETENCAO_HORAS). Valor ausente, inválido ou <= 0 usa o padrão (24 h)."""
+    try:
+        v = float(os.environ.get("MEDLENS_RETENCAO_HORAS", ""))
+    except ValueError:
+        return DEFAULT_RETENCAO_HORAS
+    return v if v > 0 else DEFAULT_RETENCAO_HORAS
 
 
 def safe_name(name: str, default: str = "file") -> str:
@@ -32,6 +48,12 @@ class Store:
     def __init__(self, root: Path | str | None = None):
         self.root = Path(root) if root else config.data_dir()
         self._lock = threading.RLock()
+        self._delete_hooks: list[Callable[[str], None]] = []
+
+    def add_delete_hook(self, fn: Callable[[str], None]) -> None:
+        """Registra fn(study_id), chamada depois que um estudo é apagado (exclusão manual ou retenção)."""
+        if fn not in self._delete_hooks:
+            self._delete_hooks.append(fn)
 
     # ---- paths
     def _study_dir(self, study_id: str) -> Path:
@@ -49,6 +71,7 @@ class Store:
     # ---- studies
     def save_study(self, study: StudyInfo) -> None:
         with self._lock:
+            self.purge_expired(keep=study.study_id)
             d = self._study_dir(study.study_id)
             d.mkdir(parents=True, exist_ok=True)
             tmp = d / "study.json.tmp"
@@ -75,6 +98,43 @@ class Store:
                 out.append(s)
         out.sort(key=lambda s: s.created_at, reverse=True)
         return out
+
+    def delete_study(self, study_id: str) -> bool:
+        """Apaga estudo, instâncias e artefatos do disco. False se o estudo não existe."""
+        try:
+            d = self._study_dir(study_id)
+        except KeyError:
+            return False
+        with self._lock:
+            if not d.is_dir():
+                return False
+            shutil.rmtree(d)
+        for hook in self._delete_hooks:
+            try:
+                hook(study_id)
+            except Exception:  # limpeza de memória nunca impede a exclusão
+                _log.exception("falha em gancho de exclusão do estudo")
+        return True
+
+    def purge_expired(self, keep: str | None = None) -> list[str]:
+        """Apaga estudos sem atividade há mais que a retenção (mtime do study.json; pasta se não houver)."""
+        base = self.root / "studies"
+        if not base.is_dir():
+            return []
+        limite = time.time() - retencao_horas() * 3600
+        removidos: list[str] = []
+        with self._lock:
+            for d in list(base.iterdir()):
+                if not d.is_dir() or d.name == keep:
+                    continue
+                ref = d / "study.json"
+                try:
+                    mtime = (ref if ref.exists() else d).stat().st_mtime
+                except OSError:
+                    continue
+                if mtime < limite and self.delete_study(d.name):
+                    removidos.append(d.name)
+        return removidos
 
     # ---- instances
     def save_instance(self, instance_id: str, filename: str, data: bytes, meta: dict) -> Path:
