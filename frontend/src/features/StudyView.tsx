@@ -73,7 +73,7 @@ export default function StudyView({ result, ai, sendImages = false, onBack }: { 
             </ErrorBoundary>
             <ReportPanel title="Laudo de RX" findings={(rx ?? result.rx).findings} ai={aiReport} aiRequested={ai}
               aiLoading={aiLoading} aiError={aiError} feedback={{ studyId, kind: "rx" }} />
-            <LaudoEstruturado laudo={(rx ?? result.rx).laudo_rx} studyId={studyId} markdown={(rx ?? result.rx).laudo_rx_markdown} />
+            <LaudoEstruturado laudo={(rx ?? result.rx).laudo_rx} studyId={studyId} ai={ai} markdown={(rx ?? result.rx).laudo_rx_markdown} />
           </div>
           {error && <div className="error card no-print" role="alert">{error}</div>}
           {(rx ?? result.rx).recon3d_available && (

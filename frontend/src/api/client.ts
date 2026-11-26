@@ -1,5 +1,5 @@
 import type {
-  AIReport, BodyRegion, ECGAnalysis, IngestResponse, RXAnalysis, Recon3DResult, StudyInfo,
+  AIReport, BodyRegion, ECGAnalysis, IngestResponse, LaudoRX, RXAnalysis, Recon3DResult, StudyInfo,
 } from "../types/api";
 
 import { connectionErrorMessage, resolveApiBase } from "./apiBase";
@@ -96,6 +96,11 @@ export const fetchAI = (
   request(`${base}/${kind}/${studyId}/ai`,
     { ...json(kind === "rx" ? { send_images_to_ai: opts.sendImages === true } : {}), signal: opts.signal }, base)
     .then(parse<AIReport>);
+
+/** Descrição completa do laudo RX redigida por IA (só fatos estruturados) e verificada; chamada à parte. */
+export const fetchDescricaoIA = (studyId: string, base = API_BASE, opts: { signal?: AbortSignal } = {}) =>
+  request(`${base}/rx/${studyId}/descricao`, { ...json({}), signal: opts.signal }, base)
+    .then(parse<{ laudo_rx: LaudoRX | null; laudo_rx_markdown: string }>);
 
 export interface RulePpvEntry { ppv: number; ic_inf: number; ic_sup: number; n: number; fonte: string }
 export interface RulePpv { _meta: Record<string, unknown>; codes: Record<string, RulePpvEntry> }

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { sendFeedback } from "../../api/client";
+import { useEffect, useState } from "react";
+import { API_BASE, fetchDescricaoIA, sendFeedback } from "../../api/client";
 import type { FraseLaudo, LaudoRX, NivelLaudo, SecaoLaudo } from "../../types/api";
 
 const ROTULO_NIVEL: Record<NivelLaudo, string> = {
@@ -81,21 +81,68 @@ function Secao({ secao, studyId, enviarVoto, comentario, onComentario }: SecaoPr
   );
 }
 
-/** Markdown do laudo + comentários do médico (nunca persistidos nem enviados). */
+function rotuloOrigem(laudo: LaudoRX, carregando: boolean): string {
+  if (laudo.descricao_origem !== "ia") {
+    return `Montado automaticamente a partir das frases do laudo.${carregando ? " Redação por IA em andamento…" : ""}`;
+  }
+  const n = laudo.descricao_validacao?.removidas ?? 0;
+  return `Redigido por IA, verificado${n > 0 ? ` (${n} ${n === 1 ? "frase sem lastro removida" : "frases sem lastro removidas"})` : ""}.`;
+}
+
+function Descricao({ laudo, texto, carregando }: { laudo: LaudoRX; texto: string; carregando: boolean }) {
+  const [copiada, setCopiada] = useState(false);
+  const copiar = async () => {
+    try { await navigator.clipboard.writeText(texto); setCopiada(true); setTimeout(() => setCopiada(false), 2000); }
+    catch { window.prompt("Copie a descrição:", texto); }
+  };
+  return (
+    <section aria-label="Descrição completa" className="laudo-secao laudo-descricao">
+      <h3>Descrição completa</h3>
+      <p className="laudo-descricao-texto">{texto}</p>
+      <p className="dim laudo-descricao-origem" role="status" data-origem={laudo.descricao_origem ?? "deterministico"}>{rotuloOrigem(laudo, carregando)}</p>
+      <button type="button" className="btn small no-print" style={ALVO_TOQUE} onClick={copiar}>{copiada ? "Copiada" : "Copiar descrição"}</button>
+    </section>
+  );
+}
+
+/** Markdown do laudo (+ descrição, se o servidor não a incluiu) + comentários do médico (nunca persistidos nem enviados). */
 function textoParaCopia(markdown: string, laudo: LaudoRX, comentarios: Record<string, string>): string {
+  const desc = (laudo.descricao_completa ?? "").trim();
+  if (desc && !markdown.includes(desc)) markdown = `${markdown.trimEnd()}\n\n## Descrição completa\n${desc}\n`;
   const extras = laudo.secoes
     .filter((s) => (comentarios[s.id] ?? "").trim())
     .map((s) => `- ${s.titulo}: ${comentarios[s.id].trim()}`);
   return extras.length ? `${markdown.trimEnd()}\n\nComentário do médico:\n${extras.join("\n")}\n` : markdown;
 }
 
-interface LaudoProps { laudo?: LaudoRX | null; studyId?: string; markdown?: string; enviarVoto?: boolean }
+interface LaudoProps { laudo?: LaudoRX | null; studyId?: string; markdown?: string; enviarVoto?: boolean; ai?: boolean }
 
-export default function LaudoEstruturado({ laudo, studyId, markdown = "", enviarVoto = ENVIAR_VOTO_PADRAO }: LaudoProps) {
+export default function LaudoEstruturado({ laudo: laudoBase, studyId, markdown: markdownBase = "", enviarVoto = ENVIAR_VOTO_PADRAO, ai = false }: LaudoProps) {
   const [comunicacao, setComunicacao] = useState(() => ler(ARMAZENAMENTO));
   const [comentarios, setComentarios] = useState<Record<string, string>>({});
   const [copiado, setCopiado] = useState(false);
-  if (!laudo) return null;
+  // Descrição redigida por IA (só fatos, verificada) chega à parte; falha ou recusa = fica a determinística.
+  const [ia, setIa] = useState<{ laudo: LaudoRX; markdown: string } | null>(null);
+  const [iaBusy, setIaBusy] = useState(false);
+  const temDescricao = Boolean(laudoBase?.descricao_completa);
+  useEffect(() => {
+    setIa(null);
+    if (!ai || !studyId || !temDescricao) { setIaBusy(false); return; }
+    const ctl = new AbortController();
+    setIaBusy(true);
+    fetchDescricaoIA(studyId, API_BASE, { signal: ctl.signal })
+      .then((r) => { if (!ctl.signal.aborted && r.laudo_rx) setIa({ laudo: r.laudo_rx, markdown: r.laudo_rx_markdown }); })
+      .catch(() => undefined)
+      .finally(() => { if (!ctl.signal.aborted) setIaBusy(false); });
+    return () => ctl.abort();
+  }, [ai, studyId, temDescricao]);
+  if (!laudoBase) return null;
+  const laudo: LaudoRX = ia?.laudo.descricao_completa
+    ? { ...laudoBase, descricao_completa: ia.laudo.descricao_completa, descricao_origem: ia.laudo.descricao_origem,
+        descricao_validacao: ia.laudo.descricao_validacao }
+    : laudoBase;
+  const markdown = ia?.laudo.descricao_completa ? ia.markdown : markdownBase;
+  const descricao = (laudo.descricao_completa ?? "").trim();
   const copiar = async () => {
     const texto = textoParaCopia(markdown, laudo, comentarios);
     try { await navigator.clipboard.writeText(texto); setCopiado(true); setTimeout(() => setCopiado(false), 2000); }
@@ -108,6 +155,7 @@ export default function LaudoEstruturado({ laudo, studyId, markdown = "", enviar
         <Secao key={s.id} secao={s} studyId={studyId} enviarVoto={enviarVoto}
           comentario={comentarios[s.id] ?? ""} onComentario={(v) => setComentarios((c) => ({ ...c, [s.id]: v }))} />
       ))}
+      {descricao && <Descricao laudo={laudo} texto={descricao} carregando={iaBusy} />}
       {markdown && (
         <button type="button" className="btn small no-print" style={ALVO_TOQUE} onClick={copiar}>{copiado ? "Copiado" : "Copiar laudo"}</button>
       )}

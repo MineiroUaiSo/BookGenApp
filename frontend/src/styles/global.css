@@ -149,3 +149,6 @@ table.meas tr.hl { background: var(--bg-3); }
 .laudo-comentario textarea, .laudo-comunicacao textarea { width: 100%; min-height: 44px; box-sizing: border-box; font: inherit;
   color: var(--fg); background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: .4rem; }
 .laudo-secao .feedback .btn { min-height: 44px; }
+.laudo-descricao { margin: .75rem 0; }
+.laudo-descricao-texto { line-height: 1.6; max-width: 75ch; overflow-wrap: anywhere; margin: .25rem 0 .4rem; }
+.laudo-descricao-origem { font-size: .82rem; margin: 0 0 .5rem; }
