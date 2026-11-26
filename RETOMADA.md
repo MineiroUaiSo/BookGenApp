@@ -1,5 +1,11 @@
 # RETOMADA — MedLens (rodada 2, 2026-11-24)
 
+## Rodada R5 — fechamento (2026-11-25 noite 4)
+- Mesclados e enviados (branch claude/ecg-rx-ai-reader-nd20rs, sem main/deploy): M1 (perfil RX: pulmão/diafragma de seg_lateral; descrição RX alinhada ao doc), M2 (ECG ritmo não classificado FC>150; descrição ECG sem chave de IA), M3 (BRE completo em QRS largo; HVE/HCM por voltagem suprimidas com BRE). pytest 1458 passed.
+- ECG real PTB-XL 00180 (CLBBB): agora emite ecg.lbbb (QRS 224 ms) + nota `lvh_not_assessable_lbbb` + repolarização secundária; sumiram lvh/hcm_pattern/supra ST limítrofe. Sobrou ecg.lae (sobrecarga atrial esquerda, abnormal) e `pr_gt200_unconfirmed`: conferir.
+- Bench PTB-XL dev (N=9183): sens BRE 78,5→86,0; espec BRE 96,0; VPP HVE 44,1→51,1; **sens HVE 74,7→65,0** (custo da supressão; decisão do dono: suprimir x rebaixar). Log: docs/benchmarks/trilha_r5_m3_log.md.
+- Pendências: chamada de IA do ECG leva ~3 min (OpenRouter); medida global de QRS com viés +25 ms; ordem do doc de modelos (checklist x modelo A) divergente; E3 parado (CODE-test congelado); decisões clínicas do dono; push main/deploy só com autorização.
+
 ## Rodada R5 (2026-11-25 noite 3) — lotes mesclados na branch claude/ecg-rx-ai-reader-nd20rs
 
 Suíte: 1404 passed, 6 skipped, 2 xfailed; vitest 117; build ok. Só a branch foi enviada (sem main, sem deploy).
