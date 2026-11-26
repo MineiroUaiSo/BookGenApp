@@ -23,6 +23,14 @@ def get_study(study_id: str):
     return s
 
 
+@router.delete("/studies/{study_id}", status_code=204)
+def delete_study(study_id: str):
+    """Apaga o estudo: arquivos originais, instâncias e artefatos (direito de exclusão / minimização)."""
+    if not store.delete_study(study_id):
+        raise HTTPException(404, "study not found")
+    return Response(status_code=204)
+
+
 @router.get("/instances/{instance_id}/render.png")
 def render_png(instance_id: str, wc: Optional[float] = None, ww: Optional[float] = None):
     try:

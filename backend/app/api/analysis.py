@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import os
+from collections import OrderedDict
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -66,8 +68,35 @@ def _ai_unavailable(msg: str) -> AIReport:
     return AIReport(available=False, description="", limitations=[msg])
 
 
+LAST_MAX_DEFAULT = 32
+
+
+def _last_max() -> int:
+    try:
+        v = int(os.environ.get("MEDLENS_LAST_MAX", ""))
+    except ValueError:
+        return LAST_MAX_DEFAULT
+    return v if v > 0 else LAST_MAX_DEFAULT
+
+
+class _LRU(OrderedDict):
+    """dict com teto: ao estourar, descarta o menos recentemente usado (leitura e gravação renovam)."""
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        self.move_to_end(key)
+        while len(self) > _last_max():
+            self.popitem(last=False)
+
+    def get(self, key, default=None):
+        if key in self:
+            self.move_to_end(key)
+        return super().get(key, default)
+
+
 # Last rules-based result per (kind, study): the AI text is a separate call that reuses it (rules come first).
-_LAST: dict[tuple[str, str], tuple[object, Optional[bytes]]] = {}
+# Fica só em memória, com teto, para não acumular dado de paciente além do necessário.
+_LAST: dict[tuple[str, str], tuple[object, Optional[bytes]]] = _LRU()
 
 
 def _remember(kind: str, study_id: str, result: object, png: Optional[bytes] = None) -> None:
@@ -77,8 +106,18 @@ def _remember(kind: str, study_id: str, result: object, png: Optional[bytes] = N
 def _recall(kind: str, study_id: str) -> tuple[object, Optional[bytes]]:
     got = _LAST.get((kind, study_id))
     if got is None:
-        raise HTTPException(409, "analyze first: no rules-based result for this study (POST .../analyze)")
+        raise HTTPException(409, "Faça a análise primeiro: não há resultado por regras para este estudo "
+                                 "(POST .../analyze).")
     return got
+
+
+def forget_study(study_id: str) -> None:
+    """Esquece os resultados em memória de um estudo apagado."""
+    for key in [k for k in _LAST if k[1] == study_id]:
+        _LAST.pop(key, None)
+
+
+store.add_delete_hook(forget_study)
 
 
 # ------------------------------------------------------------------ ECG
