@@ -162,3 +162,17 @@ def test_sem_nenhuma_mascara_nas_duas():
     with pytest.raises(ValueError) as ei:
         reconstruct(f, l)
     assert "nenhuma" in str(ei.value).lower()
+
+
+def test_estrutura_segmentada_mas_nao_reconstruida_e_declarada():
+    """Máscara real fina demais para o voxel some do 3D: o método deve dizer, não omitir em silêncio."""
+    f, l, _ = _build()
+    _pt(f)
+    thin = np.zeros((H, W))
+    thin[60:140, 150] = 1                      # traqueia de 1 px de largura (< voxel de 2 mm)
+    for s in f.structures:
+        if s.key == "trachea":
+            s.mask_png_b64 = _enc(thin)
+    _, meshes, method = reconstruct(f, l)
+    assert "trachea" not in {m.key for m in meshes}
+    assert "Estruturas segmentadas que não puderam ser reconstruídas: traqueia." in method

@@ -303,7 +303,9 @@ def reconstruct(frontal: RXImageAnalysis, lateral: RXImageAnalysis):
     if not out:
         raise ValueError("Nenhuma estrutura pôde ser reconstruída.")
     glb = scene.export(file_type="glb")
-    method = _method_text(scale_src, reg, single, vox, no_lat, no_pa, orient)
+    built = {m.key for m in out}
+    dropped = [(F.get(k) or L[k])[0].label for k in keys if k not in built]
+    method = _method_text(scale_src, reg, single, vox, no_lat, no_pa, orient, dropped)
     return glb, out, method
 
 
@@ -322,7 +324,7 @@ def _hex(c: str):
         return [200, 200, 200]
 
 
-def _method_text(scale_src, reg, single, vox, no_lat=(), no_pa=(), orient=None):
+def _method_text(scale_src, reg, single, vox, no_lat=(), no_pa=(), orient=None, dropped=()):
     t = ("Reconstrução aproximada por envoltória visual (visual hull): cada estrutura segmentada na "
          "incidência frontal (PA/AP) é extrudada ao longo do eixo antero-posterior e interseccionada "
          "com a silhueta da incidência lateral extrudada ao longo do eixo látero-lateral. "
@@ -340,6 +342,10 @@ def _method_text(scale_src, reg, single, vox, no_lat=(), no_pa=(), orient=None):
     if no_pa:
         t += ("Estruturas ausentes na PA: " + ", ".join(no_pa) + ". Não há máscara real delas na PA: "
               "largura presumida, translúcidas e marcadas como estimativa. ")
+    if dropped:
+        t += ("Estruturas segmentadas que não puderam ser reconstruídas: " + ", ".join(dropped) + ". "
+              "Motivo provável: finas demais para a resolução do voxel ou sem sobreposição entre as "
+              "incidências; não aparecem no modelo. ")
     if orient:
         t += f"Orientação anteroposterior do perfil: {orient}. "
     else:
