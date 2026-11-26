@@ -32,7 +32,7 @@ _ST_NA, _NORMAL = "ecg.st_not_assessable", "ecg.within_normal_limits"
 
 # grupos por prefixo de código de regra
 _RITMO = ("ecg.atrial_fibrillation", "ecg.atrial_flutter", "ecg.sinus_", "ecg.irregular_rhythm", "ecg.no_p_wave",
-          "ecg.non_sinus_p", "ecg.paced_rhythm")
+          "ecg.non_sinus_p", "ecg.paced_rhythm", "ecg.rhythm_unclassified_")
 _IRREGULAR = ("ecg.atrial_fibrillation", "ecg.irregular_rhythm")
 _AV = ("ecg.av_block_", "ecg.short_pr", "ecg.preexcitation", "ecg.pr_gt200_unconfirmed")
 _BBB = ("ecg.lbbb", "ecg.rbbb", "ecg.ilbbb", "ecg.irbbb", "ecg.ivcd", "ecg.qrs_borderline", "ecg.lafb", "ecg.lpfb")

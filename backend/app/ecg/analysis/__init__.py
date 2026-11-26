@@ -28,7 +28,7 @@ from .pacing import (RELAXED, STRICT, blank_spikes, classify_pacing, detect_spik
                      spike_timing)
 from .preprocess import noise_sigma, preprocess
 from .rhythm import atrial_grid, av_analysis, detect_p_series, detect_p_series_resid, ectopy_pattern, flutter_features, rr_alternation, flutter_multilead, rr_irregularity, rr_stats
-from .rpeaks import detect_r_peaks
+from .rpeaks import detect_r_peaks_ex
 from .rules import build_findings, classify_rhythm
 
 _KIND = {"P": WaveKind.P, "Q": WaveKind.Q, "R": WaveKind.R, "S": WaveKind.S, "R'": WaveKind.R_PRIME,
@@ -151,7 +151,7 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
     if info["mains"]:
         warnings.append(f"Interferência de rede {info['mains']:.0f} Hz detectada e filtrada.")
     noise = noise_sigma(amp)
-    peaks, ref = detect_r_peaks(amp, fs)
+    peaks, ref, rp_unreliable = detect_r_peaks_ex(amp, fs)
     if len(peaks) < 2:
         return _minimal(signal, study_id, warnings + ["Menos de 2 complexos QRS detectados; análise não realizada."])
     pace_info = None
@@ -166,7 +166,7 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
             X = blank_spikes(X, pace_info["spikes"], fs)
             amp, dlt, info = preprocess(X, fs)
             noise = noise_sigma(amp)
-            peaks, ref = detect_r_peaks(amp, fs)
+            peaks, ref, rp_unreliable = detect_r_peaks_ex(amp, fs)
             if len(peaks) < 2:
                 return _minimal(signal, study_id, warnings + ["Menos de 2 complexos QRS detectados; análise não realizada."])
     if len(peaks) < 4:
@@ -257,7 +257,7 @@ def analyze_signal(signal: ECGSignal, study_id: str, age: float | None = None,
                irr=irr, ectopy=ectopy_pattern(pk_ms), n_ectopic=int(ectopic.sum()),
                flutter=flutter_features(dlt[li2], fs, beat_info), paced=None,
                flutter_f=flutter_multilead({l: dlt[i] for i, l in enumerate(leads)}, fs, beat_info),
-               rr_alt=rr_alternation(pk_ms),
+               rr_alt=rr_alternation(pk_ms), rpeaks_unreliable=bool(rp_unreliable),
                source=getattr(signal.source, "value", signal.source), quality=dict(signal.quality or {}))
     if pace_info is not None:
         ptype = classify_pacing(pace_info["timing"], gm.qrs_ms, pace_info["spikes"], peaks, fs)
