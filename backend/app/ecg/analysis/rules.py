@@ -184,6 +184,10 @@ AV3_SLOW_HR = 60.0     # E5: AF/flutter/no-P with regular slow RR => complete bl
 AV3_SLOW_CV = 0.04
 AV1_BEAT_FRAC = 0.6   # E5: share of beats with PR > 200 ms
 AV1_MIN_BEATS = 4
+# E1: findings that already explain a displayed PR > 200 ms (any of them keeps the borderline PR note off)
+PR_FINDING_PREFIXES = ("ecg.av_block_", "ecg.preexcitation", "ecg.implausible_measurement")
+PR_UNCONFIRMED_CODE = "ecg.pr_gt200_unconfirmed"
+PR_UNCONFIRMED_LABEL = "PR medido acima de 200 ms sem critério completo de BAV de 1º grau: conferir no traçado"
 SBRAD_HR = 50.0
 STACH_HR = 100.0
 STACH_REG_CV = 0.10      # regular tachycardia: RR CV below this
@@ -363,6 +367,13 @@ def build_findings(c):
             elif pr < 120 and not blk:
                 out.append(_f("ecg.short_pr", "Intervalo PR curto", "borderline", [f"PR {pr:.0f} ms (<120)"],
                               [R_SBC, R_GOLD], 0.6))
+
+    # E1: a PR shown above 200 ms without a PR finding is incoherent for the reader; flag it as borderline
+    # (it neither changes ecg.av_block_1 and the AV1_* thresholds nor takes the tracing out of "normal")
+    if pr is not None and pr > 200 and not any(f.code.startswith(PR_FINDING_PREFIXES) for f in out):
+        out.append(_f(PR_UNCONFIRMED_CODE, PR_UNCONFIRMED_LABEL, "borderline", [f"PR {pr:.0f} ms (>200)",
+                      "critério completo de BAV de 1º grau não preenchido (PR por batimento, fração de batimentos, "
+                      "pico P-QRS ou ritmo sinusal)"], [R_SBC, R_GOLD], 0.4))
 
     # ---- axis
     ax = gm.qrs_axis_deg
