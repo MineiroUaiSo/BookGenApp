@@ -213,7 +213,14 @@ export interface RXImageAnalysis {
 export type NivelLaudo = "MEDIDO" | "REGRA" | "SUGERIDO_MODELO" | "NAO_AVALIADO" | "QUALIDADE";
 export interface FraseLaudo { secao: string; texto: string; fatos: string[]; fontes: string[]; nivel: NivelLaudo }
 export interface SecaoLaudo { id: string; titulo: string; frases: FraseLaudo[] }
-export interface LaudoRX { versao: string; status: string; secoes: SecaoLaudo[] }
+export type DescricaoOrigem = "ia" | "deterministico";
+export interface LaudoRX {
+  versao: string; status: string; secoes: SecaoLaudo[];
+  /** Parágrafo único (aditivo): vazio/ausente = sem descrição. */
+  descricao_completa?: string;
+  descricao_origem?: DescricaoOrigem;
+  descricao_validacao?: { frases?: number; removidas?: number };
+}
 
 export interface RXAnalysis {
   study_id: string;

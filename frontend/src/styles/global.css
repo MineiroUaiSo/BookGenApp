@@ -158,3 +158,6 @@ table.meas tr.hl { background: var(--bg-3); }
 .descricao-completa .desc-par { white-space: normal; line-height: 1.6; max-width: 75ch; overflow-wrap: anywhere; margin: .4rem 0 .75rem; }
 .descricao-completa .desc-origem { margin: 0; }
 .descricao-completa .desc-origem[data-origem="ia"]::before { content: "IA \00b7 "; font-weight: 700; color: var(--accent); }
+.laudo-descricao { margin: .75rem 0; }
+.laudo-descricao-texto { line-height: 1.6; max-width: 75ch; overflow-wrap: anywhere; margin: .25rem 0 .4rem; }
+.laudo-descricao-origem { font-size: .82rem; margin: 0 0 .5rem; }
