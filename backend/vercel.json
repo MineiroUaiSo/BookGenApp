@@ -1,10 +1,14 @@
 {
   "regions": ["gru1"],
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60,
-      "excludeFiles": "{tests/**,bench/**,data/**,docs/**,medlens_data/**,frontend/**,**/tests/**,**/test/**,**/__pycache__/**,**/*.pyc,**/*.dcm,.venv/**}"
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "500mb",
+        "excludeFiles": "{tests/**,bench/**,data/**,docs/**,medlens_data/**,frontend/**,**/tests/**,**/test/**,**/__pycache__/**,**/*.pyc,**/*.dcm,.venv/**}"
+      }
     }
-  },
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+  ],
+  "routes": [{ "src": "/(.*)", "dest": "/api/index.py" }]
 }
