@@ -43,7 +43,7 @@ SISTEMA = (
     "'não é possível' nem 'não foi possível' (o verificador lê 'possível' como grau de certeza): para o que falta diga 'não "
     "avaliado' ou 'não há como afirmar', e 'indeterminado' nunca numa oração de não avaliado; (9) não calcule, não converta "
     "nem arredonde números; sem descritor visual (lobo, lado, contorno, broncograma, 'a imagem mostra'), sem conduta nem "
-    "tratamento, sem 'infiltrado', 'limpo' ou 'livre' (exceto 'ar livre subdiafragmático' como região não avaliada). Responda só com JSON: {\"afirmacoes\": [{\"texto\": <uma ou duas orações>, \"fatos\": [<ids F# "
+    "tratamento, sem nenhum termo vetado pelo léxico de RX. Responda só com JSON: {\"afirmacoes\": [{\"texto\": <uma ou duas orações>, \"fatos\": [<ids F# "
     "dos fatos que a sustentam>]}]}, na ordem do parágrafo; cite o id de todo fato usado (a oração de limitações e a de "
     "técnica citam os fatos de incidência/qualidade ou nenhum). Frases com medida: sem 'possível/possivelmente/sugere/"
     "compatível' (use 'pode estar subestimado' para o ICT); 'possivelmente inadequada' só para a qualidade técnica; 'sugere' só "
