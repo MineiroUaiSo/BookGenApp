@@ -40,6 +40,15 @@ export function collectRefs(findings: Finding[], ai?: AIReportX | null): Referen
   ]);
 }
 
+/** Origem da descrição completa: IA só aparece como tal depois de passar pela barreira de verificação. */
+export function descricaoOrigemText(origem?: string, removidas = 0): string {
+  if (origem === "ia") {
+    const n = removidas > 0 ? ` (${removidas} ${removidas === 1 ? "frase removida" : "frases removidas"} sem lastro)` : "";
+    return `Redigido por IA, verificado pelas regras automáticas${n}`;
+  }
+  return "Montado automaticamente a partir das medidas e das regras";
+}
+
 export function reportToText(title: string, findings: Finding[], ai?: AIReportX | null): string {
   const L: string[] = [title, ""];
   const fl = (f: Finding) => `- [${SEV_LABEL[f.severity]}] ${f.label}${f.evidence.length ? ` (${f.evidence.join("; ")})` : ""}`;
@@ -62,6 +71,7 @@ export function reportToText(title: string, findings: Finding[], ai?: AIReportX 
   }
   const refs = collectRefs(findings, ai);
   if (refs.length) L.push("REFERÊNCIAS", ...refs.map((r, i) => `[${i + 1}] ${r.source}${r.note ? ` — ${r.note}` : ""}`), "");
+  if (ai?.descricao_completa) L.push("DESCRIÇÃO COMPLETA", ai.descricao_completa, "");
   L.push("AVISO", ai?.disclaimer || DEFAULT_DISCLAIMER);
   return L.join("\n");
 }
@@ -133,6 +143,7 @@ interface Props {
 
 export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested = true, aiLoading = false, aiError = null, feedback }: Props) {
   const [copied, setCopied] = useState(false);
+  const [copiedDesc, setCopiedDesc] = useState(false);
   const [votes, setVotes] = useState<Record<string, Verdict>>({});
   const [fbError, setFbError] = useState<string | null>(null);
   const ppv = useRulePpv();
@@ -151,6 +162,11 @@ export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested
   const copy = async () => {
     try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }
     catch { window.prompt("Copie o laudo:", text); }
+  };
+  const copyDescricao = async () => {
+    const d = ai?.descricao_completa ?? "";
+    try { await navigator.clipboard.writeText(d); setCopiedDesc(true); setTimeout(() => setCopiedDesc(false), 2000); }
+    catch { window.prompt("Copie a descrição:", d); }
   };
 
   const reasons = ai && !ai.available ? ai.limitations.filter(Boolean) : [];
@@ -252,6 +268,19 @@ export default function ReportPanel({ title = "Laudo", findings, ai, aiRequested
       {refs.length ? (
         <ol className="refs">{refs.map((r) => <li key={r.id}>{r.source}{r.note ? ` — ${r.note}` : ""}</li>)}</ol>
       ) : <p className="hint">—</p>}
+
+      {ai?.descricao_completa ? (
+        <section className="descricao-completa" aria-labelledby="descricao-completa-h" data-testid="descricao-completa">
+          <h3 id="descricao-completa-h">Descrição completa</h3>
+          <p className="hint desc-origem" data-testid="descricao-origem" data-origem={ai.descricao_origem || "deterministico"}>
+            {descricaoOrigemText(ai.descricao_origem, ai.descricao_validacao ?? 0)}
+          </p>
+          <p className="desc desc-par">{ai.descricao_completa}</p>
+          <div className="btn-row no-print">
+            <button className="btn small" onClick={copyDescricao}>{copiedDesc ? "Copiado!" : "Copiar descrição"}</button>
+          </div>
+        </section>
+      ) : null}
 
       <p className="disclaimer" role="note"><strong>Aviso: </strong>{ai?.disclaimer || DEFAULT_DISCLAIMER}</p>
     </article>

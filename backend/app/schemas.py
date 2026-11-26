@@ -76,6 +76,9 @@ class AIReport(BaseModel):
     laudo: Optional[dict] = None             # laudo estruturado de ECG (app/llm/laudo.py), campo novo
     laudo_markdown: str = ""                 # laudo completo em markdown copiável
     laudo_curto: str = ""                    # versão de 1 parágrafo para prontuário
+    descricao_completa: str = ""             # ECG: descrição completa em parágrafo único (app/llm/descricao_ecg.py)
+    descricao_origem: str = ""               # "ia" (redigido por IA e verificado) | "deterministico" | "" (descartada)
+    descricao_validacao: int = 0             # frases removidas pela barreira de verificação
 
 
 # ---------------------------------------------------------------- study / ingest

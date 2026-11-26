@@ -28,6 +28,12 @@ def _no_laudo_by_default(monkeypatch):
     monkeypatch.setenv("MEDLENS_LAUDO", "0")
 
 
+@pytest.fixture(autouse=True)
+def _no_descricao_ia_by_default(monkeypatch):
+    """A redação da 'Descrição completa' por IA (chamada extra) só roda nos testes que a pedem (call injetada)."""
+    monkeypatch.setenv("MEDLENS_DESCRICAO_IA", "0")
+
+
 @pytest.fixture
 def client():
     from app.main import app

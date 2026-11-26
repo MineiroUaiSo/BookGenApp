@@ -126,6 +126,7 @@ table.meas tr.hl { background: var(--bg-3); }
   .study-layout { display: block; }
   .report-panel .finding, .diff { break-inside: avoid; background: #fff; }
   .disclaimer { border-color: #000; background: #fff; }
+  .descricao-completa { break-inside: avoid; border-color: #000; background: #fff; }
   :root { --fg: #000; --fg-dim: #333; --bg: #fff; --bg-2: #fff; --bg-3: #fff; --border: #999; }
 }
 
@@ -149,6 +150,14 @@ table.meas tr.hl { background: var(--bg-3); }
 .laudo-comentario textarea, .laudo-comunicacao textarea { width: 100%; min-height: 44px; box-sizing: border-box; font: inherit;
   color: var(--fg); background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: .4rem; }
 .laudo-secao .feedback .btn { min-height: 44px; }
+
+/* Descrição completa do ECG (parágrafo único, no fim do relatório) */
+.descricao-completa { margin: 1rem 0; padding: .75rem 1rem; border: 1px solid var(--border); border-left: 4px solid var(--accent);
+  border-radius: 8px; background: var(--bg-3); }
+.descricao-completa h3 { margin-top: 0; }
+.descricao-completa .desc-par { white-space: normal; line-height: 1.6; max-width: 75ch; overflow-wrap: anywhere; margin: .4rem 0 .75rem; }
+.descricao-completa .desc-origem { margin: 0; }
+.descricao-completa .desc-origem[data-origem="ia"]::before { content: "IA \00b7 "; font-weight: 700; color: var(--accent); }
 .laudo-descricao { margin: .75rem 0; }
 .laudo-descricao-texto { line-height: 1.6; max-width: 75ch; overflow-wrap: anywhere; margin: .25rem 0 .4rem; }
 .laudo-descricao-origem { font-size: .82rem; margin: 0 0 .5rem; }

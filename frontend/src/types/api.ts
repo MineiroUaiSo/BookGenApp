@@ -36,6 +36,10 @@ export interface AIReport {
   laudo?: Record<string, unknown> | null;
   laudo_markdown?: string;
   laudo_curto?: string;
+  /** ECG: descrição completa em parágrafo único; origem "ia" (redigida e verificada) ou "deterministico". */
+  descricao_completa?: string;
+  descricao_origem?: "ia" | "deterministico" | "";
+  descricao_validacao?: number;
 }
 
 export interface SeriesInfo {

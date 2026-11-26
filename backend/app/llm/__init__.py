@@ -14,6 +14,7 @@ from ..knowledge import (format_items, format_references, known_reference_ids, l
 from ..rx import claim_check
 from ..schemas import AIReport, ECGAnalysis, RXAnalysis
 from . import client as _client
+from . import descricao_ecg as descricao_mod
 from . import laudo as laudo_mod
 from .anon import anonymize_text
 from .client import ai_available, model_name  # noqa: F401  (API pública)
@@ -259,8 +260,55 @@ def ecg_report_v2(analysis: ECGAnalysis, *, printed_header: Optional[dict] = Non
                     laudo_curto=curto)
 
 
+def _descricao_call(system: str, user: str) -> str:
+    """Redação da descrição completa: só texto estruturado (sem imagem), mesmo cliente/retry/failover do laudo."""
+    c = _client
+    text, _, _ = c.run_resilient(c.make_client(), [{"type": "text", "text": system}],
+                                 [{"role": "user", "content": user}], c.MAX_TOKENS_LAUDO,
+                                 schema=descricao_mod.output_schema(), allow_images=False)
+    return text
+
+
+def descricao_ia_enabled() -> bool:
+    return laudo_enabled() and os.environ.get("MEDLENS_DESCRICAO_IA", "1") != "0" and ai_available()
+
+
+def _descricao(analysis: ECGAnalysis, printed_header: Optional[dict], sexo: Optional[str],
+               call: Optional[laudo_mod.LLMCall]) -> Optional[descricao_mod.Descricao]:
+    try:
+        summary = ecg_data_summary(analysis)
+        susp = next((w for w in summary.get("avisos") or [] if re.search(r"suspeit|diverg", str(w), re.I)), None)
+        prepared = laudo_mod.prepare_summary(summary, printed_header=printed_header, sexo=sexo,
+                                             digitalizacao_suspeita=susp)
+        usar = call if call is not None else (_descricao_call if descricao_ia_enabled() else None)
+        return descricao_mod.compor_descricao(prepared, usar)
+    except Exception:   # nunca derruba o relatório
+        log.exception("descricao completa failure")
+        return None
+
+
+def ecg_descricao_fields(analysis: ECGAnalysis, *, printed_header: Optional[dict] = None,
+                         sexo: Optional[str] = None, call: Optional[laudo_mod.LLMCall] = None) -> dict:
+    """Campos aditivos do AIReport (descricao_completa/origem/validacao); {} se falhar."""
+    d = _descricao(analysis, printed_header, sexo, call)
+    return ({"descricao_completa": d.texto, "descricao_origem": d.origem, "descricao_validacao": d.removidas}
+            if d else {})
+
+
 def ecg_report(analysis: ECGAnalysis, image_png: Optional[bytes] = None, *, printed_header: Optional[dict] = None,
                sexo: Optional[str] = None) -> AIReport:
+    """Relatório de IA do ECG + 'Descrição completa' (determinística, ou redigida por IA e verificada) no fim."""
+    rep = _ecg_report_ia(analysis, image_png, printed_header=printed_header, sexo=sexo)
+    d = _descricao(analysis, printed_header, sexo, None)
+    if d is None:
+        return rep
+    return rep.model_copy(update={"descricao_completa": d.texto, "descricao_origem": d.origem,
+                                  "descricao_validacao": d.removidas,
+                                  "limitations": [*rep.limitations, *d.limitacoes]})
+
+
+def _ecg_report_ia(analysis: ECGAnalysis, image_png: Optional[bytes] = None, *,
+                   printed_header: Optional[dict] = None, sexo: Optional[str] = None) -> AIReport:
     if not ai_available():
         return unavailable()
     if laudo_enabled() and laudo_mod.v2_enabled():
