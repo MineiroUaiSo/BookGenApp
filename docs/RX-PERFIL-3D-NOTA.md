@@ -59,3 +59,47 @@ Conjuntos de chaves observados no perfil: sempre `diaphragm, heart, lung_field, 
 * `backend/app/api/analysis.py` ainda lança "need a frontal (PA/AP) and a lateral image" em inglês; fora do escopo.
 * Candidatos de causa raiz (para lote próprio, com RX real): priors laterais de coração/coluna e a
   classificação de incidência em `view.py`.
+
+## Lote D4: segmentação do perfil por sinal de imagem (2026-11-25)
+
+Escopo: novo módulo `backend/app/rx/seg_lateral.py` (campo pulmonar por claridade, diafragma como contorno das duas
+cúpulas, coluna/esterno por crista, coração por densidade, marca de estimativa), benches
+`backend/bench/rx_profile_pairs.py --inproc` (40 pares sintéticos, mesma amostra do D3) e
+`backend/bench/rx_profile_real.py` (5 pares reais Open-i, só avaliação local, overlays em `~/medlens-shots/d4-*.png`).
+Nenhuma imagem foi copiada para o repositório.
+
+### Resultado nos 40 pares sintéticos (36 perfis), antes e depois
+
+| Medida | Antes (ramo legado) | Depois (seg_lateral) |
+|---|---|---|
+| Coração, IoU médio | 0,441 | 0,401 |
+| Coluna, IoU médio | 0,308 | 0,286 |
+| Traqueia, IoU médio | 0,036 (presente em 16/36) | 0,065 (35/36, quase sempre prior marcado como estimativa) |
+| Campo pulmonar, IoU da extensão vertical vs pulmões da PA (proxy) | 0,651 | 0,757 |
+| Campo pulmonar, IoU vs caixa coluna-esterno (proxy) | 0,306 | 0,438 |
+| Campo pulmonar, área média | 0,119 | 0,194 |
+| Cobertura (perfis com campo pulmonar) | 36/36 | 36/36 |
+
+Não há máscara de pulmão lateral no pseudo-rótulo, então o pulmão só tem proxies fracos. O campo pulmonar melhora
+nos dois proxies e visualmente (passa a incluir a área clara retroesternal e retrocardíaca). O critério do lote exigia
+que coração e pulmão subissem sem perder cobertura: o coração NÃO subiu (0,441 para 0,401). Por isso a ligação do novo
+módulo ao ramo lateral (`seg_heuristic.py` e `analyze.py`) não foi aplicada neste commit; o módulo, os benches e os
+testes ficam disponíveis para um próximo ciclo.
+
+### O que se viu nos 5 pares reais (perfil Indiana, coluna à direita em 4 e à esquerda em 1)
+
+* O campo pulmonar acompanha bem o campo claro e as cúpulas diafragmáticas nos 5 casos; o diafragma sai como contorno
+  duplo das cúpulas. Em CXR1521 o campo fica fragmentado por sobreposição de partes moles.
+* A coluna ainda é o ponto fraco: a crista tracejada encontra a parede posterior do tórax, não o corpo vertebral. Por
+  isso a coluna é sempre devolvida como ESTIMATIVA (faixa posicionada pelo contorno), com confiança 0,1 e rótulo
+  "(estimativa geométrica, sem sinal na imagem)".
+* O coração por densidade vaza para a parede anterior ou o abdome em vários casos reais, então a máscara só é
+  aceita quando o contorno não é recorte reto da janela de busca; nos 5 reais acabou como elipse marcada estimativa.
+* O lado posterior estimado pela faixa de intensidade acertou 34 de 40 perfis (5 reais mais 35 sintéticos; 1 dos reais, CXR3971, errou).
+
+### Limites
+
+* A heurística clássica não separa coluna e coração em RX real com segurança; só o campo pulmonar e o diafragma
+  ganham sinal confiável. Próximo passo candidato: modelo treinado para perfil, validado em RX clínico.
+* Marca de estimativa: não existe campo no schema `Structure`; a convenção é confiança <= 0,1 e o sufixo
+  " (estimativa geométrica, sem sinal na imagem)" no rótulo (`marcar_estimativas`), no mesmo espírito do recon3d.
