@@ -1,6 +1,7 @@
-# Core runtime deps (see pyproject.toml for extras: ecg, rx, recon, ai, dicom-compressed, heic)
+# Dependências de produção (Vercel 'medlens-api' e uso local). Sem torch, onnx, wfdb, matplotlib ou anthropic:
+# o oneshot pediátrico roda sem modelo e sem IA. Extras (ecg, rx, recon, ai, ...) ficam em pyproject.toml.
 fastapi>=0.110
-uvicorn[standard]>=0.27
+uvicorn>=0.27
 pydantic>=2.5
 pydicom>=2.4
 numpy>=1.26
@@ -9,3 +10,4 @@ python-multipart>=0.0.9
 pyyaml>=6.0
 scipy>=1.11
 scikit-image>=0.22
+opencv-python-headless>=4.9
