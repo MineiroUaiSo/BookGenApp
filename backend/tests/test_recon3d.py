@@ -3,6 +3,7 @@ import io
 import time
 
 import numpy as np
+import pytest
 import trimesh
 from PIL import Image
 
@@ -85,3 +86,79 @@ def test_single_view_structure_flagged():
     glb, meshes, method = reconstruct(f, l)
     heart = [m for m in meshes if m.key == "heart"]
     assert heart and "1 incidência" in heart[0].label
+
+
+def _label(s):
+    return {"left_lung": "pulmão esquerdo", "right_lung": "pulmão direito", "heart": "coração",
+            "spine": "coluna", "trachea": "traqueia"}[s]
+
+
+def _pt(a):
+    for s in a.structures:
+        s.label = _label(s.key)
+    return a
+
+
+def test_lateral_so_pulmoes_monta_o_que_existe_e_rotula_ausentes():
+    f, l, _ = _build()
+    _pt(f)
+    # perfil heurístico parcial: só campo pulmonar (coração/coluna/traqueia falharam)
+    l.structures = [s for s in l.structures if "lung" in s.key]
+    glb, meshes, method = reconstruct(f, l)
+    got = {m.key: m for m in meshes}
+    assert {"left_lung", "right_lung", "heart", "spine", "trachea"} <= set(got)
+    for k in ("heart", "spine", "trachea"):
+        assert "ausente no perfil" in got[k].label, got[k].label
+        assert "1 incidência" in got[k].label
+    for k in ("left_lung", "right_lung"):
+        assert "estimativa" not in got[k].label
+    assert "Estruturas ausentes no perfil: coração, coluna, traqueia." in method
+    assert "orientação anteroposterior assumida" in method.lower()  # sem coluna/coração no perfil: assumida, não medida
+
+
+def test_estrutura_estimada_nao_e_opaca_como_se_fosse_medida():
+    f, l, _ = _build()
+    l.structures = [s for s in l.structures if "lung" in s.key]
+    glb, _, _ = reconstruct(f, l)
+    sc = trimesh.load(io.BytesIO(glb), file_type="glb")
+    heart = [g for n, g in sc.geometry.items() if "heart" in n][0]
+    assert heart.visual.material.baseColorFactor[3] < 255
+    lung = [g for n, g in sc.geometry.items() if "left_lung" in n][0]
+    assert lung.visual.material.baseColorFactor[3] < 255  # pulmão já era translúcido
+
+
+def test_orientacao_do_perfil_vem_do_quality_quando_ha_so_pulmao():
+    f, l, _ = _build()
+    l.structures = [s for s in l.structures if "lung" in s.key]
+    l.quality = {"orientação": "coluna à direita da imagem (estimada)"}
+    _, _, method = reconstruct(f, l)
+    assert "assumida" not in method.split("Orientação", 1)[1].split(".")[0]
+    assert "Orientação anteroposterior do perfil: coluna à direita da imagem" in method
+
+
+def test_perfil_sem_mascaras_da_mensagem_util_e_422():
+    from fastapi import HTTPException
+
+    f, l, _ = _build()
+    l.structures = []
+    with pytest.raises(ValueError) as ei:
+        reconstruct(f, l)
+    msg = str(ei.value)
+    assert "perfil" in msg and "PA" in msg and "incidência" in msg
+    assert isinstance(ei.value, HTTPException) and ei.value.status_code == 422
+
+
+def test_frontal_sem_mascaras_pede_pa():
+    f, l, _ = _build()
+    f.structures = []
+    with pytest.raises(ValueError) as ei:
+        reconstruct(f, l)
+    assert "PA" in str(ei.value) and "incidência" in str(ei.value)
+
+
+def test_sem_nenhuma_mascara_nas_duas():
+    f, l, _ = _build()
+    f.structures, l.structures = [], []
+    with pytest.raises(ValueError) as ei:
+        reconstruct(f, l)
+    assert "nenhuma" in str(ei.value).lower()
