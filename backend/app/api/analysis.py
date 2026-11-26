@@ -199,7 +199,14 @@ def _run_ecg_ai(result: ECGAnalysis, png: Optional[bytes]) -> AIReport:
         from app.llm import ai_available
 
         if not ai_available():
-            return _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
+            rep = _ai_unavailable("IA indisponível (ANTHROPIC_API_KEY ou OPENROUTER_API_KEY ausente).")
+            # sem IA a descrição completa continua saindo, DETERMINÍSTICA (nunca derruba a resposta)
+            try:
+                from app.llm import ecg_descricao_fields
+
+                return rep.model_copy(update=ecg_descricao_fields(result))
+            except Exception:  # a descrição é um extra: o aviso de IA indisponível segue de qualquer forma
+                return rep
         from app.llm import ecg_report
 
         return ecg_report(result, png)
