@@ -187,7 +187,26 @@ def test_ia_texto_valido_e_marcado_ia():
              "Pelas regras automáticas, o traçado está dentro dos limites da normalidade, o que não exclui "
              "IAM nem BAV nem outras alterações.")
     d = D.compor_descricao(S_NORMAL, _call(texto))
-    assert d.origem == "ia" and d.removidas == 0 and d.texto == texto
+    assert d.origem == "ia" and d.removidas == 0
+    assert d.texto.startswith(texto)
+    assert _frases(d.texto)[-1].lower().startswith("impressão")   # sem impressão da IA: entra a determinística verificada
+    assert "\n" not in d.texto
+
+
+def test_ia_com_impressao_propria_nao_duplica():
+    texto = ("O ritmo é sinusal regular, com frequência cardíaca de 72 bpm. "
+             "Impressão: pelas regras automáticas, o traçado está dentro dos limites da normalidade, o que não exclui "
+             "IAM nem BAV nem outras alterações.")
+    d = D.compor_descricao(S_NORMAL, _call(texto))
+    assert d.texto == texto and d.texto.lower().count("impressão") == 1
+
+
+def test_ia_impressao_sem_lastro_removida_e_substituida_pela_deterministica():
+    texto = "Ritmo sinusal regular, com frequência cardíaca de 72 bpm. Impressão: sem sinais de isquemia aguda."
+    d = D.compor_descricao(S_SEM_NORMAL, _call(texto))
+    assert d.removidas == 1
+    assert "isquemia" not in d.texto.lower()
+    assert _frases(d.texto)[-1].lower().startswith("impressão")
 
 
 def test_ia_inventa_sem_isquemia_sem_regra_frase_removida():

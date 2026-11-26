@@ -336,8 +336,8 @@ def _impressao(c: _Ctx) -> str:
         return f"Impressão: pelas regras automáticas, o traçado apresenta as observações limítrofes de {_juntar(lim)}{st}."
     if tec:
         return "Impressão: a interpretação automática ficou limitada pelas condições técnicas descritas, sem conclusão pelas regras automáticas."
-    return ("Impressão: as regras automáticas não acionaram achados nem a regra de normalidade, de modo que não é "
-            "possível concluir sem a leitura médica.")
+    return ("Impressão: as regras automáticas não acionaram achados nem a regra de normalidade, de modo que não há "
+            "como afirmar nada sem a leitura médica.")
 
 
 def montar_deterministico(summary: dict) -> str:
@@ -401,6 +401,9 @@ def _redigir_ia(summary: dict, base: str, call: LLMCall) -> Optional[Descricao]:
         if not isinstance(texto, str) or not texto.strip():
             return None
         final, removidas = _verificar(texto, summary)
+        if final and not any(f.lower().startswith("impressão") for f in re.split(r"(?<=[.!?])\s+", final)):
+            imp, _ = _verificar(_impressao(_ctx(summary)), summary)   # fecha com a impressão determinística verificada
+            final = f"{final} {imp}".strip()
     except Exception as e:   # recusa, truncamento, PHI bloqueado, JSON, rede, barreira: cai no determinístico
         log.warning("descrição por IA descartada (%s)", type(e).__name__)
         return None

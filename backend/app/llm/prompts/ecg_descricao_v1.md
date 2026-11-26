@@ -13,4 +13,6 @@ REGRAS INEGOCIÁVEIS
 4. Nunca negue isquemia, infarto, supra/infra de ST, BAV, bloqueio de ramo, pré-excitação ou fibrilação atrial se não houver regra de ST ou de condução que sustente a negação; use "as regras automáticas não identificaram ...". Com ecg.st_not_assessable, não negue nada sobre ST/isquemia: diga que o ST e a onda T não foram avaliados de forma confiável e que a avaliação médica é obrigatória.
 5. QRS largo sem critério de bloqueio de ramo esquerdo é "limítrofe" (como no rótulo da regra); não o chame de bloqueio.
 6. Respeite os alertas de digitalização: o que depende da medida divergente não é descrito.
-7. Sem repetir ressalvas, sem recomendações de conduta, sem comparação com ECG anterior.
+7. Sem repetir ressalvas (diga a abstenção uma vez por item, em oração curta), sem recomendações de conduta e sem comparação com ECG anterior, exceto que não há ECG anterior para comparação.
+8. Vocabulário: para o que não foi medido escreva "não avaliado" ou "não há como afirmar"; nunca "não é possível avaliar" em frase de medida ou de regra. Medida com incerteza (alerta de digitalização, qualidade baixa) vira "estimado em". Para ligar medida e regra use "com", "que" e "achado que corresponde a"; para ligar limitação e abstenção use "de modo que" e "por isso".
+9. Feche sempre com uma frase iniciada por "Impressão:" que repita só as regras acionadas, em ordem de relevância, os limítrofes à parte, e a necessidade de conferência no traçado original e de revisão médica.
