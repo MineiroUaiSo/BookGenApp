@@ -1,5 +1,19 @@
 # RETOMADA — MedLens (rodada 2, 2026-11-24)
 
+## Rodada R5 (2026-11-25 noite 3) — lotes mesclados na branch claude/ecg-rx-ai-reader-nd20rs
+
+Suíte: 1404 passed, 6 skipped, 2 xfailed; vitest 117; build ok. Só a branch foi enviada (sem main, sem deploy).
+
+- **Mesclados:** C1/C2 (barreira ECG e falha fechada), R1 (ICT só com coração de modelo), H1 (limitações do ICT), P1 (auth/retenção PHI), E1 passo B (PR>200 limítrofe), D3 (3D com perfil parcial + modo imagem real), E2 (guarda onda T como R com FC>150), L1 (RX) e L2 (ECG): descrição completa em parágrafo único (determinística + redação por IA via OpenRouter, verificada, com fallback; campos `descricao_completa/origem/validacao`), D4 (só `seg_lateral.py`, benches e nota).
+- **D4 NÃO ligado:** coração IoU 0,441→0,401 nos 40 sintéticos; pulmão/diafragma melhoram. Patch da ligação em `/private/tmp/.../scratchpad/wiring.patch` (pode ter sumido). Coração e coluna em RX real não saem com heurística clássica.
+- **E1 passo A reprovado** (sens BRD 71,9% < 75%; VPP SVD 21,8% < 40%): xfail + log, sem regra.
+- **E3 NÃO mesclado:** worktree `r5-e3` (commit f02d07b + alterações sem commit em `bench/ecg_invariance.py`). Harness de invariância usa o CODE-test, que está CONGELADO (`data/bench/ecg/code_test.RUN`): não rodar.
+- **Doc de modelos:** `docs/MODELOS-DESCRICAO-COMPLETA.md`. L1 foi escrito antes do doc: reler o prompt do RX contra ele. Armadilha: 'não é possível' em frase de medida/regra vira grau 'possível' no léxico.
+- **Pendências:** ligar `unreliable` do E2 à mensagem 'ritmo não classificado' (rules.py); `_run_ecg_ai` sem chave de IA não devolve a descrição (só com OPENROUTER/ANTHROPIC); frontend não envia token se `MEDLENS_API_TOKEN`; `usage_log` grava PHI fora de `studies/`; 4/40 pares sintéticos caem na classificação de incidência.
+- **Decisões do dono:** parágrafo único substitui ou acompanha a Impressão (hoje acompanha); faixa cinzenta do ICT 0,47-0,53; D-A/D-B/D-C (padrões conservadores em uso); aprovar parágrafos-modelo do doc; revisão médica de 30 laudos; push main/deploy.
+- **Pares reais:** `~/medlens-openi/pairs/` (NLM Open-i, CC BY-NC-ND, só avaliação local, nunca commitar).
+- **Limpeza:** worktrees `~/medlens-wt/r5-*` e branches `wt/r5-*` já mescladas podem sair.
+
 ## Rodada 2026-11-25 noite 2 — ECG final (worktree wt/ecg-final, base 2be7b23, sem push)
 - Feito: (1) QRS largo sem BRE: SEM mudanca de regra (ver pendencia abaixo). (2) docs/benchmarks/ecg.md (LUDB 200 + PTB-XL dev large N=9183, rodada fresca) e rx.md (masks completo, 2094 tarefas) regenerados no codigo 2be7b23; sem PHI nem imagem real. (3) Limpeza: removidos 24 worktrees mesclados e limpos (wt/A..I, r2-*, r3-t5, r4-playwright, agent-a5a9699b/a7689ed5/a7f67de3) e 29 branches mescladas (git branch -d). (4) CODE-test rodado UMA vez (docs/benchmarks/code_test.md; marcador data/bench/ecg/code_test.RUN, nao rodar de novo).
 - CODE-test (N=827): AV1 sens 46,4% VPP 92,9%; BRD 52,9%/51,4% (nossa RBBB_any inclui incompleto); BRE 83,3%/80,6%; bradicardia 93,8%/78,9%; FA 92,3%/54,5% (13 pos); taq. sinusal 83,8%/88,6%.
