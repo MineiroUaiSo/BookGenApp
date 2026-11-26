@@ -154,6 +154,7 @@ cartoes:
   - pr_ms
   gatilhos:
   - ecg.av_block_1
+  - ecg.pr_gt200_unconfirmed
   armadilhas:
   - PR longo com P escondida na T anterior pode ser TQRS.
   nao_confundir:
