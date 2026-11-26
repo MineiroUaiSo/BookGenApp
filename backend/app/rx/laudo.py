@@ -57,7 +57,9 @@ class LaudoRX(_Frozen):
     versao: str = VERSAO
     status: str = "rascunho"
     secoes: tuple[Secao, ...]
-    descricao_completa: str = ""        # aditivo (L1): parágrafo único determinístico; vazio = abstenção do validador
+    descricao_completa: str = ""        # aditivo (L1): parágrafo único; vazio = abstenção do validador
+    descricao_origem: str = "deterministico"      # 'ia' (redigido por IA e verificado) | 'deterministico'
+    descricao_validacao: dict[str, int] = {}      # {'frases': avaliadas, 'removidas': sem lastro} da etapa de IA
 
 
 def _n(v: float, nd: int = 2) -> str:
@@ -215,7 +217,7 @@ _NOME_QUAL = {"rotacao": "rotação", "inspiracao": "inspiração", "penetracao"
 _MEDIDA_ORACAO = {
     "mediastino_largura_pct": ("a largura do mediastino", "medida", lambda v: f"{_n(v, 0)}% da largura torácica"),
     "mediastino_largura_mm": ("a largura do mediastino", "medida", lambda v: f"{_n(v, 0)} mm"),
-    "traqueia_desvio_pct": ("o desvio traqueal", "medido", lambda v: f"{_sinal(v)}% da largura torácica"),
+    "traqueia_desvio_pct": ("a posição da traqueia em relação à linha média", "medida", lambda v: f"{_sinal(v)}% da largura torácica"),
     "cupulas_diferenca_pct": ("a diferença de altura das cúpulas", "medida", lambda v: f"{_sinal(v)}% da altura pulmonar"),
     "pulmoes_razao_area_E_D": ("a razão de área pulmonar E/D", "medida", lambda v: _n(v)),
 }
@@ -298,21 +300,28 @@ def _oracao_ict(x) -> tuple[str, tuple[str, ...]]:
 
 
 def _oracao_regiao(regiao: str, fatos: list) -> tuple[str, tuple[str, ...]] | None:
-    vistos: list[str] = []
-    ids: list[str] = []
+    por_sujeito: dict[str, dict] = {}      # mm e % da mesma largura saem numa oração só
     for x in fatos:
         sujeito, part, valor = _MEDIDA_ORACAO[x.chave]
+        d = por_sujeito.setdefault(sujeito, {"part": part, "valores": [], "regra": False, "sem": False, "ids": []})
+        d["ids"].append(x.id)
         if x.nivel == Nivel.NAO_AVALIADO:
-            t = f"{sujeito} não foi {part} com confiança (segmentação de baixa confiabilidade)"
+            d["sem"] = True
         else:
-            t = f"{sujeito} foi {part} em {valor(float(x.valor))}" + (f", {_LIMIAR_CURTO}" if x.nivel == Nivel.REGRA else "")
-        if t not in vistos:
-            vistos.append(t)
-        ids.append(x.id)
-    if not vistos:
+            d["valores"].append(valor(float(x.valor)))
+            d["regra"] = d["regra"] or x.nivel == Nivel.REGRA
+    clausulas, ids = [], []
+    for sujeito, d in por_sujeito.items():
+        ids += d["ids"]
+        if d["valores"]:
+            clausulas.append(f"{sujeito} foi {d['part']} em {' e em '.join(d['valores'])}"
+                             + (f", {_LIMIAR_CURTO}" if d["regra"] else ""))
+        else:
+            clausulas.append(f"{sujeito} não foi {d['part']} com confiança (segmentação de baixa confiabilidade)")
+    if not clausulas:
         return None
-    nota = _LIMIAR_NOTA if any(x.nivel == Nivel.REGRA for x in fatos) else ""
-    return f"{_PREFIXO_REGIAO[regiao]}, {_lista(vistos)}{nota}.", tuple(ids)
+    nota = _LIMIAR_NOTA if any(d["regra"] for d in por_sujeito.values()) else ""
+    return f"{_PREFIXO_REGIAO[regiao]}, {_lista(clausulas)}{nota}.", tuple(ids)
 
 
 def _oracao_limitacoes(f: Ficha, achados: list) -> tuple[str, tuple[str, ...]]:
@@ -344,6 +353,9 @@ def _oracao_impressao(f: Ficha, impressao: Secao) -> tuple[str, tuple[str, ...]]
                  "sugere aumento da silhueta cardíaca (critério de acurácia limitada)")
         else:
             sujeito, part, valor = _MEDIDA_ORACAO[x.chave]
+            if x.chave == "traqueia_desvio_pct":
+                sujeito = "o desvio traqueal"      # com regra disparada o claim_check aceita o termo
+                part = "medido"
             c = f"{sujeito}, {part} em {valor(float(x.valor))}, está {_LIMIAR_CURTO}"
         if c not in vistos:
             vistos.add(c)

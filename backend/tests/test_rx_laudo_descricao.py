@@ -19,6 +19,10 @@ REGIOES = {"pleura": "pleura", "pulmoes": "pulmões", "mediastino": "mediastino"
 TODOS = dict(CENARIOS)
 TODOS["pa_perfil"] = RXAnalysisPAPerfil = _a(_img())
 TODOS["pa_perfil"].images.append(_img(view=RXView.LATERAL, ict=None))
+TODOS["pa_medidas_sem_regra"] = _a(_img(extra=[("mediastinal_width_ratio", 7.0, "%"), ("mediastinal_width", 141.3, "mm"),
+                                               ("tracheal_deviation_pct", -1.4, "%"),
+                                               ("hemidiaphragm_height_difference_pct", 2.2, "%"),
+                                               ("lung_area_ratio_L_R", 1.01, None)]))   # caso real: medidas dentro do limiar
 TODOS["regiao_incerta"] = _a(_img(region_uncertain=True))
 
 
@@ -116,7 +120,7 @@ def test_descricao_regiao_incerta_ou_fora_de_escopo():
 def test_descricao_outras_medidas_com_limiar_local():
     d = _desc("pa_outras_medidas")
     assert "largura do mediastino foi medida em 40% da largura torácica" in d
-    assert "desvio traqueal foi medido em +6,0% da largura torácica" in d
+    assert "posição da traqueia em relação à linha média foi medida em +6,0% da largura torácica" in d
     assert "limiar local" in d
 
 
@@ -136,3 +140,10 @@ def test_markdown_inclui_descricao_no_fim():
     md = LA.render_markdown(l)
     assert md.rstrip().endswith(l.descricao_completa)
     assert "## Descrição completa" in md
+
+
+def test_descricao_medidas_sem_regra_nao_viram_achado_e_largura_sai_numa_oracao():
+    d = _desc("pa_medidas_sem_regra")
+    assert "a largura do mediastino foi medida em 141 mm e em 7% da largura torácica" in d
+    assert "posição da traqueia em relação à linha média foi medida em -1,4% da largura torácica" in d
+    assert "desvio traqueal" not in d and "limiar local" not in d
