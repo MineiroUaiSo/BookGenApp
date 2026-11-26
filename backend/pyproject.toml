@@ -18,10 +18,11 @@ dependencies = [
   "pyyaml>=6.0",
   "scipy>=1.11",
   "scikit-image>=0.22",
+  "opencv-python-headless>=4.9",
 ]
 
 [project.optional-dependencies]
-ecg = ["neurokit2", "wfdb", "opencv-python-headless"]
+ecg = ["neurokit2", "wfdb"]
 rx = ["torch", "torchvision", "torchxrayvision"]
 recon = ["trimesh"]
 ai = ["anthropic", "matplotlib"]

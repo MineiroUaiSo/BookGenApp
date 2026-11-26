@@ -1,0 +1,12 @@
+.venv
+tests
+bench
+data
+medlens_data
+docs
+__pycache__
+*.pyc
+.pytest_cache
+.env
+.env.*
+weights

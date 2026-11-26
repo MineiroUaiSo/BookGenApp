@@ -33,6 +33,9 @@ async def phi_guard(request: Request, call_next):
     if request.method == "OPTIONS" or not path.startswith("/api") or path in OPEN_PATHS:
         return await call_next(request)
     token = os.environ.get("MEDLENS_API_TOKEN", "")
+    if not token and path.startswith("/api/oneshot"):  # serviço hospedado: sem token a rota falha fechada (503)
+        return JSONResponse({"detail": {"codigo": "nao_configurado", "mensagem": "Serviço sem token configurado."}},
+                            status_code=503)
     if token:
         if not _bearer_ok(request.headers.get("authorization", ""), token):
             return JSONResponse({"detail": "Não autenticado: informe o token da API."}, status_code=401,
@@ -43,13 +46,24 @@ async def phi_guard(request: Request, call_next):
     return await call_next(request)
 
 
-def create_app() -> FastAPI:
+def create_app(oneshot_only: bool = False) -> FastAPI:
+    """oneshot_only=True: instância hospedada (Vercel), sem estado: só /api/health e /api/oneshot/*."""
     app = FastAPI(title="MedLens", version="0.1.0",
                   description="ECG and chest X-ray reader. Decision support / teaching only.")
     app.middleware("http")(phi_guard)  # antes do CORS: o CORS fica por fora e responde o preflight
     app.add_middleware(
         CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"]
     )
+    if oneshot_only:
+        from fastapi import APIRouter
+
+        from app.api import oneshot
+
+        hosted = APIRouter(prefix="/api")
+        hosted.add_api_route("/health", lambda: {"status": "ok", "modo": "oneshot-pediatrico"}, methods=["GET"])
+        hosted.include_router(oneshot.router)
+        app.include_router(hosted)
+        return app  # sem frontend, sem retenção em disco: nada para varrer
     app.include_router(router)
     if config.FRONTEND_DIST.is_dir():
         app.mount("/", StaticFiles(directory=config.FRONTEND_DIST, html=True), name="frontend")

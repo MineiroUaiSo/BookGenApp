@@ -1,0 +1,14 @@
+{
+  "regions": ["gru1"],
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "500mb",
+        "excludeFiles": "{tests/**,bench/**,data/**,docs/**,medlens_data/**,frontend/**,**/tests/**,**/test/**,**/__pycache__/**,**/*.pyc,**/*.dcm,.venv/**}"
+      }
+    }
+  ],
+  "routes": [{ "src": "/(.*)", "dest": "/api/index.py" }]
+}
