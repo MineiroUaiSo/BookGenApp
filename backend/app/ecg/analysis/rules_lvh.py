@@ -99,6 +99,15 @@ def _index_ev(idx: dict) -> list[str]:
     return ev
 
 
+LVH_LBBB_CODE = "ecg.lvh_not_assessable_lbbb"
+LVH_LBBB_LABEL = "HVE por voltagem não avaliável na presença de BRE"
+
+
+def lvh_voltage_suppressed(c: dict) -> bool:
+    """LVH by voltage (and the HCM pattern that rides on it) is not emitted with complete LBBB (R5-M3)."""
+    return c.get("bbb") == "lbbb" and not c.get("paced")
+
+
 def hcm_pattern(c: dict, idx: dict, strain: dict, out_codes: set) -> Optional[list[str]]:
     """Voltage very high + deep (>= 3 mm) lateral/precordial T inversion or strain, without LBBB/pacing."""
     if c.get("paced") or c.get("bbb") in ("lbbb", "ilbbb", "rbbb"):
@@ -142,6 +151,9 @@ def apply_lvh(c: dict, out: list) -> dict:
     c["indices"] = idx
     re_ = idx.get("romhilt_estes") or {}
     re_def = bool(re_.get("preenche"))
+    if lvh_voltage_suppressed(c):   # indices stay computed/displayed; no LVH/strain/HCM finding with LBBB
+        c["lvh_strain"] = set()
+        return dict(strain=set(), indices=idx)
     cur = next((f for f in out if f.code == "ecg.lvh"), None)
     if cur is None and re_def and has_strain:
         out[:] = [f for f in out if f.code != "ecg.lvh_voltage"]
