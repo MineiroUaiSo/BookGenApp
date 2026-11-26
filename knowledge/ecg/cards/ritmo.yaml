@@ -77,3 +77,26 @@ cartoes:
     tipo: paráfrase
   revisado_por_medico: false
   verificar: corte 50 ou 60 varia
+- id: ritmo.nao_classificado_fc_alta
+  versao: 1
+  nome_pt: Ritmo não classificado com FC detectada acima de 150 bpm (possível dupla contagem de QRS)
+  criterio: Quando a onda T é contada como um segundo QRS, a FC aparece dobrada e o RR parece irregular; com FC
+    detectada acima de 150 bpm e sem ritmo classificado, abster-se de rotular o ritmo e conferir o traçado.
+  limiares:
+    fc_bpm: '>150'
+  medidas:
+  - heart_rate_bpm
+  gatilhos:
+  - ecg.rhythm_unclassified_fast_rate
+  armadilhas:
+  - T alta e estreita pode ser contada como QRS; a FC real pode ser a metade da detectada.
+  - Taquicardia real regular (TSV, flutter 2:1) também chega a essa faixa de FC.
+  nao_confundir:
+  - ritmo.taquicardia_sinusal
+  - taq.tsv
+  - af.flutter
+  fonte:
+    ref: aha_2009_part_ii
+    local: Parte II, taquicardias e ritmos atriais
+    tipo: paráfrase
+  revisado_por_medico: false

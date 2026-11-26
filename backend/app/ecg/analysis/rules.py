@@ -201,6 +201,29 @@ FLUTTER_F_RATIO = 0.75    # E3: F-wave peak ratio (240-340/min, best of II/III/a
 FLUTTER_RATIO = 0.35     # share of 1-15 Hz power within +-0.5 Hz of the 3.5-6.7 Hz peak (see rhythm.flutter_features)
 
 
+UNCLASSIFIED_FAST_HR = 150.0    # M2: FC detectada acima da qual a dupla contagem de QRS (onda T) é suspeita
+UNCLASSIFIED_FAST_CODE = "ecg.rhythm_unclassified_fast_rate"
+# Regras que classificam o ritmo. ecg.sinus_tachycardia fica de fora de propósito: é só a regra de FC, corrompida
+# pela mesma dupla contagem que o sinal `unreliable` denuncia (limiar STACH intocado).
+RHYTHM_CLASSIFYING = ("ecg.atrial_fibrillation", "ecg.atrial_flutter", "ecg.irregular_rhythm", "ecg.non_sinus_p",
+                      "ecg.no_p_wave", "ecg.av_block_", "ecg.paced_rhythm")
+
+
+def rhythm_unclassified_fast_rate(hr, unreliable, findings):
+    """Achado de abstenção quando o detector de R marcou `unreliable` (possível T contada como QRS), a FC detectada
+    passa de 150 bpm e nenhuma regra classificou o ritmo. None nos demais casos."""
+    if not unreliable or hr is None or hr <= UNCLASSIFIED_FAST_HR:
+        return None
+    if any(f.code.startswith(RHYTHM_CLASSIFYING) for f in findings):
+        return None
+    return _f(UNCLASSIFIED_FAST_CODE,
+              "Ritmo não classificado: possível dupla contagem de QRS (onda T) com frequência detectada acima de "
+              "150 bpm; confirmar o traçado", "borderline",
+              [f"FC detectada {hr:.0f} bpm (>150) com sinal de dupla contagem de QRS não resolvível",
+               "a FC e a regularidade do RR podem estar superestimadas; ritmo não classificado pelas regras"],
+              [R_SBC, R_GOLD], 0.4)
+
+
 def classify_rhythm(c):
     """Returns (rhythm string, kind)."""
     hr, cv, rmssd = c["hr"], c["cv"], c["rmssd"]
@@ -699,8 +722,11 @@ def build_findings(c):
                       "abnormal" if hard else "borderline", why_st, [R_AHA, R_UDMI], 0.9))
 
     # Isolated borderline observations (SBC 2022 "limítrofe"/variants) do not make an ECG abnormal.
+    unc = rhythm_unclassified_fast_rate(hr, c.get("rpeaks_unreliable", False), out)
+    if unc is not None:
+        out.append(unc)
     abn = [f for f in out if f.severity in ("abnormal", "critical")]
-    if not abn:
+    if not abn and unc is None:
         bl = [f.label for f in out if f.severity == "borderline" and f.code != ST_NOT_ASSESSABLE_CODE]
         out.append(_f("ecg.within_normal_limits", NORMAL_LABEL,
                       "normal", ["nenhuma regra de anormalidade foi acionada"] +
