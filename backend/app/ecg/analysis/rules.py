@@ -27,7 +27,7 @@ ST_WIDE_QRS_MS = 120
 NORMAL_LABEL = "Nenhuma regra automática disparou; isso não exclui IAM, BAV ou outras alterações."
 
 
-def _st_not_assessable_reasons(out, pc, qrs_ms, bbb=None):
+def _st_not_assessable_reasons(out, pc, qrs_ms, bbb=None, qrs_width=None):
     """Motivos pelos quais o ST não é avaliável com confiança (lista vazia = avaliável).
 
     BRD/BRD incompleto NÃO entra pelo critério de QRS largo: o ST segue avaliável (supra V1-V3 não é esperado no BRD).
@@ -38,7 +38,11 @@ def _st_not_assessable_reasons(out, pc, qrs_ms, bbb=None):
     if pc and pc.get("type") in ("ventricular", "dual"):
         why.append("ritmo de marca-passo ventricular: QRS estimulado, ST/T secundários")
     if qrs_ms is not None and qrs_ms >= ST_WIDE_QRS_MS and bbb not in ("rbbb", "irbbb"):
-        why.append(f"QRS {qrs_ms:.0f} ms (>= {ST_WIDE_QRS_MS} ms): ST/T secundários possíveis")
+        if qrs_width is not None and abs(qrs_width - qrs_ms) >= 1:   # one displayed width (R5-M3); the gate stays global
+            why.append(f"QRS {qrs_width:.0f} ms (largura dos critérios de condução; global {qrs_ms:.0f} ms >= "
+                       f"{ST_WIDE_QRS_MS} ms): ST/T secundários possíveis")
+        else:
+            why.append(f"QRS {qrs_ms:.0f} ms (>= {ST_WIDE_QRS_MS} ms): ST/T secundários possíveis")
     return why
 
 
@@ -116,13 +120,22 @@ def _lead_ctx(bd, l):
     ws = ld.waves
     last = (ws[-1].kind, ws[-1].amp) if ws else (None, 0.0)
     q = min([w.amp for w in ws if w.kind == "Q"], default=0.0)
-    return dict(r=ld.r_max, s=ld.s_min, last=last, q=q)
+    return dict(r=ld.r_max, s=ld.s_min, last=last, q=q, first=ws[0].kind if ws else None)
 
 
 def rb_inc_lbbb_excl(v1):
-    """A clear terminal R' in V1 (>= 1.5 mm and >= 20% of S) argues against LBBB (rSr' = right delay)."""
+    """A clear terminal R' in V1 (>= 1.5 mm and >= 20% of S) argues against LBBB (rSr' = right delay).
+    rSr' needs an INITIAL r before the S (AHA/ACCF/HRS 2009 Part III: rsr'/rsR'/rSR' in V1): a Q/QS-first V1 whose
+    late positive bump is the elevated ST/J absorbed by the delineator (PTB-XL 180) is not a right delay."""
     k, a = v1["last"]
-    return k in ("R", "R'") and a >= 0.15 and a >= 0.2 * abs(v1["s"])
+    return k in ("R", "R'") and a >= 0.15 and a >= 0.2 * abs(v1["s"]) and v1.get("first", "R") in ("R", "R'")
+
+
+def _conduction_width(L, qrs):
+    """QRS width for the conduction criteria and for every displayed QRS value (one source): median of the
+    per-lead durations + QRS_GLOBAL_W x (global - median); the global width alone when < 6 leads measured."""
+    lead_q = sorted(m.qrs_ms for m in L.values() if m.qrs_ms)
+    return float(np.median(lead_q)) + QRS_GLOBAL_W * (qrs - float(np.median(lead_q))) if len(lead_q) >= 6 else qrs
 
 
 def _classify_bbb(bd, dur, fs_ms, L=None):
@@ -377,7 +390,10 @@ def build_findings(c):
             # Pre-excitation (AHA 2009 Part II/III): short PR + slurred QRS upstroke (delta wave) + wide QRS. The
             # global PR is biased long by early P onsets, so PR < 140 ms is accepted when the delta wave is
             # clear (initial slope < 45% of the maximum slope) and QRS >= 100 ms.
-            blk = rules_lvh.preexc_block_reason(c, pr, qrs_pre)   # image quality / PR confidence / implausible
+            # R5-M3: c["bbb"] is only set below; use the provisional classification so a real LBBB/RBBB of
+            # 200-260 ms is not called an implausible measurement (the ceiling is for QRS WITHOUT bundle morphology)
+            bbb_pre = _classify_bbb(bd, _conduction_width(L, qrs), fs_ms, L)[0]
+            blk = rules_lvh.preexc_block_reason({**c, "bbb": bbb_pre}, pr, qrs_pre)   # image quality / PR confidence / implausible
             if (pr < 120 or (pr < 140 and _classify_bbb(bd, qrs, fs_ms, L)[0] is None)) and qrs_pre >= 100 \
                     and esr is not None and esr < 0.45 and not blk:
                 out.append(_f("ecg.preexcitation", "Padrão de pré-excitação ventricular (onda delta)", "abnormal",
@@ -435,10 +451,10 @@ def build_findings(c):
     #  RBBB: QRS >=120 ms, terminal R/R' in V1 (dominant over S), wide S in I and/or V6.
     #  LBBB: QRS >=120 ms, V1-V2 predominantly negative (rS/QS), monophasic R without q in I/V5/V6.
     v1, v6, d1 = morph.get("V1", ""), morph.get("V6", ""), morph.get("I", "")
-    lead_q = sorted(m.qrs_ms for m in L.values() if m.qrs_ms)
     # E4: QRS width for the conduction criteria = median of the per-lead durations (robust to one lead with a
     # slow start/ST absorbed); the global earliest-onset/latest-offset width is kept when there are too few leads
-    dur = float(np.median(lead_q)) + QRS_GLOBAL_W * (qrs - float(np.median(lead_q))) if len(lead_q) >= 6 else qrs
+    dur = _conduction_width(L, qrs)
+    c["qrs_width_ms"] = dur
     cbbb, bbb_note = _classify_bbb(bd, dur, fs_ms, L)
     if cbbb in ("lbbb", "rbbb", "ilbbb", "irbbb") and any(f.code == "ecg.preexcitation" for f in out):
         cbbb = None  # delta wave widens the QRS and mimics a bundle branch block (AHA 2009 Part III, exclusions)
@@ -457,7 +473,7 @@ def build_findings(c):
                       [R_AHA, R_SBC], 0.45))
     elif dur > rules_lvh.QRS_IMPLAUSIBLE_MS and not c.get("paced"):
         if not any(f.code == "ecg.implausible_measurement" for f in out):
-            blk = f"QRS {dur:.0f} ms (>200) sem bloqueio de ramo/marcapasso"
+            blk = f"QRS {dur:.0f} ms (>{rules_lvh.QRS_IMPLAUSIBLE_MS:.0f}) sem bloqueio de ramo/marcapasso"
             out.append(_f("ecg.implausible_measurement", "Medida de PR/QRS implausível ou não confiável (achados dependentes não emitidos)",
                       "borderline", [blk], [R_AHA, R_SBC], 0.4))
     elif dur >= IVCD_MS and not any(f.code == "ecg.preexcitation" for f in out):
@@ -524,7 +540,15 @@ def build_findings(c):
             f"Cornell {cn*10:.0f} mm (>{cn_thr*10:.0f} mm" + (", homens >28 / mulheres >20)" if sex_ is None else ")"))
     if ravl > 1.1:
         weak.append(f"R em aVL {ravl*10:.0f} mm (>11 mm)")
-    if strong:
+    if rules_lvh.lvh_voltage_suppressed(c):
+        # R5-M3: LBBB inflates voltage and makes the repolarisation secondary (AHA/ACCF/HRS 2009 Part III/V):
+        # voltage criteria of LVH are not assessable; the ST/T follows the Sgarbossa/Smith note.
+        if strong or weak:
+            out.append(_f(rules_lvh.LVH_LBBB_CODE, rules_lvh.LVH_LBBB_LABEL, "borderline",
+                          strong + weak + ["critérios de voltagem (Sokolow-Lyon, Cornell, R em V5/V6, R em aVL) não "
+                                           "são válidos com BRE; padrão de miocardiopatia hipertrófica também não avaliado"],
+                          [R_AHA, R_SBC], 0.5))
+    elif strong:
         ev_l = strong + weak + ([f"alteração de ST-T lateral ({pl(strain_l)})"] if strain_l else [])
         out.append(_f("ecg.lvh", "Sobrecarga ventricular esquerda (critérios de voltagem)", "abnormal", ev_l,
                       [R_SBC, R_GOLD], 0.6 if strain_l else 0.5))
@@ -713,7 +737,7 @@ def build_findings(c):
 
     # ST/isquemia não avaliável de forma confiável com BRE, marca-passo ventricular ou QRS largo (só aviso: os
     # critérios de Sgarbossa/Smith são decisão clínica e NÃO são implementados aqui).
-    why_st = _st_not_assessable_reasons(out, pc, gm.qrs_ms, c["bbb"])
+    why_st = _st_not_assessable_reasons(out, pc, gm.qrs_ms, c["bbb"], c.get("qrs_width_ms"))
     if why_st:
         # BRE ou marca-passo ventricular: "abnormal" (o caso nunca sai como "sem alterações"); só QRS largo: borderline
         hard = any(w.startswith(("bloqueio de ramo esquerdo", "ritmo de marca-passo")) for w in why_st)

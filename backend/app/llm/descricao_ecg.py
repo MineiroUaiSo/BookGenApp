@@ -43,6 +43,7 @@ _Q = ("ecg.pathologic_q_",)
 _STT = ("ecg.st_elevation_", "ecg.st_depression_", "ecg.t_inversion_", "ecg.secondary_repolarization")
 _QT = ("ecg.long_qt", "ecg.short_qt")
 _TEC = ("ecg.digitization_suspect", "ecg.implausible_measurement")
+_QRS_LARGO_MS = 120   # QRS >= 120 ms: QTc sem ajuste ao QRS largo (a regra de QT longo já usa o QT ajustado)
 _QTC = (("qtc_bazett_ms", "Bazett"), ("qtc_fridericia_ms", "Fridericia"), ("qtc_framingham_ms", "Framingham"),
         ("qtc_hodges_ms", "Hodges"))
 _DERIV = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
@@ -253,7 +254,10 @@ def _qt(c: _Ctx) -> str:
     ach = c.f(_QT)
     tail = (f", e as regras automáticas acionaram {_juntar([_lc(a['label']) for a in ach])}" if ach else
             (", sem regra automática de QT longo ou curto acionada" if qtcs else ""))
-    return f"Quanto ao intervalo QT, {' e '.join(p)}{tail}."
+    qrs = c.m("qrs_ms")
+    wide = (" O QTc acima não tem ajuste ao QRS largo, o que tende a superestimá-lo."
+            if qtcs and qrs is not None and qrs >= _QRS_LARGO_MS else "")
+    return f"Quanto ao intervalo QT, {' e '.join(p)}{tail}.{wide}"
 
 
 def _camaras(c: _Ctx) -> str:
