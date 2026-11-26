@@ -25,13 +25,15 @@ Expõe só `GET /api/health` e `POST /api/oneshot/{ecg|rx}`. Sem estado, sem IA,
 | `idade_meses` | Inteiro 0..215 (até 17a11m). Ausente ou vazio continua pediátrico, com `idade_meses: null` e aviso. 216 ou mais: 400 `idade_fora_da_faixa` |
 | `sexo` | Opcional, `M` ou `F`. Validado e **não usado** (não aparece na resposta) |
 | `modo` | Opcional, só `pediatrico`. Qualquer outro valor: 400 `modo_invalido` |
+| `regiao_declarada` | Opcional (RX): `torax`, `abdome` ou `outro`. Outro valor: 400 `regiao_declarada_invalida`. Vazio conta como ausente |
+| `incidencia_declarada` | Opcional (RX): `pa`, `ap`, `perfil` ou `outro`. Outro valor: 400 `incidencia_declarada_invalida`. Vazio conta como ausente |
 | `layout` | Opcional (ECG): `auto`, `strips`, `3x4`, `3x4+1`, `6x2`, `12x1` |
 
 Resposta 200 (`Cache-Control: no-store`), chaves em snake_case:
 `tipo`, `modo` (`pediatrico`), `idade_meses` (int ou null), `incidencia?` e `regiao?` (só RX), `medidas[]` (`codigo`, `rotulo`, `valor`, `unidade`, `confiavel`, `nota?`), `qualidade[]` (`codigo`, `texto`, `nivel` = `info|alerta`), `descricao_tecnica`, `avisos[]`, `versao_motor`.
 
-- ECG: medidas `fc`, `rr`, `pr`, `qrs`, `qt`, `qtc_bazett` (sempre com a nota de Bazett), `eixo_qrs`. Medida ausente é omitida, nunca inventada.
-- RX v1: `medidas` sempre vazio (ICT suprimido), `incidencia`/`regiao` (ou `indeterminada` sob dúvida) e qualidade técnica.
+- ECG: medidas `fc`, `rr`, `pr`, `qrs`, `qt`, `qtc_bazett` (sempre com a nota de Bazett), `eixo_qrs`. Medida ausente é omitida, nunca inventada. Como a entrada é sempre imagem, toda medida traz a nota fixa "estimada a partir de imagem; conferir no traçado". `confiavel` é `false` em todas as medidas quando a calibração não foi verificada (pulso de calibração não achado na imagem ou grade com pouca confiança; item de qualidade `calibracao` com nível `alerta`). QRS >= 200 ms ou eixo fora de -90..180 graus saem sempre com `confiavel: false`, a nota e um aviso "valor extremo: pode ser artefato".
+- RX v1: `medidas` sempre vazio (ICT suprimido) e qualidade técnica. `incidencia` e `regiao` são o que o usuário declarou (`PA|AP|perfil|outro` e `tórax|abdome|outro`) ou `indeterminada` quando não declarou; a detecção do motor nunca é apresentada como fato. Só quando a detecção é confiante (sem aviso de baixa confiança, sem região incerta, sem fora de escopo) e contradiz a declaração sai o item de qualidade `divergencia_regiao` ("região detectada diverge da declarada: conferir") ou `divergencia_incidencia`. Os critérios de rotação, inspiração e exposição só aparecem com PA ou AP declarado.
 - Nunca saem `findings`, laudo, índices de voltagem, imagem, nome de arquivo ou texto livre do motor.
 
 Erros (`{"detail": {"codigo", "mensagem"}}`): 401 `nao_autenticado`, 503 `nao_configurado` (sem `MEDLENS_API_TOKEN` no ambiente), 400 (`idade_invalida`, `idade_fora_da_faixa`, `modo_invalido`, `sexo_invalido`, `layout_invalido`, `um_arquivo`, `arquivo_vazio`, `corpo_invalido`), 404 tipo desconhecido, 411, 413 (`arquivo_grande`, `corpo_grande`, `imagem_grande`), 415 `tipo_nao_permitido`, 422 (`imagem_invalida`, `imagem_nao_analisavel`), 500 `analise_falhou`, 502 `resultado_bloqueado`.
@@ -91,6 +93,8 @@ Smoke em preview/produção (imagem sintética ou pública anonimizada; **nunca 
 ```bash
 curl -s -X POST "$URL/api/oneshot/ecg" -H "Authorization: Bearer $TOKEN" \
   -F "file=@ecg-sintetico.png" -F "idade_meses=30" -F "sexo=F" | jq .
+curl -s -X POST "$URL/api/oneshot/rx" -H "Authorization: Bearer $TOKEN" \
+  -F "file=@rx-publico.png" -F "idade_meses=60" -F "regiao_declarada=torax" -F "incidencia_declarada=pa" | jq .
 curl -s -o /dev/null -w "%{http_code}\n" -X POST "$URL/api/oneshot/ecg" -F "file=@ecg-sintetico.png"   # esperado 401
 curl -s "$URL/api/health"                                                                                # esperado {"status":"ok",...}
 ```
@@ -98,6 +102,6 @@ curl -s "$URL/api/health"                                                       
 ## Limites conhecidos
 
 - Cold start: import do app ~0,2 s; a primeira análise importa scipy/opencv (~2 s com imagem real). Meta do plano: < 10 s.
-- RX sem modelo: a incidência e a região de projeções atípicas (perfil) podem errar; o serviço devolve `indeterminada` quando a heurística acusa fora de escopo ou região incerta, e o aviso diz que a estimativa é de baixa confiança.
+- RX sem modelo: a detecção de incidência e região erra em perfis (medido no OpenI: perfis de tórax lidos como abdome ou extremidade). Por isso a saída usa só a declaração do usuário; sem modelo, a detecção nunca é confiante e não gera item de divergência. Medido em 11 imagens OpenI (5 perfis): nenhuma saída contém "abdome" sem declaração.
 - Entrada DICOM/WFDB/PDF fora do v1 (o navegador converte DICOM em PNG antes de enviar).
 - O multipart é lido pelo Starlette, que pode usar arquivo temporário do sistema (apagado ao fim da requisição) para partes acima de 1 MB; o limite de `Content-Length` barra corpos acima de 4,5 MB antes de ler.

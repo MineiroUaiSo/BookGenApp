@@ -75,7 +75,16 @@ def _parse_idade(bruto: Any) -> Optional[int]:
     return meses
 
 
-def _validar_campos(form: Any) -> tuple[Optional[int], str]:
+def _declaracao(form: Any, campo: str, permitidos: dict[str, str]) -> Optional[str]:
+    valor = form.get(campo)
+    if valor is None or valor == "":
+        return None
+    if not isinstance(valor, str) or valor not in permitidos:
+        raise _erro(400, f"{campo}_invalida", f"{campo} deve ser um de: {', '.join(permitidos)}.")
+    return valor
+
+
+def _validar_campos(form: Any) -> tuple[Optional[int], str, dict[str, Optional[str]]]:
     modo = form.get("modo")
     if modo not in (None, "", "pediatrico"):
         raise _erro(400, "modo_invalido", "Este serviço atende apenas o modo pediátrico.")
@@ -85,7 +94,11 @@ def _validar_campos(form: Any) -> tuple[Optional[int], str]:
     layout = form.get("layout") or "auto"
     if layout not in LAYOUTS:
         raise _erro(400, "layout_invalido", "layout desconhecido.")
-    return _parse_idade(form.get("idade_meses")), layout
+    declaradas = {
+        "regiao_declarada": _declaracao(form, "regiao_declarada", pediatric.REGIOES_DECLARADAS),
+        "incidencia_declarada": _declaracao(form, "incidencia_declarada", pediatric.INCIDENCIAS_DECLARADAS),
+    }
+    return _parse_idade(form.get("idade_meses")), layout, declaradas
 
 
 async def _ler_arquivo(form: Any) -> tuple[bytes, str]:
@@ -138,7 +151,8 @@ def _analisar(tipo: str, caminho: Path, layout: str = "auto"):
     return RXAnalysis(study_id="oneshot", images=[img])
 
 
-def _processar(tipo: str, dados: bytes, ext: str, idade: Optional[int], layout: str) -> dict[str, Any]:
+def _processar(tipo: str, dados: bytes, ext: str, idade: Optional[int], layout: str,
+               declaradas: Optional[dict[str, Optional[str]]] = None) -> dict[str, Any]:
     """Tudo o que toca disco acontece aqui, dentro do TemporaryDirectory (apagado mesmo com exceção)."""
     with tempfile.TemporaryDirectory(prefix="medlens-oneshot-") as d:
         caminho = Path(d) / f"{_NOME_FIXO}.{ext}"
@@ -152,7 +166,8 @@ def _processar(tipo: str, dados: bytes, ext: str, idade: Optional[int], layout: 
             log.warning("oneshot: análise falhou (%s)", type(e).__name__)
             raise _erro(500, "analise_falhou", "Falha interna na análise.") from None
         try:
-            return pediatric.aplicar_modo_pediatrico(tipo, analise, idade)
+            extras = declaradas if tipo == "rx" and declaradas else {}
+            return pediatric.aplicar_modo_pediatrico(tipo, analise, idade, **extras)
         except ValueError:
             raise _erro(502, "resultado_bloqueado", "Resultado indisponível com segurança.") from None
     # o diretório e o arquivo já foram apagados ao sair do with
@@ -169,10 +184,10 @@ async def oneshot(tipo: str, request: Request) -> JSONResponse:
     except Exception:  # noqa: BLE001 - multipart malformado
         raise _erro(400, "corpo_invalido", "Corpo multipart inválido.") from None
     try:
-        idade, layout = _validar_campos(form)
+        idade, layout, declaradas = _validar_campos(form)
         dados, ext = await _ler_arquivo(form)
         _validar_imagem(dados, ext)
-        resultado = await run_in_threadpool(_processar, tipo, dados, ext, idade, layout)
+        resultado = await run_in_threadpool(_processar, tipo, dados, ext, idade, layout, declaradas)
     finally:
         await form.close()
     return JSONResponse(resultado, headers={"Cache-Control": "no-store"})

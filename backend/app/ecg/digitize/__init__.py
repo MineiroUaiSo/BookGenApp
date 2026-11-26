@@ -209,7 +209,8 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
                          "px_per_mm": float(0.5 * (ppx + ppy) / proc_scale),
                          "px_per_mm_x": float(ppx / proc_scale), "px_per_mm_y": float(ppy / proc_scale),
                          "grid_confidence": float(gr["confidence"]), "skew_deg": float(ginfo["skew_deg"]),
-                         "layout_confirmed": 1.0, "rhythm_strips": float(len(plan.rhythm)), **printed_cal, **calib_extra})
+                         "layout_confirmed": 1.0, "rhythm_strips": float(len(plan.rhythm)), "pulse_found": 1.0 if pulses else 0.0,
+                         **printed_cal, **calib_extra})
         if return_debug:
             dbg.update(layout=plan.name, warnings=warnings, plan=plan)
             return sig, dbg
@@ -282,7 +283,7 @@ def digitize_image(img: np.ndarray, layout: str = "auto", paper_speed_mm_s: floa
         calibration={"paper_speed_mm_s": float(speed), "gain_mm_mv": float(gain),
                      "px_per_mm": float(0.5 * (ppx + ppy) / proc_scale),
                      "px_per_mm_x": float(ppx / proc_scale), "px_per_mm_y": float(ppy / proc_scale), "grid_confidence": float(gr["confidence"]),
-                     "skew_deg": float(ginfo["skew_deg"]), **printed_cal, **calib_extra,
+                     "skew_deg": float(ginfo["skew_deg"]), "pulse_found": 1.0 if pulses else 0.0, **printed_cal, **calib_extra,
                      **({"rhythm_only": 1.0} if rhythm_only else {}),
                      **({"grid_spacing_cv": float(grid_cv)} if grid_cv is not None else {})})
     if return_debug:

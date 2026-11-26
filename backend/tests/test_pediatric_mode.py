@@ -20,7 +20,8 @@ def _ecg(gm=None, quality=0.9, calibration=None, warnings=None, findings=None, n
         heart_rate_bpm=128.0, rr_mean_ms=469.0, pr_ms=110.0, qrs_ms=70.0, qt_ms=290.0, qtc_bazett_ms=423.0,
         qrs_axis_deg=75.0, rhythm="Ritmo sinusal", qtc_fridericia_ms=400.0, sokolow_lyon_mv=3.2,
         p_axis_deg=50.0, t_axis_deg=40.0, cornell_mv=1.0)
-    cal = {"paper_speed_mm_s": 25.0, "gain_mm_mv": 10.0, "grid_confidence": 0.9} if calibration is None else calibration
+    cal = {"paper_speed_mm_s": 25.0, "gain_mm_mv": 10.0, "grid_confidence": 0.9,
+           "pulse_found": 1.0} if calibration is None else calibration
     leads = {k: [0.0] * 10 for k in LEADS[:n_leads]}
     sig = ECGSignal(fs=500, leads=leads, duration_s=10, source=SourceKind.IMAGE,
                     quality={k: quality for k in leads}, calibration=cal)
@@ -146,9 +147,57 @@ def test_ecg_avisos_trazem_o_aviso_fixo_pediatrico_e_a_referencia():
     assert any("Rijnbeek" in a and "11286528" in a for a in r["avisos"])
 
 
+NOTA_IMAGEM = "estimada a partir de imagem; conferir no traçado"
+
+
+def test_ecg_toda_medida_de_imagem_traz_a_nota_fixa():
+    r = aplicar_modo_pediatrico("ecg", _ecg(), 24)
+    assert r["medidas"] and all(NOTA_IMAGEM in m["nota"] for m in r["medidas"])
+    assert NOTA_BAZETT in _medida(r, "qtc_bazett")["nota"]      # a nota de Bazett continua junto do QTc
+
+
+@pytest.mark.parametrize("cal", [
+    {"paper_speed_mm_s": 25.0, "gain_mm_mv": 10.0, "grid_confidence": 0.9},                     # sem 'pulse_found'
+    {"paper_speed_mm_s": 25.0, "gain_mm_mv": 10.0, "grid_confidence": 0.9, "pulse_found": 0.0},  # pulso não achado
+])
+def test_ecg_calibracao_nao_verificada_derruba_confiabilidade_de_todas_as_medidas(cal):
+    r = aplicar_modo_pediatrico("ecg", _ecg(calibration=cal), 24)
+    assert r["medidas"] and all(m["confiavel"] is False for m in r["medidas"])
+    q = {x["codigo"]: x for x in r["qualidade"]}
+    assert q["calibracao"]["nivel"] == "alerta" and "não verificada" in q["calibracao"]["texto"]
+
+
+@pytest.mark.parametrize("qrs,extremo", [(199.0, False), (200.0, True), (260.0, True)])
+def test_ecg_qrs_extremo_vem_sempre_nao_confiavel_com_aviso(qrs, extremo):
+    gm = GlobalMeasurements(heart_rate_bpm=100.0, rr_mean_ms=600.0, qrs_ms=qrs, qt_ms=300.0)
+    r = aplicar_modo_pediatrico("ecg", _ecg(gm=gm), 24)
+    m = _medida(r, "qrs")
+    assert m["confiavel"] is (not extremo)
+    assert _medida(r, "fc")["confiavel"] is True                 # só a medida extrema é rebaixada
+    assert any("valor extremo: pode ser artefato" in a for a in r["avisos"]) is extremo
+    assert ("valor extremo: pode ser artefato" in m["nota"].lower()) is extremo
+    assert NOTA_IMAGEM in m["nota"] and ". Valor extremo" in m["nota"] or not extremo   # notas separadas por ponto
+
+
+@pytest.mark.parametrize("eixo,extremo", [(-90.0, False), (-91.0, True), (-120.0, True), (0.0, False),
+                                          (180.0, False), (181.0, True)])
+def test_ecg_eixo_fora_de_menos90_a_180_e_extremo(eixo, extremo):
+    gm = GlobalMeasurements(heart_rate_bpm=100.0, rr_mean_ms=600.0, qrs_axis_deg=eixo)
+    r = aplicar_modo_pediatrico("ecg", _ecg(gm=gm), 24)
+    assert _medida(r, "eixo_qrs")["confiavel"] is (not extremo)
+    assert any("valor extremo: pode ser artefato" in a for a in r["avisos"]) is extremo
+
+
+def test_ecg_aviso_de_valor_extremo_passa_no_filtro_de_vocabulario():
+    gm = GlobalMeasurements(heart_rate_bpm=100.0, rr_mean_ms=600.0, qrs_ms=240.0, qrs_axis_deg=-130.0)
+    r = aplicar_modo_pediatrico("ecg", _ecg(gm=gm), 24)
+    validar_contrato(r)
+    assert not [t for t in textos_filtrados(r) if VETADO.search(t)]
+
+
 # ------------------------------------------------------------------ RX
 def test_rx_pediatrico_sem_ict_sem_medidas_sem_achados():
-    r = aplicar_modo_pediatrico("rx", _rx(), 60)
+    r = aplicar_modo_pediatrico("rx", _rx(), 60, **DECL_PA)
     validar_contrato(r)
     assert r["medidas"] == []
     js = json.dumps(r, ensure_ascii=False).lower()
@@ -159,15 +208,88 @@ def test_rx_pediatrico_sem_ict_sem_medidas_sem_achados():
     assert any("Índice cardiotorácico não exibido" in a for a in r["avisos"])
 
 
-def test_rx_incidencia_regiao_e_qualidade_tecnica():
-    r = aplicar_modo_pediatrico("rx", _rx(), 60)
+DECL_PA = dict(regiao_declarada="torax", incidencia_declarada="pa")
+Q_CONFIANTE = {"rotação": "adequada (simétrica; critério: clavículas)"}   # sem a chave 'confiabilidade' = deteção confiante
+
+
+def test_rx_incidencia_regiao_e_qualidade_tecnica_com_declaracao():
+    r = aplicar_modo_pediatrico("rx", _rx(), 60, **DECL_PA)
     assert r["incidencia"] == "PA" and r["regiao"] == "tórax"
     cod = {q["codigo"]: q for q in r["qualidade"]}
+    assert cod["declaracao"]["nivel"] == "info"
     assert cod["rotacao"]["nivel"] == "info"
     assert cod["inspiracao"]["nivel"] == "alerta"
     assert cod["exposicao"]["nivel"] == "info"
     assert "texto_queimado" in cod
     assert "Segmentação" not in json.dumps(r, ensure_ascii=False)  # texto livre do motor nunca passa
+
+
+def test_rx_sem_declaracao_e_indeterminada_mesmo_com_deteccao_de_torax_pa():
+    r = aplicar_modo_pediatrico("rx", _rx(), 60)
+    assert r["incidencia"] == "indeterminada" and r["regiao"] == "indeterminada"
+    cod = {q["codigo"]: q for q in r["qualidade"]}
+    assert cod["declaracao"]["nivel"] == "alerta"
+    assert not {"rotacao", "inspiracao", "exposicao"} & set(cod)     # qualidade frontal só com PA/AP declarado
+    assert "divergencia_regiao" not in cod
+
+
+def test_rx_perfil_de_torax_detectado_como_abdome_nunca_sai_como_abdome_ok():
+    r = aplicar_modo_pediatrico("rx", _rx(view=RXView.OTHER, region=BodyRegion.ABDOMEN, out_of_scope=True), 60)
+    js = json.dumps(r, ensure_ascii=False).lower()
+    assert r["regiao"] == "indeterminada" and r["incidencia"] == "indeterminada"
+    assert "abdome" not in js and "abdomen" not in js
+    assert all(q["nivel"] == "alerta" for q in r["qualidade"] if q["codigo"] in ("declaracao", "escopo"))
+
+
+def test_rx_saida_traz_o_que_o_usuario_declarou_nao_o_detectado():
+    r = aplicar_modo_pediatrico("rx", _rx(view=RXView.OTHER, region=BodyRegion.ABDOMEN, out_of_scope=True), 60,
+                                regiao_declarada="torax", incidencia_declarada="perfil")
+    assert r["regiao"] == "tórax" and r["incidencia"] == "perfil"
+    assert "divergencia_regiao" not in {q["codigo"] for q in r["qualidade"]}   # deteção heurística não contradiz
+
+
+@pytest.mark.parametrize("decl,esperado", [("torax", "tórax"), ("abdome", "abdome"), ("outro", "outro")])
+def test_rx_regiao_declarada_aceita_torax_abdome_outro(decl, esperado):
+    assert aplicar_modo_pediatrico("rx", _rx(), 60, regiao_declarada=decl)["regiao"] == esperado
+
+
+@pytest.mark.parametrize("decl,esperado", [("pa", "PA"), ("ap", "AP"), ("perfil", "perfil"), ("outro", "outro")])
+def test_rx_incidencia_declarada_aceita_pa_ap_perfil_outro(decl, esperado):
+    assert aplicar_modo_pediatrico("rx", _rx(), 60, incidencia_declarada=decl)["incidencia"] == esperado
+
+
+@pytest.mark.parametrize("campo,valor", [("regiao_declarada", "pulmao"), ("regiao_declarada", "TORAX "),
+                                         ("incidencia_declarada", "lateral"), ("incidencia_declarada", "")])
+def test_rx_declaracao_invalida_levanta_erro(campo, valor):
+    with pytest.raises(ValueError):
+        aplicar_modo_pediatrico("rx", _rx(), 60, **{campo: valor})
+
+
+def test_rx_divergencia_so_com_deteccao_confiante_e_texto_exato():
+    r = aplicar_modo_pediatrico("rx", _rx(view=RXView.OTHER, region=BodyRegion.ABDOMEN, quality=Q_CONFIANTE), 60,
+                                regiao_declarada="torax", incidencia_declarada="pa")
+    div = next(q for q in r["qualidade"] if q["codigo"] == "divergencia_regiao")
+    assert div["texto"] == "região detectada diverge da declarada: conferir" and div["nivel"] == "alerta"
+    assert r["regiao"] == "tórax"                      # a saída continua sendo a declaração
+
+
+def test_rx_divergencia_de_incidencia_com_deteccao_confiante():
+    r = aplicar_modo_pediatrico("rx", _rx(view=RXView.LATERAL, region=BodyRegion.CHEST, quality=Q_CONFIANTE), 60,
+                                regiao_declarada="torax", incidencia_declarada="pa")
+    assert "divergencia_incidencia" in {q["codigo"] for q in r["qualidade"]}
+    assert "divergencia_regiao" not in {q["codigo"] for q in r["qualidade"]}
+
+
+def test_rx_sem_divergencia_quando_a_deteccao_confiante_concorda():
+    r = aplicar_modo_pediatrico("rx", _rx(view=RXView.AP, region=BodyRegion.CHEST, quality=Q_CONFIANTE), 60,
+                                regiao_declarada="torax", incidencia_declarada="pa")   # PA x AP não é contradição
+    assert not {"divergencia_regiao", "divergencia_incidencia"} & {q["codigo"] for q in r["qualidade"]}
+
+
+def test_rx_deteccao_confiante_mas_incerta_ou_fora_de_escopo_nao_conta_como_contradicao():
+    r = aplicar_modo_pediatrico("rx", _rx(view=RXView.OTHER, region=BodyRegion.ABDOMEN, quality=Q_CONFIANTE,
+                                          region_uncertain=True), 60, regiao_declarada="torax")
+    assert "divergencia_regiao" not in {q["codigo"] for q in r["qualidade"]}
 
 
 def test_rx_texto_queimado_nao_mascarado_e_alerta():
@@ -185,15 +307,11 @@ def test_rx_regiao_incerta_e_fora_de_escopo_geram_alerta_sem_texto_adulto():
     assert r["incidencia"] == "indeterminada" and r["regiao"] == "indeterminada"  # nunca afirma sob dúvida
 
 
-def test_rx_incidencia_outra_fica_indeterminada():
-    r = aplicar_modo_pediatrico("rx", _rx(view=RXView.OTHER, region=BodyRegion.OTHER), 60)
-    assert r["incidencia"] == "indeterminada" and r["regiao"] == "outra"
-
-
-def test_rx_descricao_menciona_incidencia_e_nao_classifica():
-    d = aplicar_modo_pediatrico("rx", _rx(), 60)["descricao_tecnica"]
-    assert "PA" in d and "tórax" in d
+def test_rx_descricao_menciona_a_declaracao_e_nao_classifica():
+    d = aplicar_modo_pediatrico("rx", _rx(), 60, **DECL_PA)["descricao_tecnica"]
+    assert "declarada" in d and "PA" in d and "tórax" in d
     assert not VETADO.search(d)
+    assert "indeterminad" in aplicar_modo_pediatrico("rx", _rx(), 60)["descricao_tecnica"]
 
 
 # ------------------------------------------------------------------ idade e vocabulário

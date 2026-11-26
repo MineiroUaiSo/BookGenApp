@@ -418,7 +418,7 @@ def test_ecg_sintetico_real_devolve_fc_dentro_de_5_bpm(ecg_sintetico, tmp_raiz, 
     fc = next(m for m in j["medidas"] if m["codigo"] == "fc")
     assert abs(fc["valor"] - hr) <= 5
     assert {m["codigo"] for m in j["medidas"]} >= {"fc", "rr"}
-    assert "nota" in next((m for m in j["medidas"] if m["codigo"] == "qtc_bazett"), {"nota": ""})
+    assert all("estimada a partir de imagem; conferir no traçado" in m["nota"] for m in j["medidas"])
     assert not ({"findings", "laudo"} & set(j))
     assert list(tmp_raiz.iterdir()) == []
 
@@ -435,7 +435,43 @@ def test_rx_sintetico_real_devolve_so_incidencia_regiao_e_qualidade(tmp_raiz, mo
     assert r.status_code == 200, r.text
     j = r.json()
     validar_contrato(j)
-    assert j["medidas"] == [] and j["regiao"] and j["incidencia"]
+    assert j["medidas"] == [] and j["regiao"] == "indeterminada" and j["incidencia"] == "indeterminada"
     assert "cardiothoracic" not in r.text and "image_png" not in r.text
     assert any("Índice cardiotorácico não exibido" in a for a in j["avisos"])
     assert list(tmp_raiz.iterdir()) == []
+
+
+# ------------------------------------------------------------------ RX: região/incidência declaradas
+def test_rx_saida_traz_o_que_foi_declarado(client, stub_analise):
+    r = _post(client, "rx", idade_meses=60, regiao_declarada="torax", incidencia_declarada="perfil")
+    assert r.status_code == 200, r.text
+    j = r.json()
+    validar_contrato(j)
+    assert j["regiao"] == "tórax" and j["incidencia"] == "perfil"
+
+
+def test_rx_sem_declaracao_sai_indeterminada(client, stub_analise):
+    j = _post(client, "rx", idade_meses=60).json()
+    assert j["regiao"] == "indeterminada" and j["incidencia"] == "indeterminada"
+
+
+@pytest.mark.parametrize("campo,valor", [("regiao_declarada", "pulmao"), ("regiao_declarada", "Torax"),
+                                         ("incidencia_declarada", "lateral"), ("incidencia_declarada", "PA")])
+def test_rx_declaracao_invalida_responde_400(client, stub_analise, campo, valor):
+    r = _post(client, "rx", idade_meses=60, **{campo: valor})
+    assert r.status_code == 400 and r.json()["detail"]["codigo"] == f"{campo}_invalida"
+
+
+def test_declaracao_vazia_conta_como_ausente(client, stub_analise):
+    j = _post(client, "rx", idade_meses=60, regiao_declarada="", incidencia_declarada="").json()
+    assert j["regiao"] == "indeterminada"
+
+
+def test_ecg_ignora_campos_de_declaracao_do_rx(client, stub_analise):
+    r = _post(client, "ecg", idade_meses=24, regiao_declarada="torax")
+    assert r.status_code == 200 and "regiao" not in r.json()
+
+
+def test_18_anos_continua_400_com_declaracao_e_sem_ia(client, stub_analise):
+    r = _post(client, "rx", idade_meses=216, regiao_declarada="torax", incidencia_declarada="pa")
+    assert r.status_code == 400 and r.json()["detail"]["codigo"] == "idade_fora_da_faixa"
