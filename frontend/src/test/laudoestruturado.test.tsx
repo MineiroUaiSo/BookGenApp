@@ -116,4 +116,73 @@ describe("LaudoEstruturado", () => {
       expect(texto).toContain("campos sem alteração visual");
     });
   });
+  describe("descrição completa", () => {
+    const D = "Radiografia de tórax em incidência PA, descrita a partir de análise automática. Pneumotórax, pneumoperitônio e posição de tubos/cateteres NÃO são avaliados por esta análise: revisar a imagem.";
+    const comDesc = (o: "ia" | "deterministico", removidas = 0): LaudoRX =>
+      ({ ...laudo, descricao_completa: D, descricao_origem: o, descricao_validacao: { frases: 5, removidas } });
+    afterEach(() => { vi.unstubAllGlobals(); });
+
+    it("mostra o bloco no fim, com o parágrafo e o botão de copiar fora da impressão", () => {
+      const { container } = render(<LaudoEstruturado laudo={comDesc("deterministico")} />);
+      const bloco = screen.getByRole("region", { name: "Descrição completa" });
+      expect(bloco.textContent).toContain(D);
+      expect(bloco.querySelector("p.laudo-descricao-texto")?.className).not.toMatch(/no-print/);
+      expect(screen.getByRole("button", { name: "Copiar descrição" }).className).toMatch(/no-print/);
+      const secoes = Array.from(container.querySelectorAll("section.laudo-secao"));
+      expect(secoes[secoes.length - 1]).toBe(bloco);
+    });
+    it("marca a origem: montado automaticamente x redigido por IA, verificado", () => {
+      const a = render(<LaudoEstruturado laudo={comDesc("deterministico")} />);
+      expect(screen.getByText(/Montado automaticamente/)).toBeTruthy();
+      a.unmount();
+      render(<LaudoEstruturado laudo={comDesc("ia", 2)} />);
+      expect(screen.getByText(/Redigido por IA, verificado \(2 frases sem lastro removidas\)/)).toBeTruthy();
+    });
+    it("sem descrição (servidor antigo) o bloco não aparece", () => {
+      render(<LaudoEstruturado laudo={laudo} />);
+      expect(screen.queryByRole("region", { name: "Descrição completa" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Copiar descrição" })).toBeNull();
+    });
+    it("com IA ligada busca a descrição redigida e troca o rótulo de origem; falha mantém a determinística", async () => {
+      const iaLaudo = { ...comDesc("ia", 1), descricao_completa: D + " (IA)" };
+      const f = vi.fn(async (_u: string) => new Response(JSON.stringify({ laudo_rx: iaLaudo, laudo_rx_markdown: "# Laudo RX" }), { status: 200 }));
+      vi.stubGlobal("fetch", f);
+      const a = render(<LaudoEstruturado laudo={comDesc("deterministico")} studyId="s9" ai />);
+      expect(screen.getByText(/Redação por IA em andamento/)).toBeTruthy();
+      await waitFor(() => expect(screen.getByText(/Redigido por IA, verificado \(1 frase sem lastro removida\)/)).toBeTruthy());
+      expect(String((f.mock.calls[0] as unknown[])[0])).toMatch(/\/rx\/s9\/descricao$/);
+      expect(screen.getByRole("region", { name: "Descrição completa" }).textContent).toContain("(IA)");
+      a.unmount();
+      vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))));
+      render(<LaudoEstruturado laudo={comDesc("deterministico")} studyId="s9" ai />);
+      await waitFor(() => expect(screen.queryByText(/em andamento/)).toBeNull());
+      expect(screen.getByText(/Montado automaticamente/)).toBeTruthy();
+    });
+    it("sem IA não chama o servidor", () => {
+      const f = vi.fn(); vi.stubGlobal("fetch", f);
+      render(<LaudoEstruturado laudo={comDesc("deterministico")} studyId="s9" />);
+      expect(f).not.toHaveBeenCalled();
+    });
+    it("Copiar descrição copia só o parágrafo", async () => {
+      const writeText = vi.fn(async () => {});
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      render(<LaudoEstruturado laudo={comDesc("ia")} markdown={"# Laudo RX"} />);
+      fireEvent.click(screen.getByRole("button", { name: "Copiar descrição" }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(D));
+    });
+    it("Copiar laudo inclui a descrição (uma vez só se o markdown já a traz)", async () => {
+      const writeText = vi.fn(async () => {});
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      const a = render(<LaudoEstruturado laudo={comDesc("ia")} markdown={"# Laudo RX"} />);
+      fireEvent.click(screen.getByRole("button", { name: /Copiar laudo/ }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+      expect((writeText.mock.calls[0] as unknown as [string])[0]).toContain(D);
+      a.unmount();
+      render(<LaudoEstruturado laudo={comDesc("ia")} markdown={`# Laudo RX\n\n## Descrição completa\n${D}\n`} />);
+      fireEvent.click(screen.getByRole("button", { name: /Copiar laudo/ }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
+      const t2 = (writeText.mock.calls[1] as unknown as [string])[0];
+      expect(t2.split(D).length - 1).toBe(1);
+    });
+  });
 });
