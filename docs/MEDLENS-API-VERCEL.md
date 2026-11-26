@@ -105,3 +105,56 @@ curl -s "$URL/api/health"                                                       
 - RX sem modelo: a detecção de incidência e região erra em perfis (medido no OpenI: perfis de tórax lidos como abdome ou extremidade). Por isso a saída usa só a declaração do usuário; sem modelo, a detecção nunca é confiante e não gera item de divergência. Medido em 11 imagens OpenI (5 perfis): nenhuma saída contém "abdome" sem declaração.
 - Entrada DICOM/WFDB/PDF fora do v1 (o navegador converte DICOM em PNG antes de enviar).
 - O multipart é lido pelo Starlette, que pode usar arquivo temporário do sistema (apagado ao fim da requisição) para partes acima de 1 MB; o limite de `Content-Length` barra corpos acima de 4,5 MB antes de ler.
+
+## Deploy 2026-11-26
+
+Projeto `medlens-api` (id `prj_l1x5dSvlk0R3Yub55sSXYGWvKFrC`, equipe `mviniciusses-1874s-projects` = `team_5XiXyOxtAbJThCXfoJOcoUFM`). Deploy de produção `dpl_7QeKmCdP3a62oYZRXm88rzWdjfrQ`, função `api/index.py` em `gru1`, Python 3.12.
+
+- **URL estável de produção (usar como `MEDLENS_API_URL`):** `https://medlens-api-nu.vercel.app` (alias extra: `https://medlens-api-mviniciusses-1874s-projects.vercel.app`).
+- **Bundle:** 407,88 MB brutos no build (abaixo de 500 MB); a Vercel otimiza e a função sai com 43,12 MB (`vercel inspect`). As dependências são instaladas no runtime a cada cold start (~2,5 a 3 s, visto nos logs).
+- **Diretório de deploy limpo** (fora do repo): cópia de `backend/api`, `backend/app`, `requirements.txt`, `.python-version`, `.vercelignore` e um `vercel.json` próprio. Sem `.venv`, `tests`, `bench`, `data`, `medlens_data`, imagens.
+- **Env (production, tipo Sensitive):** `MEDLENS_API_TOKEN` (`openssl rand -hex 32`; valor só em arquivo 0600 fora do repo, nunca impresso), `MEDLENS_RETENCAO_HORAS=0.1`, e `MEDLENS_DESCRICAO_IA`, `MEDLENS_RX_DESCRICAO_IA`, `MEDLENS_RX_IMAGE_AI`, `MEDLENS_RX_LAUDO_IA`, `MEDLENS_LAUDO`, `MEDLENS_RX_MODELS` todos `0` (redundante com `api/index.py`). Sem `OPENROUTER_API_KEY` e sem `ANTHROPIC_API_KEY`. Não há env em Preview (o Pediatria usa só Production no medlens-api).
+- **Proteção de deployment:** `ssoProtection` do projeto `medlens-api` foi posta em `null` via `PATCH /v9/projects/{id}` (só este projeto; o `assistente-pediatria` não foi tocado). A segurança passa a ser só o Bearer do `phi_guard` (falha fechada: 401 sem token, 503 se o token faltar no ambiente).
+
+### Correção necessária no `vercel.json` (importante)
+
+O `backend/vercel.json` do repo (com `rewrites` para `/api/index` e `functions`) **não serve** no projeto com preset FastAPI:
+1. Com o rewrite, a Vercel roteia pelo destino reescrito e toda rota vira 404.
+2. Sem o rewrite, o preset FastAPI detecta `app/main.py` como entrypoint (candidato padrão) e sobe o **app completo** (`app = create_app()` no fim do módulo, com `/api/studies`, `/api/ingest` etc. e os flags de IA sem a trava de `api/index.py`). Foi o que apareceu no primeiro deploy; foi removido.
+3. `pyproject.toml` com `[project.scripts]` não foi respeitado e ainda tira o `requirements.txt` do caminho.
+
+Solução aplicada: builder explícito `@vercel/python` com rota que preserva o caminho. `vercel.json` realmente em produção:
+
+```json
+{
+  "regions": ["gru1"],
+  "builds": [{
+    "src": "api/index.py",
+    "use": "@vercel/python",
+    "config": {
+      "maxLambdaSize": "500mb",
+      "excludeFiles": "{tests/**,bench/**,data/**,docs/**,medlens_data/**,frontend/**,**/tests/**,**/test/**,**/__pycache__/**,**/*.pyc,**/*.dcm,.venv/**}"
+    }
+  }],
+  "routes": [{ "src": "/(.*)", "dest": "/api/index.py" }]
+}
+```
+
+Pendente: copiar este arquivo para `backend/vercel.json` (ainda não feito, fora do escopo do P4a). Os 3 deploys anteriores (app completo / 404 / falha de import) foram removidos.
+
+### Smoke em produção (imagens públicas/sintéticas, nenhum LLM)
+
+| Teste | Resultado |
+|---|---|
+| `GET /api/health` com token | 200 `{"status":"ok","modo":"oneshot-pediatrico"}` (sem token: 401, o `phi_guard` cobre todas as rotas) |
+| `POST /api/oneshot/ecg` sem token | 401 |
+| `POST /api/oneshot/ecg` token errado | 401 |
+| `POST /api/oneshot/rx`, RX público NLM Open-i CXR1521, `idade_meses=60`, `torax`, `pa` | 200, `medidas: []`, sem "cardiomegalia", "normal" ou ICT numérico; avisos dizem que o ICT não é exibido |
+| `POST /api/oneshot/ecg`, ECG sintético do repo (`tests/synth_ecg.py`, FC real 100 bpm), `idade_meses=60` | 200, FC 100 bpm, 7 medidas, todas com a nota "estimada a partir de imagem; conferir no traçado" |
+| `POST /api/oneshot/ecg`, `idade_meses=216` | 400 `idade_fora_da_faixa` |
+
+Latência (do Mac, ida e volta): 401 sem corpo ~0,25 a 0,4 s; health quente ~0,12 s; RX primeira chamada (inclui cold start) 3,1 s, quente 0,74 s; ECG primeira chamada 5,3 s, quente ~5,0 s (CPU, imagem 2144x1232). Três ECGs simultâneos: 13,5 a 14,4 s cada, ou seja, a análise de ECG contende por CPU quando concorrente; o Pediatria deve enviar uma por vez e usar timeout >= 30 s.
+
+Logs (`vercel logs --deployment dpl_7QeKmCdP3a62oYZRXm88rzWdjfrQ`): só método e caminho de cada requisição e a instalação de dependências; nenhuma ocorrência de nome de arquivo, extensão de imagem ou conteúdo.
+
+O doc acima (seção "Deploy (comandos exatos)") sugere `openssl rand -base64 48`; o token real foi gerado com `-hex 32`. O valor não é registrado aqui.
