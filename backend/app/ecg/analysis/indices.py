@@ -11,6 +11,7 @@ References (cited as sources only):
 """
 from __future__ import annotations
 
+import numpy as np
 from typing import Any, Optional
 
 SOKOLOW_MM = 35.0              # Sokolow-Lyon: soma >= 35 mm
@@ -27,9 +28,20 @@ RE_P_NEG_DEPTH_MM, RE_P_NEG_DUR_MS = 1.0, 40.0   # Romhilt-Estes (SAE): fase neg
 RE_PROBABLE, RE_DEFINITE = 4, 5
 
 
+def _native(x: Any) -> Any:
+    """numpy.bool_/escalares numpy -> tipos nativos (o JSON da API não serializa numpy.bool)."""
+    if isinstance(x, np.generic):
+        return x.item()
+    if isinstance(x, dict):
+        return {k: _native(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_native(v) for v in x]
+    return x
+
+
 def _idx(v: Optional[float], unit: str, thr: Any, fills: Any, comp: dict) -> dict:
-    return {"v": v if v is None or isinstance(v, int) else round(float(v), 2), "unidade": unit, "limiar": thr, "preenche": fills,
-            "componentes": comp}
+    return {"v": v if v is None or isinstance(v, int) else round(float(v), 2), "unidade": unit, "limiar": _native(thr),
+            "preenche": _native(fills), "componentes": _native(comp)}
 
 
 def _sexed(v: float, thr: dict, sex: Optional[str]) -> tuple[Any, Any]:
