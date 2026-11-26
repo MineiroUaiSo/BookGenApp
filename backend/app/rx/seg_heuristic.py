@@ -519,6 +519,17 @@ def segment_chest_lateral(s: np.ndarray, posterior: Optional[str] = None,
         out["trachea"] = lab == best
     if found.get("from_hint"):
         out.update(_lateral_templates(s, lung, t, posterior))
+    # M1: SÓ campo pulmonar e diafragma vêm do sinal de imagem (seg_lateral); coração, coluna, esterno e traqueia
+    # seguem exatamente os priors acima (a heurística de coração do seg_lateral reduziu o IoU de 0,441 para 0,401).
+    from . import seg_lateral
+    hint_ok = lung_hint is not None and lung_hint.shape == s.shape and lung_hint.sum() > 0.04 * H * W
+    by_signal = seg_lateral.segment_lateral(s, posterior, lung_hint if hint_ok else None)
+    if by_signal is not None:
+        out["lung_field"] = by_signal["lung_field"]
+        out["diaphragm"] = by_signal["diaphragm"]
+    # priors geométricos nunca são apresentados como medida
+    out["_estimativa"] = tuple(k for k in ("spine", "sternum", "heart", "trachea")
+                               if k in out and (k in ("spine", "sternum") or found.get("from_hint")))
     return out
 
 

@@ -103,3 +103,26 @@ testes ficam disponíveis para um próximo ciclo.
   ganham sinal confiável. Próximo passo candidato: modelo treinado para perfil, validado em RX clínico.
 * Marca de estimativa: não existe campo no schema `Structure`; a convenção é confiança <= 0,1 e o sufixo
   " (estimativa geométrica, sem sinal na imagem)" no rótulo (`marcar_estimativas`), no mesmo espírito do recon3d.
+
+## Lote M1: pulmão e diafragma da `seg_lateral` ligados ao ramo lateral (2026-11-25)
+
+Ligação parcial: em `seg_heuristic.segment_chest_lateral` o campo pulmonar e o diafragma passam a vir de
+`seg_lateral.segment_lateral`; coração, coluna, esterno e traqueia ficam EXATAMENTE como no ramo legado (priors), sem a
+heurística de coração do D4, que reduzira o IoU de 0,441 para 0,401. Sem campo claro, o ramo legado vale inteiro.
+`analyze.py` chama `marcar_estimativas` com a chave `_estimativa` (coluna e esterno sempre; coração e traqueia quando vêm
+de molde sobre a dica do modelo): confiança <= 0,1 e rótulo "(estimativa geométrica, sem sinal na imagem)".
+
+Medido em `rx_profile_pairs.py --inproc --n 40` (36 perfis), antes e depois:
+
+| Medida | Antes | Depois |
+|---|---|---|
+| Coração, IoU médio | 0,44 | 0,44 |
+| Coluna, IoU médio | 0,31 | 0,31 |
+| Traqueia, IoU médio | 0,04 (16/36) | 0,04 (16/36) |
+| Pulmão, IoU da extensão vertical (proxy) | 0,65 | 0,76 |
+| Pulmão, IoU vs caixa coluna-esterno (proxy) | 0,31 | 0,44 |
+| Pulmão, área média | 0,119 | 0,194 |
+| Perfis com estrutura marcada como estimativa | 0/36 | 36/36 |
+| `recon3d` montado nos perfis detectados | - | 36/36 |
+
+Nos 5 pares reais Open-i (só avaliação local) o overlay está em `~/medlens-shots/m1-lateral-overlay.png`.

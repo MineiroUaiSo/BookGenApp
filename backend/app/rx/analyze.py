@@ -12,6 +12,7 @@ from ..schemas import BodyRegion, RXImageAnalysis, RXMeasurement, RXView, Struct
 from . import measure, seg_cxas, seg_heuristic as H, seg_model, view as V
 from .calibration import calibrate_scores
 from .scope import check_scope
+from .seg_lateral import marcar_estimativas
 from ._common import autocrop, build_structure, encode_png_b64, normalize_polarity, polarity_margin, to_work
 
 # heuristic masks are unreliable on real films (Dice 0.07-0.24): cap confidence low
@@ -258,9 +259,10 @@ def analyze_image(img_uint8: np.ndarray, instance_id: str, ds: Any = None, *, us
         masks = H.segment_chest_lateral(s, V.posterior_side_from_tags(ds), hint)
         if masks is not None:
             masks = canvas_masks(masks)
-            seg_desc = ("campo pulmonar PSPNet + priors anatômicos (perfil) — baixa confiança" if hint is not None
-                        else "heurística clássica (perfil) — baixa confiança")
+            seg_desc = ("campo pulmonar/diafragma por sinal de imagem (PSPNet como guia) + priors anatômicos (perfil) — baixa confiança" if hint is not None
+                        else "campo pulmonar/diafragma por sinal de imagem + priors anatômicos (perfil) — baixa confiança")
             structures = _structures(masks, full, scale, spacing, "heuristic", _ORDER)
+            marcar_estimativas(structures, masks.get("_estimativa", ()))
             quality["confiabilidade"] = HEUR_WARN
             post = "direita" if int(masks["_posterior"][0]) == 1 else "esquerda"
             quality["orientação"] = f"coluna à {post} da imagem (estimada)"
