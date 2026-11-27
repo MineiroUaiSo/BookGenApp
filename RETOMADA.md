@@ -1,5 +1,13 @@
 # RETOMADA — MedLens (rodada 2, 2026-11-24)
 
+## Integração Assistente Pediatria — NO AR (2026-11-26)
+- **Produção:** aba "Exames de imagem (apoio) · BETA" (`/raio-x`) em `assistente-pediatria.vercel.app`, deploy Ready 06:27 (1º build falhou por erro de fonte Google/Turbopack, sem relação com o código; `vercel redeploy` resolveu). `origin/main` do Pediatria = f69a86f3 (branch `feat/exames-imagem`, 36 arquivos).
+- **Backend:** projeto Vercel separado `medlens-api` (gru1, py3.12, `@vercel/python` + `routes`), `https://medlens-api-nu.vercel.app`, `POST /api/oneshot/{ecg|rx}`, Bearer `MEDLENS_API_TOKEN` (arquivo do token no scratchpad; nunca imprimir). Doc: `docs/MEDLENS-API-VERCEL.md`. Plano: `docs/PEDIATRIA-INTEGRACAO-PLANO.md`.
+- **Envs Pediatria (Production):** `MEDLENS_API_URL`, `MEDLENS_API_TOKEN` (sensível). Kill-switch: remover `MEDLENS_API_URL` → aba mostra "Leitor indisponível". Rollback de deploy: promover `dpl_DwrUdGS6…`.
+- **Regras pediátricas:** só 0..215 meses (18+ → 400). RX: sem ICT; região/incidência = o que o médico declara; só qualidade técnica. ECG: FC/RR/PR/QRS/QT/QTc(Bazett)/eixo, tudo "estimada a partir de imagem; conferir no traçado"; QRS≥200 ms ou eixo fora de -90..180 → `confiavel=false`. IA desligada.
+- **Smoke prod:** `/`→307 /login, /login 200, /cadastro 200, /raio-x→307 /login, POST /api/exames/analisar sem sessão 401. Fluxo logado NÃO testado (sem senha): testar Menu → Exames de imagem.
+- **Pendências:** (F1) ICT pediátrico exige segmentação ONNX (Fable); (P-CLIN-1) tabela de referência pediátrica validada por médico (Rijnbeek/Davignon); detecção de região no RX; ECG ~5 s e 3 simultâneos ~14 s (Pediatria envia 1 por vez); nit "Valores estimada…"; decisão do dono sobre HVE (suprimir x rebaixar); main do MedLens não recebeu push. Teste de rede real: usar `// @vitest-environment node` (jsdom quebra FormData/Blob).
+
 ## Rodada R5 — fechamento (2026-11-25 noite 4)
 - Mesclados e enviados (branch claude/ecg-rx-ai-reader-nd20rs, sem main/deploy): M1 (perfil RX: pulmão/diafragma de seg_lateral; descrição RX alinhada ao doc), M2 (ECG ritmo não classificado FC>150; descrição ECG sem chave de IA), M3 (BRE completo em QRS largo; HVE/HCM por voltagem suprimidas com BRE). pytest 1458 passed.
 - ECG real PTB-XL 00180 (CLBBB): agora emite ecg.lbbb (QRS 224 ms) + nota `lvh_not_assessable_lbbb` + repolarização secundária; sumiram lvh/hcm_pattern/supra ST limítrofe. Sobrou ecg.lae (sobrecarga atrial esquerda, abnormal) e `pr_gt200_unconfirmed`: conferir.
